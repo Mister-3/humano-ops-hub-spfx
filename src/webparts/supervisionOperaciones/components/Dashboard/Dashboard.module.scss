@@ -1,0 +1,65 @@
+.dashboard {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 24px 0;
+}
+
+.loading {
+  min-height: 280px;
+}
+
+.subtitle {
+  margin-top: 4px;
+  color: "[theme:neutralSecondary, default: #605e5c]";
+}
+
+.leaderCard,
+.tableCard {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 24px;
+  overflow: hidden;
+  background: "[theme:white, default: #ffffff]";
+  border: 1px solid "[theme:neutralLight, default: #edebe9]";
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+.leaderCard {
+  background: "[theme:themeLighterAlt, default: #f3f9fd]";
+  border-color: "[theme:themeTertiary, default: #71afe5]";
+}
+
+.tableCard {
+  overflow-x: auto;
+}
+
+.heroContent {
+  min-width: 220px;
+  margin-left: auto;
+  color: "[theme:bodyText, default: #323130]";
+  text-align: right;
+}
+
+.heroTitle {
+  color: "[theme:themePrimary, default: #0078d4]";
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.penalty {
+  color: "[theme:errorText, default: #a4262c]";
+}
+
+@media (max-width: 640px) {
+  .leaderCard {
+    flex-wrap: wrap;
+  }
+
+  .heroContent {
+    width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+}

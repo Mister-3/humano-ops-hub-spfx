@@ -1,0 +1,19 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "useGulp": false,
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.23.1",
+    "sdksVersions": {},
+    "version": "1.23.2",
+    "libraryName": "supervision-app-new",
+    "libraryId": "044a91d4-d3cf-4a1d-ae40-416612781780",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "supervision-app-new",
+    "solutionShortDescription": "supervision-app-new description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

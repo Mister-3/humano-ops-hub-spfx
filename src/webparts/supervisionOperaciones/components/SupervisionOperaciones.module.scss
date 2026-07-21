@@ -1,0 +1,24 @@
+.supervisionOperaciones {
+  box-sizing: border-box;
+  min-height: 160px;
+  padding: 24px;
+  color: "[theme:bodyText, default: #323130]";
+  text-align: center;
+
+  :global(.ms-MessageBar) {
+    width: 100%;
+    max-width: 720px;
+  }
+}
+
+.pivot {
+  width: 100%;
+  max-width: 960px;
+  text-align: left;
+}
+
+.tabContent {
+  min-height: 180px;
+  padding: 32px 16px;
+  text-align: center;
+}

@@ -1,0 +1,21 @@
+.form {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 24px 0;
+}
+
+.description {
+  color: "[theme:neutralSecondary, default: #605e5c]";
+}
+
+.formCard {
+  padding: 24px;
+  background: "[theme:white, default: #ffffff]";
+  border: 1px solid "[theme:neutralLight, default: #edebe9]";
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+.field {
+  min-width: 180px;
+}
