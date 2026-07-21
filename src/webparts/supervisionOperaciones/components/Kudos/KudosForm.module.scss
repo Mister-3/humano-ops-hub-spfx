@@ -1,0 +1,62 @@
+.form {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 24px 0;
+  color: #ffffff;
+}
+
+.formCard {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #ffffff;
+  background: #1a1a1e;
+  border: 1px solid #2d2d35;
+  border-radius: 8px;
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.34),
+    0 0 20px rgba(0, 120, 212, 0.08);
+
+  :global(.ms-Label),
+  :global(.ms-Spinner-label) {
+    color: #e8e8ec;
+  }
+
+  :global(.ms-Dropdown-title),
+  :global(.ms-TextField-field),
+  :global(.ms-TextField-fieldGroup) {
+    color: #ffffff;
+    background: #121216;
+    border-color: #3b3b45;
+  }
+
+  :global(.ms-Dropdown-caretDown) {
+    color: #d0d0d0;
+  }
+
+  :global(.ms-Button--primary) {
+    box-shadow: 0 0 14px rgba(0, 120, 212, 0.24);
+  }
+}
+
+.title {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.description {
+  color: #c8c8c8;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .form {
+    padding: 16px 0;
+  }
+
+  .formCard {
+    padding: 18px;
+  }
+}

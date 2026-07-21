@@ -8,12 +8,14 @@ import {
   Spinner,
   SpinnerSize,
   Stack,
-  Text
+  Text,
+  ThemeProvider
 } from '@fluentui/react';
 
 import type { IUsuario } from '../models/AppModels';
 import type GraphService from '../services/GraphService';
 import SecurityService from '../services/SecurityService';
+import { darkTheme, glowCardStyles } from '../theme/DarkTheme';
 import AdminPanel from './Admin/AdminPanel';
 import Dashboard from './Dashboard/Dashboard';
 import FaltasForm from './Faltas/FaltasForm';
@@ -64,71 +66,131 @@ const SupervisionOperaciones: React.FC<ISupervisionOperacionesProps> = ({
     };
   }, []);
 
-  if (isLoading) {
-    return (
-      <Stack className={styles.supervisionOperaciones} verticalAlign="center">
-        <Spinner
-          label="Cargando identidad de Microsoft 365..."
-          size={SpinnerSize.large}
-        />
-      </Stack>
-    );
-  }
+  const renderContent = (): React.ReactElement => {
+    if (isLoading) {
+      return (
+        <Stack
+          className={styles.stateContainer}
+          horizontalAlign="center"
+          verticalAlign="center"
+        >
+          <Stack className={styles.stateCard} styles={glowCardStyles}>
+            <Spinner
+              label="Cargando identidad de Microsoft 365..."
+              size={SpinnerSize.large}
+            />
+          </Stack>
+        </Stack>
+      );
+    }
 
-  if (errorMessage || !usuario) {
+    if (errorMessage || !usuario) {
+      return (
+        <Stack
+          className={styles.stateContainer}
+          horizontalAlign="center"
+          verticalAlign="center"
+        >
+          <Stack className={styles.stateCard} styles={glowCardStyles}>
+            <MessageBar messageBarType={MessageBarType.error}>
+              {errorMessage || 'No fue posible identificar al usuario actual.'}
+            </MessageBar>
+          </Stack>
+        </Stack>
+      );
+    }
+
     return (
-      <Stack className={styles.supervisionOperaciones} verticalAlign="center">
-        <MessageBar messageBarType={MessageBarType.error}>
-          {errorMessage || 'No fue posible identificar al usuario actual.'}
-        </MessageBar>
+      <Stack
+        className={styles.supervisionOperaciones}
+        horizontalAlign="center"
+        tokens={{ childrenGap: 24 }}
+      >
+        <Stack
+          className={styles.commandHeader}
+          horizontal
+          horizontalAlign="space-between"
+          verticalAlign="center"
+          wrap
+          tokens={{ childrenGap: 24 }}
+          styles={glowCardStyles}
+        >
+          <Stack className={styles.identityBlock} tokens={{ childrenGap: 6 }}>
+            <Text className={styles.commandKicker}>
+              HUMANO SEGUROS · CENTRO DE COMANDO
+            </Text>
+            <Text className={styles.welcomeTitle}>
+              Bienvenido, {usuario.displayName}
+            </Text>
+            <Text className={styles.commandSubtitle}>
+              Supervisión de cultura y rendimiento operativo
+            </Text>
+          </Stack>
+
+          <Stack
+            className={styles.commandActions}
+            horizontal
+            verticalAlign="center"
+            wrap
+            tokens={{ childrenGap: 16 }}
+          >
+            <Stack
+              className={styles.roleWidget}
+              horizontal
+              verticalAlign="center"
+              tokens={{ childrenGap: 12 }}
+            >
+              <span className={styles.statusDot} aria-hidden="true" />
+              <Stack tokens={{ childrenGap: 2 }}>
+                <Text className={styles.roleLabel}>ROL ACTIVO</Text>
+                <Text className={styles.roleValue}>{usuario.rol}</Text>
+              </Stack>
+            </Stack>
+
+            <DefaultButton
+              className={styles.adminButton}
+              disabled={usuario.rol !== 'Admin'}
+              iconProps={{ iconName: 'Settings' }}
+              text="Acceso a panel de configuración"
+            />
+          </Stack>
+        </Stack>
+
+        <div className={styles.navigationSurface}>
+          <Pivot className={styles.pivot} aria-label="Módulos del portal">
+            <PivotItem headerText="Dashboard">
+              <Dashboard />
+            </PivotItem>
+
+            <PivotItem headerText="Registro Operativo">
+              <FaltasForm graphService={graphService} userRole={usuario.rol} />
+            </PivotItem>
+
+            <PivotItem headerText="Reconocimientos">
+              <KudosForm graphService={graphService} remitente={usuario.displayName} />
+            </PivotItem>
+
+            {(usuario.rol === 'Admin' || usuario.rol === 'Supervisor') && (
+              <PivotItem headerText="Carga de Productividad">
+                <ProductividadForm graphService={graphService} />
+              </PivotItem>
+            )}
+
+            {usuario.rol === 'Admin' && (
+              <PivotItem headerText="Administración">
+                <AdminPanel userRole={usuario.rol} />
+              </PivotItem>
+            )}
+          </Pivot>
+        </div>
       </Stack>
     );
-  }
+  };
 
   return (
-    <Stack
-      className={styles.supervisionOperaciones}
-      horizontalAlign="center"
-      verticalAlign="center"
-      tokens={{ childrenGap: 20 }}
-    >
-      <MessageBar messageBarType={MessageBarType.success}>
-        <Text variant="large">
-          Bienvenido, {usuario.displayName}. Rol activo: {usuario.rol}
-        </Text>
-      </MessageBar>
-
-      <DefaultButton
-        disabled={usuario.rol !== 'Admin'}
-        text="Acceso a panel de configuración"
-      />
-
-      <Pivot className={styles.pivot} aria-label="Módulos del portal">
-        <PivotItem headerText="Dashboard">
-          <Dashboard />
-        </PivotItem>
-
-        <PivotItem headerText="Registro Operativo">
-          <FaltasForm graphService={graphService} userRole={usuario.rol} />
-        </PivotItem>
-
-        <PivotItem headerText="Reconocimientos">
-          <KudosForm graphService={graphService} remitente={usuario.displayName} />
-        </PivotItem>
-
-        {(usuario.rol === 'Admin' || usuario.rol === 'Supervisor') && (
-          <PivotItem headerText="Carga de Productividad">
-            <ProductividadForm graphService={graphService} />
-          </PivotItem>
-        )}
-
-        {usuario.rol === 'Admin' && (
-          <PivotItem headerText="Administración">
-            <AdminPanel userRole={usuario.rol} />
-          </PivotItem>
-        )}
-      </Pivot>
-    </Stack>
+    <ThemeProvider theme={darkTheme}>
+      <div className={styles.themeRoot}>{renderContent()}</div>
+    </ThemeProvider>
   );
 };
 

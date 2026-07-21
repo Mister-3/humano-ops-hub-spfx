@@ -18,6 +18,7 @@ import type GraphService from '../../services/GraphService';
 import SharePointService, {
   type IRegistrarFaltaData
 } from '../../services/SharePointService';
+import styles from './FaltasForm.module.scss';
 
 export interface IFaltasFormProps {
   graphService: GraphService;
@@ -170,12 +171,14 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({ graphService, userRole }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className={styles.form} onSubmit={handleSubmit}>
       <Stack
+        className={styles.formCard}
         tokens={{ childrenGap: 15 }}
-        styles={{ root: { width: '100%', maxWidth: 640, margin: '24px auto' } }}
       >
-        <Text variant="xLarge">Registro de faltas operativas</Text>
+        <Text className={styles.title} variant="xLarge">
+          Registro de faltas operativas
+        </Text>
 
         {!canSubmit && (
           <MessageBar messageBarType={MessageBarType.warning}>
@@ -265,7 +268,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({ graphService, userRole }) => {
             type="button"
           />
           {evidenciaFile && (
-            <Text>Archivo seleccionado: {evidenciaFile.name}</Text>
+            <Text className={styles.fileName}>
+              Archivo seleccionado: {evidenciaFile.name}
+            </Text>
           )}
         </Stack>
 

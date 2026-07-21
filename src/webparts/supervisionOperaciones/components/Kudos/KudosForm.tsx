@@ -16,6 +16,7 @@ import SharePointService, {
   type IRegistrarKudoData
 } from '../../services/SharePointService';
 import type GraphService from '../../services/GraphService';
+import styles from './KudosForm.module.scss';
 
 export interface IKudosFormProps {
   graphService: GraphService;
@@ -136,13 +137,15 @@ const KudosForm: React.FC<IKudosFormProps> = ({ graphService, remitente }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className={styles.form} onSubmit={handleSubmit}>
       <Stack
+        className={styles.formCard}
         tokens={{ childrenGap: 15 }}
-        styles={{ root: { width: '100%', maxWidth: 640, margin: '24px auto' } }}
       >
-        <Text variant="xLarge">Enviar un reconocimiento</Text>
-        <Text>
+        <Text className={styles.title} variant="xLarge">
+          Enviar un reconocimiento
+        </Text>
+        <Text className={styles.description}>
           Destaca una conducta que represente los atributos de Humano Seguros.
         </Text>
 
