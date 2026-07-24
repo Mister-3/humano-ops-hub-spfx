@@ -2,7 +2,7 @@
   box-sizing: border-box;
   width: 100%;
   padding: 24px 0;
-  color: #f7f7fa;
+  color: #e1dfdd;
 }
 
 .loading {
@@ -12,11 +12,13 @@
 
 .subtitle {
   margin-top: 4px;
-  color: #b9b9c4;
+  color: #e1dfdd;
 }
 
 .leaderCard,
-.tableCard {
+.tableCard,
+.goalsCard,
+.pendingPublicationCard {
   box-sizing: border-box;
   width: 100%;
   padding: 24px;
@@ -27,6 +29,89 @@
   box-shadow:
     0 18px 42px rgba(0, 0, 0, 0.28),
     0 0 24px rgba(0, 120, 212, 0.04);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+
+  &:hover {
+    border-color: rgba(0, 164, 255, 0.48);
+    box-shadow:
+      0 21px 46px rgba(0, 0, 0, 0.34),
+      0 0 28px rgba(0, 120, 212, 0.13);
+    transform: translateY(-2px);
+  }
+}
+
+.goalsCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background:
+    linear-gradient(112deg, rgba(0, 120, 212, 0.1), transparent 42%),
+    #1a1a1e;
+}
+
+.goalsEyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #4db8ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.goalsTitle {
+  display: block;
+  color: #f7f7fa;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.goalsDescription {
+  display: block;
+  margin-top: 5px;
+  color: #e1dfdd;
+  font-size: 13px;
+}
+
+.goalSummaryGrid {
+  display: grid;
+  flex: 0 1 430px;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 12px;
+
+  > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 13px 15px;
+    background: #151519;
+    border: 1px solid #303039;
+    border-radius: 7px;
+  }
+
+  small,
+  em {
+    color: #e1dfdd;
+    font-size: 11px;
+  }
+
+  strong {
+    color: #73c7ff;
+    font-size: 30px;
+    font-weight: 700;
+    font-style: normal;
+    line-height: 1.15;
+    text-shadow: 0 0 16px rgba(0, 164, 255, 0.34);
+  }
+
+  em {
+    font-style: normal;
+  }
 }
 
 .leaderCard {
@@ -62,7 +147,7 @@
   }
 
   :global(.ms-Persona-secondaryText) {
-    color: #c8d3df;
+    color: #e1dfdd;
   }
 
   :global(.ms-Persona-initials) {
@@ -137,8 +222,76 @@
   text-shadow: 0 0 20px rgba(0, 164, 255, 0.38);
 }
 
+.mysteryCard {
+  min-height: 245px;
+  padding: 34px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(0, 183, 195, 0.2), transparent 34%),
+    radial-gradient(circle at 10% 88%, rgba(112, 67, 217, 0.13), transparent 32%),
+    linear-gradient(125deg, #11171d 0%, #181820 52%, #111114 100%);
+  border-color: rgba(0, 183, 195, 0.58);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(0, 183, 195, 0.08),
+    0 0 36px rgba(0, 183, 195, 0.14);
+}
+
+.mysterySymbol {
+  font-size: 44px;
+  line-height: 1;
+  filter: drop-shadow(0 0 12px rgba(0, 183, 195, 0.45));
+}
+
+.mysterySubtitle {
+  max-width: 760px;
+  color: #e1dfdd;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.pendingPublicationCard {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 22px 24px;
+  overflow: hidden;
+  background: #1a1a1e;
+  border: 1px solid #2d2d35;
+  border-radius: 8px;
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.28),
+    0 0 24px rgba(0, 120, 212, 0.04);
+}
+
+.pendingTitle {
+  color: #66d9e2;
+  font-size: 23px;
+  font-weight: 700;
+}
+
 .penalty {
   color: #ff747c;
+}
+
+.goalMet,
+.goalPending {
+  display: inline-flex;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.goalMet {
+  color: #72e6ad;
+  background: rgba(36, 176, 111, 0.12);
+  border: 1px solid rgba(54, 211, 139, 0.38);
+}
+
+.goalPending {
+  color: #ffd981;
+  background: rgba(244, 185, 66, 0.12);
+  border: 1px solid rgba(244, 185, 66, 0.4);
 }
 
 @media (max-width: 640px) {
@@ -157,7 +310,39 @@
     font-size: 25px;
   }
 
+  .mysteryCard {
+    padding: 24px 18px;
+  }
+
+  .mysterySubtitle {
+    font-size: 15px;
+  }
+
   .tableCard {
     padding: 18px;
+  }
+
+  .goalsCard {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 18px;
+  }
+
+  .goalSummaryGrid {
+    flex-basis: auto;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leaderCard,
+  .tableCard,
+  .goalsCard,
+  .pendingPublicationCard {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
   }
 }

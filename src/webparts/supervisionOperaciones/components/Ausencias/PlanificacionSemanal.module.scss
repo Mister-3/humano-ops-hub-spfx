@@ -1,0 +1,405 @@
+.planning {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 24px 0 32px;
+  color: #f7f7fa;
+}
+
+.description {
+  max-width: 760px;
+  color: #b9b9c4;
+  line-height: 1.55;
+}
+
+.controlsCard,
+.capacityCard,
+.gridCard {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 22px;
+  background: #1a1a1e;
+  border: 1px solid #2d2d35;
+  border-radius: 8px;
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.26),
+    0 0 24px rgba(0, 120, 212, 0.04);
+}
+
+.controlsCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  background:
+    linear-gradient(115deg, rgba(0, 120, 212, 0.07), transparent 40%),
+    #1a1a1e;
+
+  :global(.ms-Label) {
+    color: #e9e9ee;
+  }
+
+  :global(.ms-TextField-fieldGroup) {
+    color: #ffffff;
+    background: #121214;
+    border-color: #3c3c47;
+    border-radius: 6px;
+  }
+
+  :global(.ms-TextField-fieldGroup:hover) {
+    border-color: #686878;
+  }
+
+  :global(.ms-TextField-fieldGroup:focus-within) {
+    border-color: #0078d4;
+    box-shadow:
+      0 0 0 1px #0078d4,
+      0 0 14px rgba(0, 120, 212, 0.2);
+  }
+
+  :global(.ms-TextField-field),
+  :global(.ms-DatePicker-event--without-label) {
+    color: #ffffff;
+    background: #121214;
+  }
+
+  :global(.ms-DatePicker-event) {
+    color: #cfd8e3;
+  }
+
+  :global(.ms-Button--primary) {
+    color: #ffffff;
+    background: #0078d4;
+    border-color: #168ce0;
+    border-radius: 6px;
+    box-shadow: 0 0 16px rgba(0, 120, 212, 0.22);
+  }
+
+  :global(.ms-Button--primary:hover) {
+    color: #ffffff;
+    background: #168fe0;
+    border-color: #3ca8ff;
+  }
+
+  :global(.ms-Button--primary.is-disabled) {
+    color: #8a8a96;
+    background: #2a2a30;
+    border-color: #3a3a42;
+    box-shadow: none;
+  }
+}
+
+.dateField {
+  flex: 0 1 220px;
+  min-width: 200px;
+}
+
+.capacityCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  overflow: hidden;
+  border-left-width: 4px;
+
+  &::after {
+    position: absolute;
+    top: -60px;
+    right: -40px;
+    width: 180px;
+    height: 180px;
+    content: '';
+    border-radius: 50%;
+    opacity: 0.14;
+    filter: blur(8px);
+    pointer-events: none;
+  }
+}
+
+.capacityHealthy {
+  border-left-color: #36d399;
+
+  &::after {
+    background: #36d399;
+  }
+
+  .capacityValue {
+    color: #62e6b5;
+    text-shadow: 0 0 20px rgba(54, 211, 153, 0.26);
+  }
+}
+
+.capacityWarning {
+  border-left-color: #f2c94c;
+
+  &::after {
+    background: #f2c94c;
+  }
+
+  .capacityValue {
+    color: #ffdc73;
+    text-shadow: 0 0 20px rgba(242, 201, 76, 0.24);
+  }
+}
+
+.capacityCritical {
+  border-left-color: #ff5c70;
+
+  &::after {
+    background: #ff5c70;
+  }
+
+  .capacityValue {
+    color: #ff8090;
+    text-shadow: 0 0 20px rgba(255, 92, 112, 0.28);
+  }
+}
+
+.kpiEyebrow,
+.gridEyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #65c3ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.capacityValue {
+  font-size: clamp(38px, 5vw, 58px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+
+  span {
+    margin-left: 3px;
+    font-size: 0.48em;
+    letter-spacing: 0;
+  }
+}
+
+.capacityDetails {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  max-width: 480px;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 18px;
+  color: #ddddE4;
+  background: rgba(18, 18, 20, 0.72);
+  border: 1px solid #33333c;
+  border-radius: 8px;
+
+  strong {
+    color: #ffffff;
+    font-size: 15px;
+  }
+
+  span {
+    color: #aaaab6;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+}
+
+.gridCard {
+  overflow: hidden;
+}
+
+.gridHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #2d2d35;
+
+  h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 20px;
+    line-height: 1.3;
+  }
+}
+
+.rangeBadge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 11px;
+  color: #9fd7ff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(0, 120, 212, 0.13);
+  border: 1px solid rgba(0, 164, 255, 0.4);
+  border-radius: 999px;
+}
+
+.tableViewport {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #303039;
+  border-radius: 8px;
+}
+
+.scheduleTable {
+  width: 100%;
+  min-width: 980px;
+  border-spacing: 0;
+  border-collapse: separate;
+  color: #ededf2;
+  background: #151519;
+
+  th,
+  td {
+    min-width: 138px;
+    padding: 13px 12px;
+    text-align: left;
+    vertical-align: top;
+    border-right: 1px solid #2b2b33;
+    border-bottom: 1px solid #2b2b33;
+  }
+
+  th:last-child,
+  td:last-child {
+    border-right: 0;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    color: #dceeff;
+    font-size: 12px;
+    font-weight: 700;
+    background: #202027;
+    box-shadow: inset 0 -1px 0 rgba(0, 120, 212, 0.28);
+
+    span,
+    small {
+      display: block;
+    }
+
+    small {
+      margin-top: 3px;
+      color: #92929e;
+      font-size: 11px;
+      font-weight: 400;
+    }
+  }
+
+  thead th:first-child,
+  tbody th {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    min-width: 205px;
+  }
+
+  tbody th {
+    color: #ffffff;
+    font-size: 13px;
+    background: #1c1c21;
+
+    span,
+    small {
+      display: block;
+    }
+
+    small {
+      max-width: 205px;
+      margin-top: 4px;
+      overflow: hidden;
+      color: #8f8f9b;
+      font-size: 11px;
+      font-weight: 400;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  tbody tr:hover td,
+  tbody tr:hover th {
+    background-color: #202027;
+  }
+}
+
+.badgeList {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.absenceBadge,
+.availableBadge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: normal;
+  border-radius: 999px;
+  word-break: break-word;
+}
+
+.absenceBadge {
+  color: #ffe7ad;
+  background: rgba(242, 201, 76, 0.12);
+  border: 1px solid rgba(242, 201, 76, 0.42);
+  box-shadow: 0 0 12px rgba(242, 201, 76, 0.07);
+}
+
+.availableBadge {
+  color: #8bdab9;
+  background: rgba(54, 211, 153, 0.08);
+  border: 1px solid rgba(54, 211, 153, 0.24);
+}
+
+@media (max-width: 760px) {
+  .planning {
+    padding: 18px 0 24px;
+  }
+
+  .controlsCard,
+  .capacityCard,
+  .gridCard {
+    padding: 18px;
+  }
+
+  .dateField {
+    flex-basis: 100%;
+    min-width: 100%;
+  }
+
+  .capacityCard,
+  .gridHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .capacityDetails {
+    max-width: none;
+  }
+
+  .rangeBadge {
+    align-self: flex-start;
+    white-space: normal;
+  }
+}

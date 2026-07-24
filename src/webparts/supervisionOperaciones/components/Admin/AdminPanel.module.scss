@@ -14,7 +14,9 @@
   color: #b9b9c4;
 }
 
-.formCard {
+.formCard,
+.roleCard,
+.catalogCard {
   box-sizing: border-box;
   padding: 24px;
   background: #1a1a1e;
@@ -47,6 +49,29 @@
   :global(.ms-SpinButton-input) {
     color: #ffffff;
     background: #121214;
+  }
+
+  :global(.ms-TextField-fieldGroup),
+  :global(.ms-Dropdown-title) {
+    color: #ffffff;
+    background: #121214;
+    border-color: #3c3c47;
+    border-radius: 6px;
+  }
+
+  :global(.ms-TextField-fieldGroup:hover),
+  :global(.ms-Dropdown:hover .ms-Dropdown-title) {
+    border-color: #686878;
+  }
+
+  :global(.ms-TextField-fieldGroup:focus-within),
+  :global(.ms-Dropdown:focus-within .ms-Dropdown-title) {
+    border-color: #0078d4;
+    box-shadow: 0 0 0 1px #0078d4, 0 0 14px rgba(0, 120, 212, 0.2);
+  }
+
+  :global(.ms-Dropdown-caretDown) {
+    color: #d8d8df;
   }
 
   :global(.ms-SpinButton-button) {
@@ -86,6 +111,95 @@
   min-width: 240px;
 }
 
+.roleEmailField {
+  min-width: 320px;
+}
+
+.roleField {
+  min-width: 220px;
+}
+
+.catalogToolbar {
+  align-items: flex-end;
+}
+
+.catalogCategoryField {
+  min-width: 240px;
+}
+
+.catalogValueField {
+  min-width: 280px;
+}
+
+.catalogGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.catalogGroup {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(0, 120, 212, 0.08), transparent 45%),
+    #151519;
+  border: 1px solid #303039;
+  border-radius: 8px;
+}
+
+.catalogGroupTitle {
+  display: block;
+  margin-bottom: 12px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.catalogList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.catalogItem {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 4px 3px 12px;
+  color: #e9e9ee;
+  background: #202026;
+  border: 1px solid #34343e;
+  border-radius: 6px;
+}
+
+.catalogItemValue {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalogDeleteButton {
+  flex: 0 0 auto;
+  color: #ff9a9a;
+  border-radius: 5px;
+
+  &:hover {
+    color: #ffffff;
+    background: rgba(209, 52, 56, 0.3);
+  }
+
+  &:global(.is-disabled) {
+    color: #6f6f79;
+    background: transparent;
+  }
+}
+
+.catalogEmpty {
+  color: #8f8f9c;
+  font-style: italic;
+}
+
 .section {
   padding-top: 20px;
   border-top: 1px solid #2d2d35;
@@ -96,11 +210,17 @@
     padding: 18px 0;
   }
 
-  .formCard {
+  .formCard,
+  .catalogCard,
+  .roleCard {
     padding: 18px;
   }
 
-  .field {
+  .field,
+  .roleEmailField,
+  .roleField,
+  .catalogCategoryField,
+  .catalogValueField {
     min-width: 100%;
   }
 }

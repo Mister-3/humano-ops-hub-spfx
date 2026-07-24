@@ -1,0 +1,287 @@
+.sidebar {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
+  min-height: 100%;
+  overflow: hidden;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(0, 120, 212, 0.08), transparent 160px),
+    #121214;
+  border: 1px solid #2d2d35;
+  border-radius: 10px;
+  box-shadow: 8px 0 30px rgba(0, 0, 0, 0.24);
+  transition:
+    width 0.25s ease,
+    min-width 0.25s ease,
+    max-width 0.25s ease;
+
+  &.expanded {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+    box-shadow:
+      8px 0 34px rgba(0, 0, 0, 0.38),
+      0 0 24px rgba(0, 120, 212, 0.08);
+  }
+}
+
+.sidebarGlow {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(180deg, #0078d4, rgba(0, 120, 212, 0.08) 45%, transparent);
+  box-shadow: 0 0 12px rgba(0, 120, 212, 0.5);
+}
+
+.pinArea {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 60px;
+  padding: 6px 4px;
+  border-bottom: 1px solid #252529;
+}
+
+.pinArea > div,
+.navigationItem > div {
+  width: 100%;
+}
+
+.pinButton,
+.navigationButton {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  color: #c8c8d0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.pinButton {
+  height: 44px;
+  padding: 0 7px;
+  border-radius: 7px;
+
+  &:hover {
+    color: #ffffff;
+    background: rgba(0, 120, 212, 0.11);
+    border-color: rgba(0, 120, 212, 0.28);
+  }
+
+  &:focus-visible {
+    border-color: #55b7ff;
+    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.28);
+  }
+}
+
+.pinButtonActive {
+  color: #55b7ff;
+  background: rgba(0, 120, 212, 0.13);
+}
+
+.pinIcon,
+.navigationIcon {
+  display: inline-flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.pinIcon {
+  color: currentColor;
+}
+
+.pinLabel,
+.navigationLabel,
+.versionMark {
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition:
+    opacity 0.18s ease 0.06s,
+    transform 0.2s ease 0.04s;
+}
+
+.pinLabel {
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.navigation {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  padding: 12px 4px;
+}
+
+.navigationList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.navigationItem {
+  width: 100%;
+}
+
+.navigationButton {
+  height: 50px;
+  padding: 0 7px;
+  border-radius: 8px;
+
+  &:hover {
+    color: #ffffff;
+    background: #1b1b1e;
+    border-color: #383842;
+
+    .navigationIcon {
+      color: #55b7ff;
+      filter: drop-shadow(0 0 6px rgba(0, 120, 212, 0.64));
+    }
+  }
+
+  &:focus-visible {
+    border-color: #55b7ff;
+    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.28);
+  }
+}
+
+.navigationButtonActive {
+  color: #ffffff;
+  background:
+    linear-gradient(90deg, rgba(0, 120, 212, 0.22), rgba(0, 120, 212, 0.06)),
+    #1b1b1e;
+  border-color: rgba(0, 120, 212, 0.38);
+  box-shadow:
+    inset 0 0 18px rgba(0, 120, 212, 0.08),
+    0 0 16px rgba(0, 120, 212, 0.06);
+
+  .navigationIcon {
+    color: #55b7ff;
+    filter: drop-shadow(0 0 6px rgba(0, 120, 212, 0.74));
+  }
+
+  .activeIndicator {
+    opacity: 1;
+  }
+}
+
+.activeIndicator {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: -4px;
+  width: 3px;
+  opacity: 0;
+  background: #0078d4;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 10px rgba(0, 120, 212, 0.95);
+}
+
+.navigationIcon {
+  color: #aaaab5;
+  transition:
+    color 0.2s ease,
+    filter 0.2s ease;
+}
+
+.navigationLabel {
+  margin-left: 10px;
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  text-overflow: clip;
+}
+
+.sidebarFooter {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  padding: 0 14px;
+  color: #686875;
+  border-top: 1px solid #252529;
+}
+
+.versionMark {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+.expanded {
+  .pinLabel,
+  .navigationLabel,
+  .versionMark {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 50px;
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 100%;
+    border-radius: 8px;
+
+    &.expanded {
+      width: min(220px, calc(100vw - 24px));
+      min-width: min(220px, calc(100vw - 24px));
+      max-width: min(220px, calc(100vw - 24px));
+    }
+  }
+
+  .pinArea {
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .navigation {
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .activeIndicator {
+    left: -4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .pinLabel,
+  .navigationLabel,
+  .versionMark,
+  .navigationIcon {
+    transition-duration: 0.01ms;
+  }
+}

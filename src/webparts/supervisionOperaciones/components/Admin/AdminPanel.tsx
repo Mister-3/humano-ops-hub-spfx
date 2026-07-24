@@ -1,5 +1,8 @@
 import * as React from 'react';
 import {
+  Dropdown,
+  IconButton,
+  type IDropdownOption,
   MessageBar,
   MessageBarType,
   PrimaryButton,
@@ -7,11 +10,14 @@ import {
   Spinner,
   SpinnerSize,
   Stack,
-  Text
+  Text,
+  TextField
 } from '@fluentui/react';
 
 import type { RoleType } from '../../models/AppModels';
 import SharePointService, {
+  type CatalogCategory,
+  type ICatalogoItem,
   type IConfiguracionMetricasUpdate
 } from '../../services/SharePointService';
 import styles from './AdminPanel.module.scss';
@@ -19,6 +25,41 @@ import styles from './AdminPanel.module.scss';
 export interface IAdminPanelProps {
   userRole: RoleType;
 }
+
+const roleOptions: IDropdownOption[] = [
+  { key: 'Admin', text: 'Admin' },
+  { key: 'Gerente', text: 'Gerente' },
+  { key: 'Supervisor', text: 'Supervisor' },
+  { key: 'Asistente', text: 'Asistente' },
+  { key: 'Oficial', text: 'Oficial' }
+];
+
+const catalogCategories: ReadonlyArray<CatalogCategory> = [
+  'Falta',
+  'ErrorProceso',
+  'Kudo',
+  'ProcesoArea'
+];
+
+const catalogCategoryLabels: Record<CatalogCategory, string> = {
+  Falta: 'Categorías de faltas',
+  ErrorProceso: 'Subcategorías de errores',
+  Kudo: 'Atributos de Kudos',
+  ProcesoArea: 'Procesos del área'
+};
+
+const catalogCategoryOptions: IDropdownOption[] = catalogCategories.map(
+  (category) => ({
+    key: category,
+    text: catalogCategoryLabels[category]
+  })
+);
+
+const isRoleType = (value: string): value is RoleType =>
+  roleOptions.some((option) => option.key === value);
+
+const isCatalogCategory = (value: string): value is CatalogCategory =>
+  catalogCategories.indexOf(value as CatalogCategory) >= 0;
 
 const parseNumber = (value: string | undefined): number | undefined => {
   if (value === undefined || value.trim() === '') {
@@ -43,6 +84,25 @@ const AdminConfiguration: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
+  const [overrideEmail, setOverrideEmail] = React.useState<string>('');
+  const [overrideRole, setOverrideRole] = React.useState<RoleType>('Oficial');
+  const [isRoleSubmitting, setIsRoleSubmitting] = React.useState<boolean>(false);
+  const [roleSuccessMessage, setRoleSuccessMessage] = React.useState<string>('');
+  const [roleErrorMessage, setRoleErrorMessage] = React.useState<string>('');
+  const [catalogItems, setCatalogItems] = React.useState<ICatalogoItem[]>([]);
+  const [catalogCategory, setCatalogCategory] =
+    React.useState<CatalogCategory>('Falta');
+  const [catalogValue, setCatalogValue] = React.useState<string>('');
+  const [isLoadingCatalogs, setIsLoadingCatalogs] =
+    React.useState<boolean>(true);
+  const [isCatalogSubmitting, setIsCatalogSubmitting] =
+    React.useState<boolean>(false);
+  const [deletingCatalogId, setDeletingCatalogId] =
+    React.useState<number>();
+  const [catalogSuccessMessage, setCatalogSuccessMessage] =
+    React.useState<string>('');
+  const [catalogErrorMessage, setCatalogErrorMessage] =
+    React.useState<string>('');
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
   React.useEffect(() => {
@@ -78,6 +138,40 @@ const AdminConfiguration: React.FC = () => {
     };
 
     loadConfiguration().catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sharePointService]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    const loadCatalogs = async (): Promise<void> => {
+      setIsLoadingCatalogs(true);
+
+      try {
+        const items = await sharePointService.getCatalogos();
+
+        if (isMounted) {
+          setCatalogItems(items);
+          setCatalogErrorMessage('');
+        }
+      } catch (error: unknown) {
+        if (isMounted) {
+          const detail = error instanceof Error
+            ? error.message
+            : 'Ocurrió un error inesperado al cargar los catálogos.';
+          setCatalogErrorMessage(detail);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingCatalogs(false);
+        }
+      }
+    };
+
+    loadCatalogs().catch(() => undefined);
 
     return () => {
       isMounted = false;
@@ -130,6 +224,91 @@ const AdminConfiguration: React.FC = () => {
       setErrorMessage(detail);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const saveRoleOverride = async (): Promise<void> => {
+    setRoleSuccessMessage('');
+    setRoleErrorMessage('');
+
+    const normalizedEmail = overrideEmail.trim().toLocaleLowerCase();
+    const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+
+    if (!hasValidEmail) {
+      setRoleErrorMessage('Ingrese un correo corporativo válido.');
+      return;
+    }
+
+    setIsRoleSubmitting(true);
+
+    try {
+      await sharePointService.setRoleOverride(normalizedEmail, overrideRole);
+      setOverrideEmail('');
+      setRoleSuccessMessage(
+        `El rol ${overrideRole} fue asignado a ${normalizedEmail}.`
+      );
+    } catch (error: unknown) {
+      const detail = error instanceof Error
+        ? error.message
+        : 'Ocurrió un error inesperado al guardar la asignación.';
+      setRoleErrorMessage(detail);
+    } finally {
+      setIsRoleSubmitting(false);
+    }
+  };
+
+  const saveCatalogItem = async (): Promise<void> => {
+    setCatalogSuccessMessage('');
+    setCatalogErrorMessage('');
+
+    const normalizedValue = catalogValue.trim();
+
+    if (!normalizedValue) {
+      setCatalogErrorMessage('Ingrese el nombre de la nueva opción.');
+      return;
+    }
+
+    setIsCatalogSubmitting(true);
+
+    try {
+      await sharePointService.addCatalogo(catalogCategory, normalizedValue);
+      const updatedItems = await sharePointService.getCatalogos();
+
+      setCatalogItems(updatedItems);
+      setCatalogValue('');
+      setCatalogSuccessMessage(
+        `"${normalizedValue}" fue agregado a ${catalogCategoryLabels[catalogCategory]}.`
+      );
+    } catch (error: unknown) {
+      const detail = error instanceof Error
+        ? error.message
+        : 'Ocurrió un error inesperado al agregar la opción.';
+      setCatalogErrorMessage(detail);
+    } finally {
+      setIsCatalogSubmitting(false);
+    }
+  };
+
+  const removeCatalogItem = async (item: ICatalogoItem): Promise<void> => {
+    setCatalogSuccessMessage('');
+    setCatalogErrorMessage('');
+    setDeletingCatalogId(item.Id);
+
+    try {
+      await sharePointService.deleteCatalogo(item.Id);
+      const updatedItems = await sharePointService.getCatalogos();
+
+      setCatalogItems(updatedItems);
+      setCatalogSuccessMessage(
+        `"${item.Valor}" fue eliminado de ${catalogCategoryLabels[item.Title]}.`
+      );
+    } catch (error: unknown) {
+      const detail = error instanceof Error
+        ? error.message
+        : 'Ocurrió un error inesperado al eliminar la opción.';
+      setCatalogErrorMessage(detail);
+    } finally {
+      setDeletingCatalogId(undefined);
     }
   };
 
@@ -316,6 +495,203 @@ const AdminConfiguration: React.FC = () => {
             <Spinner label="Guardando..." size={SpinnerSize.small} />
           )}
         </Stack>
+      </Stack>
+
+      <Stack className={styles.roleCard} tokens={{ childrenGap: 18 }}>
+        <Stack tokens={{ childrenGap: 4 }}>
+          <Text variant="xLarge">
+            Gestión de Roles (Asignación Manual / Override)
+          </Text>
+          <Text className={styles.description}>
+            La asignación manual tiene prioridad sobre el cargo detectado en
+            Microsoft Entra ID.
+          </Text>
+        </Stack>
+
+        {roleSuccessMessage && (
+          <MessageBar messageBarType={MessageBarType.success}>
+            {roleSuccessMessage}
+          </MessageBar>
+        )}
+
+        {roleErrorMessage && (
+          <MessageBar messageBarType={MessageBarType.error}>
+            {roleErrorMessage}
+          </MessageBar>
+        )}
+
+        <Stack horizontal wrap tokens={{ childrenGap: 20 }}>
+          <Stack.Item className={styles.roleEmailField} grow>
+            <TextField
+              disabled={isRoleSubmitting}
+              label="Correo del colaborador"
+              onChange={(_, value) => setOverrideEmail(value || '')}
+              placeholder="nombre.apellido@humanoseguros.com"
+              value={overrideEmail}
+            />
+          </Stack.Item>
+
+          <Stack.Item className={styles.roleField}>
+            <Dropdown
+              disabled={isRoleSubmitting}
+              label="Rol asignado"
+              onChange={(_, option) => {
+                const selectedRole = String(option?.key || '');
+
+                if (isRoleType(selectedRole)) {
+                  setOverrideRole(selectedRole);
+                }
+              }}
+              options={roleOptions}
+              selectedKey={overrideRole}
+            />
+          </Stack.Item>
+        </Stack>
+
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
+          <PrimaryButton
+            disabled={isRoleSubmitting || overrideEmail.trim().length === 0}
+            onClick={() => saveRoleOverride().catch(() => undefined)}
+            text="Guardar Asignación de Rol"
+          />
+          {isRoleSubmitting && (
+            <Spinner label="Guardando rol..." size={SpinnerSize.small} />
+          )}
+        </Stack>
+      </Stack>
+
+      <Stack className={styles.catalogCard} tokens={{ childrenGap: 18 }}>
+        <Stack tokens={{ childrenGap: 4 }}>
+          <Text variant="xLarge">Gestión de Catálogos Operativos</Text>
+          <Text className={styles.description}>
+            Administra las opciones disponibles en los formularios sin
+            modificar el código de la aplicación.
+          </Text>
+        </Stack>
+
+        {catalogSuccessMessage && (
+          <MessageBar messageBarType={MessageBarType.success}>
+            {catalogSuccessMessage}
+          </MessageBar>
+        )}
+
+        {catalogErrorMessage && (
+          <MessageBar messageBarType={MessageBarType.error}>
+            {catalogErrorMessage}
+          </MessageBar>
+        )}
+
+        <Stack
+          className={styles.catalogToolbar}
+          horizontal
+          verticalAlign="end"
+          wrap
+          tokens={{ childrenGap: 16 }}
+        >
+          <Stack.Item className={styles.catalogCategoryField}>
+            <Dropdown
+              disabled={isCatalogSubmitting || deletingCatalogId !== undefined}
+              label="Tipo de catálogo"
+              onChange={(_, option) => {
+                const selectedCategory = String(option?.key || '');
+
+                if (isCatalogCategory(selectedCategory)) {
+                  setCatalogCategory(selectedCategory);
+                }
+              }}
+              options={catalogCategoryOptions}
+              selectedKey={catalogCategory}
+            />
+          </Stack.Item>
+
+          <Stack.Item className={styles.catalogValueField} grow>
+            <TextField
+              disabled={isCatalogSubmitting || deletingCatalogId !== undefined}
+              label="Nueva opción"
+              maxLength={255}
+              onChange={(_, value) => setCatalogValue(value || '')}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && catalogValue.trim()) {
+                  event.preventDefault();
+                  saveCatalogItem().catch(() => undefined);
+                }
+              }}
+              placeholder="Escriba el valor que verá el usuario"
+              value={catalogValue}
+            />
+          </Stack.Item>
+
+          <PrimaryButton
+            disabled={
+              isCatalogSubmitting ||
+              deletingCatalogId !== undefined ||
+              catalogValue.trim().length === 0
+            }
+            iconProps={{ iconName: 'Add' }}
+            onClick={() => saveCatalogItem().catch(() => undefined)}
+            text="Agregar opción"
+          />
+        </Stack>
+
+        {isCatalogSubmitting && (
+          <Spinner label="Agregando opción..." size={SpinnerSize.small} />
+        )}
+
+        {isLoadingCatalogs ? (
+          <Spinner
+            label="Cargando catálogos operativos..."
+            size={SpinnerSize.medium}
+          />
+        ) : (
+          <div className={styles.catalogGrid}>
+            {catalogCategories.map((category) => {
+              const categoryItems = catalogItems.filter(
+                (item) => item.Title === category
+              );
+
+              return (
+                <section className={styles.catalogGroup} key={category}>
+                  <Text className={styles.catalogGroupTitle} variant="large">
+                    {catalogCategoryLabels[category]}
+                  </Text>
+
+                  {categoryItems.length === 0 ? (
+                    <Text className={styles.catalogEmpty}>
+                      No hay opciones configuradas.
+                    </Text>
+                  ) : (
+                    <div className={styles.catalogList}>
+                      {categoryItems.map((item) => (
+                        <div className={styles.catalogItem} key={item.Id}>
+                          <span className={styles.catalogItemValue}>
+                            {item.Valor}
+                          </span>
+                          <IconButton
+                            ariaLabel={`Eliminar ${item.Valor}`}
+                            className={styles.catalogDeleteButton}
+                            disabled={
+                              isCatalogSubmitting ||
+                              deletingCatalogId !== undefined
+                            }
+                            iconProps={{
+                              iconName: deletingCatalogId === item.Id
+                                ? 'Sync'
+                                : 'Delete'
+                            }}
+                            onClick={() => {
+                              removeCatalogItem(item).catch(() => undefined);
+                            }}
+                            title={`Eliminar ${item.Valor}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
       </Stack>
     </Stack>
   );

@@ -1,3 +1,11 @@
+.modulePivot {
+  width: 100%;
+
+  :global(.ms-Pivot-link) {
+    font-size: 13px;
+  }
+}
+
 .form {
   box-sizing: border-box;
   width: 100%;
@@ -24,7 +32,9 @@
     color: #e8e8ec;
   }
 
+  :global(.ms-ComboBox),
   :global(.ms-Dropdown-title),
+  :global(.ms-ComboBox-Input),
   :global(.ms-TextField-field),
   :global(.ms-TextField-fieldGroup) {
     color: #ffffff;
@@ -32,6 +42,7 @@
     border-color: #3b3b45;
   }
 
+  :global(.ms-ComboBox-CaretDown-button),
   :global(.ms-Dropdown-caretDown) {
     color: #d0d0d0;
   }
@@ -63,6 +74,59 @@
   color: #cfeaff;
 }
 
+.conditionalSection {
+  padding: 16px;
+  background:
+    linear-gradient(135deg, rgba(0, 120, 212, 0.09), transparent 62%),
+    #151519;
+  border: 1px solid #303039;
+  border-radius: 8px;
+}
+
+.conditionalTitle {
+  color: #cfeaff;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.timeControls {
+  align-items: flex-end;
+}
+
+.timeInput {
+  min-width: 180px;
+}
+
+.periodInput {
+  width: 110px;
+}
+
+.officialTime {
+  color: #b9c6d3;
+  font-size: 12px;
+}
+
+.tardinessBadge {
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  padding: 9px 12px;
+  color: #fff2bf;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  background:
+    linear-gradient(135deg, rgba(255, 185, 0, 0.18), rgba(0, 120, 212, 0.08)),
+    #171719;
+  border: 1px solid rgba(255, 185, 0, 0.62);
+  border-radius: 999px;
+  box-shadow:
+    0 0 16px rgba(255, 185, 0, 0.12),
+    inset 0 0 12px rgba(255, 185, 0, 0.04);
+}
+
 @media (max-width: 640px) {
   .form {
     padding: 16px 0;
@@ -70,5 +134,18 @@
 
   .formCard {
     padding: 18px;
+  }
+
+  .timeControls {
+    display: block;
+  }
+
+  .periodInput {
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .tardinessBadge {
+    border-radius: 8px;
   }
 }

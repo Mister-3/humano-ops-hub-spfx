@@ -1,6 +1,6 @@
 {
   "name": "supervision-app-new",
-  "version": "0.0.1",
+  "version": "3.5.0",
   "private": true,
   "engines": {
     "node": ">=22.14.0 < 23.0.0"

@@ -1,16 +1,20 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
   "solution": {
-    "name": "supervision-app-new-client-side-solution",
+    "name": "Humano Ops Hub",
     "id": "044a91d4-d3cf-4a1d-ae40-416612781780",
-    "version": "1.0.0.0",
+    "version": "3.5.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
     "webApiPermissionRequests": [
       {
         "resource": "Microsoft Graph",
-        "scope": "User.ReadBasic.All"
+        "scope": "User.Read.All"
+      },
+      {
+        "resource": "Microsoft Graph",
+        "scope": "Calendars.Read"
       }
     ],
     "developer": {
@@ -22,10 +26,10 @@
     },
     "metadata": {
       "shortDescription": {
-        "default": "supervision-app-new description"
+        "default": "Hub de cultura, rendimiento y operaciones de Humano Seguros"
       },
       "longDescription": {
-        "default": "supervision-app-new description"
+        "default": "Plataforma empresarial para supervisión, productividad, reconocimientos y gestión operativa de Humano Seguros"
       },
       "screenshotPaths": [],
       "videoUrl": "",
@@ -33,10 +37,10 @@
     },
     "features": [
       {
-        "title": "supervision-app-new Feature",
-        "description": "The feature that activates elements of the supervision-app-new solution.",
+        "title": "Humano Ops Hub",
+        "description": "Activa los componentes de Humano Ops Hub en SharePoint.",
         "id": "7e289ad3-f974-4355-a9ea-1c0255c6c166",
-        "version": "1.0.0.0"
+        "version": "3.5.0.0"
       }
     ]
   },

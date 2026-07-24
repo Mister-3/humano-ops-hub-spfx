@@ -3,7 +3,7 @@ export type RoleType =
   | 'Gerente'
   | 'Supervisor'
   | 'Asistente'
-  | 'Lectura';
+  | 'Oficial';
 
 export interface IUsuario {
   id: number;
