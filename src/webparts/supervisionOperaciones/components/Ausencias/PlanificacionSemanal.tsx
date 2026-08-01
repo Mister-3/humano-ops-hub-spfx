@@ -14,6 +14,9 @@ import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   type IAusenciaItem
 } from '../../services/SharePointService';
+import AgentComboBox, {
+  type IAgentComboBoxScopeOption
+} from '../AgentSelector/AgentComboBox';
 import styles from './PlanificacionSemanal.module.scss';
 
 export interface IPlanificacionSemanalProps {
@@ -22,6 +25,11 @@ export interface IPlanificacionSemanalProps {
 }
 
 type CapacityLevel = 'healthy' | 'warning' | 'critical';
+
+const ALL_TEAM_SCOPE_KEY = '__all_planning_agents__';
+const ALL_TEAM_SCOPE_OPTIONS: ReadonlyArray<IAgentComboBoxScopeOption> = [
+  { key: ALL_TEAM_SCOPE_KEY, text: 'Todo el equipo' }
+];
 
 const normalizeIdentity = (value?: string): string =>
   value?.trim().toLocaleLowerCase() || '';
@@ -99,6 +107,14 @@ const matchesAgentIdentity = (
   );
 };
 
+const getAbsenceAuditId = (absence: IAusenciaItem): string => {
+  if (!('AuditID' in absence) || typeof absence.AuditID !== 'string') {
+    return '';
+  }
+
+  return absence.AuditID.trim();
+};
+
 const isAbsenceOnDate = (
   absence: IAusenciaItem,
   date: Date
@@ -174,6 +190,12 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
   const sharePointService = React.useMemo(() => new SharePointService(), []);
   const [startDate, setStartDate] = React.useState<Date>(initialWeek.start);
   const [endDate, setEndDate] = React.useState<Date>(initialWeek.end);
+  const [selectedAgent, setSelectedAgent] = React.useState<
+    IDirectReport | undefined
+  >();
+  const [selectedScopeKey, setSelectedScopeKey] = React.useState<string>(
+    ALL_TEAM_SCOPE_KEY
+  );
   const [absences, setAbsences] = React.useState<IAusenciaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
@@ -192,6 +214,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
     return Array.from(agentsByIdentity.values())
       .sort((left, right) => left.name.localeCompare(right.name, 'es'));
   }, [availableAgents]);
+  const planningRoster = selectedAgent ? [selectedAgent] : roster;
 
   const loadAbsences = React.useCallback(async (
     rangeStart: Date,
@@ -358,6 +381,32 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
         )}
 
         <div className={styles.controlsCard}>
+          <div className={styles.agentField}>
+            <AgentComboBox
+              agents={roster}
+              disabled={isLoading || isLoadingAgents}
+              label="Filtrar por agente"
+              onAgentChange={(agent) => {
+                setSelectedAgent(agent);
+                setSelectedScopeKey(
+                  agent ? '' : ALL_TEAM_SCOPE_KEY
+                );
+              }}
+              onScopeChange={(scopeKey) => {
+                if (scopeKey === ALL_TEAM_SCOPE_KEY) {
+                  setSelectedAgent(undefined);
+                  setSelectedScopeKey(ALL_TEAM_SCOPE_KEY);
+                } else {
+                  setSelectedScopeKey('');
+                }
+              }}
+              placeholder="Escriba un nombre o correo"
+              scopeOptions={ALL_TEAM_SCOPE_OPTIONS}
+              selectedAgent={selectedAgent}
+              selectedScopeKey={selectedScopeKey || undefined}
+            />
+          </div>
+
           <div className={styles.dateField}>
             <DatePicker
               firstDayOfWeek={1}
@@ -438,7 +487,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
               label="Consultando ausencias del equipo..."
               size={SpinnerSize.large}
             />
-          ) : roster.length === 0 ? (
+          ) : planningRoster.length === 0 ? (
             <MessageBar messageBarType={MessageBarType.warning}>
               No hay colaboradores disponibles dentro de su alcance actual.
             </MessageBar>
@@ -462,7 +511,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {roster.map((agent) => (
+                  {planningRoster.map((agent) => (
                     <tr key={getAgentKey(agent)}>
                       <th scope="row">
                         <span>{agent.name}</span>
@@ -483,17 +532,26 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
                                   const presentation = getAbsencePresentation(
                                     absence.TipoAusencia
                                   );
+                                  const auditId = getAbsenceAuditId(absence);
 
                                   return (
                                     <span
                                       className={styles.absenceBadge}
                                       key={absence.Id}
-                                      title={absence.Comentarios || presentation.text}
+                                      title={[
+                                        absence.Comentarios || presentation.text,
+                                        auditId ? `Audit ID: ${auditId}` : ''
+                                      ].filter(Boolean).join(' · ')}
                                     >
                                       <span aria-hidden="true">
                                         {presentation.emoji}
                                       </span>
-                                      {presentation.text}
+                                      <span className={styles.absenceBadgeCopy}>
+                                        <span>{presentation.text}</span>
+                                        {auditId && (
+                                          <small>Audit ID: {auditId}</small>
+                                        )}
+                                      </span>
                                     </span>
                                   );
                                 })}

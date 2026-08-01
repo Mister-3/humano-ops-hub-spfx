@@ -30,6 +30,7 @@ const roleOptions: IDropdownOption[] = [
   { key: 'Admin', text: 'Admin' },
   { key: 'Gerente', text: 'Gerente' },
   { key: 'Supervisor', text: 'Supervisor' },
+  { key: 'Analista', text: 'Analista' },
   { key: 'Asistente', text: 'Asistente' },
   { key: 'Oficial', text: 'Oficial' }
 ];
@@ -37,6 +38,7 @@ const roleOptions: IDropdownOption[] = [
 const catalogCategories: ReadonlyArray<CatalogCategory> = [
   'Falta',
   'ErrorProceso',
+  'CodigoEtica',
   'Kudo',
   'ProcesoArea'
 ];
@@ -44,6 +46,7 @@ const catalogCategories: ReadonlyArray<CatalogCategory> = [
 const catalogCategoryLabels: Record<CatalogCategory, string> = {
   Falta: 'Categorías de faltas',
   ErrorProceso: 'Subcategorías de errores',
+  CodigoEtica: 'Subcategorías de Código de Ética',
   Kudo: 'Atributos de Kudos',
   ProcesoArea: 'Procesos del área'
 };
@@ -70,12 +73,58 @@ const parseNumber = (value: string | undefined): number | undefined => {
   return Number.isFinite(parsedValue) ? parsedValue : undefined;
 };
 
+interface INumericConfigurationFieldProps {
+  disabled: boolean;
+  label: string;
+  max?: number;
+  onValueChange: (value: number) => void;
+  step?: number;
+  value: number;
+}
+
+const NumericConfigurationField: React.FC<
+  INumericConfigurationFieldProps
+> = ({
+  disabled,
+  label,
+  max,
+  onValueChange,
+  step = 1,
+  value
+}) => (
+  <SpinButton
+    disabled={disabled}
+    label={label}
+    max={max}
+    min={0}
+    onChange={(_, rawValue) => {
+      const parsedValue = parseNumber(rawValue);
+
+      if (parsedValue !== undefined) {
+        onValueChange(parsedValue);
+      }
+    }}
+    step={step}
+    value={String(value)}
+  />
+);
+
 const AdminConfiguration: React.FC = () => {
   const [configurationId, setConfigurationId] = React.useState<number>();
-  const [pesoCasos, setPesoCasos] = React.useState<number>(1);
-  const [pesoEmisiones, setPesoEmisiones] = React.useState<number>(1.5);
-  const [pesoMovimientos, setPesoMovimientos] = React.useState<number>(1.2);
-  const [metaDiaria, setMetaDiaria] = React.useState<number>(100);
+  const [pesoCasos, setPesoCasos] = React.useState<number>(20);
+  const [pesoEmisionesTx, setPesoEmisionesTx] = React.useState<number>(15);
+  const [pesoEmisionesPg, setPesoEmisionesPg] = React.useState<number>(10);
+  const [pesoMovimientosTx, setPesoMovimientosTx] =
+    React.useState<number>(15);
+  const [pesoMovimientosPg, setPesoMovimientosPg] =
+    React.useState<number>(15);
+  const [pesoEscaneoTx, setPesoEscaneoTx] = React.useState<number>(10);
+  const [pesoEscaneoPg, setPesoEscaneoPg] = React.useState<number>(15);
+  const [metaSlaCasos, setMetaSlaCasos] = React.useState<number>(90);
+  const [metaEmisionesTx, setMetaEmisionesTx] = React.useState<number>(10);
+  const [metaMovimientosPg, setMetaMovimientosPg] =
+    React.useState<number>(350);
+  const [metaEscaneoPg, setMetaEscaneoPg] = React.useState<number>(350);
   const [puntosPorKudo, setPuntosPorKudo] = React.useState<number>(10);
   const [penalidadBaja, setPenalidadBaja] = React.useState<number>(5);
   const [penalidadMedia, setPenalidadMedia] = React.useState<number>(15);
@@ -115,9 +164,16 @@ const AdminConfiguration: React.FC = () => {
         if (isMounted) {
           setConfigurationId(configuration.Id);
           setPesoCasos(configuration.PesoCasos);
-          setPesoEmisiones(configuration.PesoEmisiones);
-          setPesoMovimientos(configuration.PesoMovimientos);
-          setMetaDiaria(configuration.MetaDiaria);
+          setPesoEmisionesTx(configuration.PesoEmisionesTx);
+          setPesoEmisionesPg(configuration.PesoEmisionesPg);
+          setPesoMovimientosTx(configuration.PesoMovimientosTx);
+          setPesoMovimientosPg(configuration.PesoMovimientosPg);
+          setPesoEscaneoTx(configuration.PesoEscaneoTx);
+          setPesoEscaneoPg(configuration.PesoEscaneoPg);
+          setMetaSlaCasos(configuration.MetaSlaCasos);
+          setMetaEmisionesTx(configuration.MetaEmisionesTx);
+          setMetaMovimientosPg(configuration.MetaMovimientosPg);
+          setMetaEscaneoPg(configuration.MetaEscaneoPg);
           setPuntosPorKudo(configuration.PuntosPorKudo);
           setPenalidadBaja(configuration.PenalidadBaja);
           setPenalidadMedia(configuration.PenalidadMedia);
@@ -143,6 +199,32 @@ const AdminConfiguration: React.FC = () => {
       isMounted = false;
     };
   }, [sharePointService]);
+
+  const productivityWeights = [
+    pesoCasos,
+    pesoEmisionesTx,
+    pesoEmisionesPg,
+    pesoMovimientosTx,
+    pesoMovimientosPg,
+    pesoEscaneoTx,
+    pesoEscaneoPg
+  ];
+  const productivityWeightTotal = productivityWeights.reduce(
+    (total, weight) => total + weight,
+    0
+  );
+  const hasValidProductivityWeights =
+    productivityWeights.every(
+      (weight) => Number.isFinite(weight) && weight >= 0 && weight <= 100
+    ) &&
+    Math.abs(productivityWeightTotal - 100) < 0.001;
+  const hasValidDailyGoals = [
+    metaEmisionesTx,
+    metaMovimientosPg,
+    metaEscaneoPg
+  ].every((goal) => Number.isFinite(goal) && goal > 0);
+  const hasValidCaseSlaGoal = Number.isFinite(metaSlaCasos) &&
+    metaSlaCasos > 0 && metaSlaCasos <= 100;
 
   React.useEffect(() => {
     let isMounted = true;
@@ -184,9 +266,16 @@ const AdminConfiguration: React.FC = () => {
 
     const values = [
       pesoCasos,
-      pesoEmisiones,
-      pesoMovimientos,
-      metaDiaria,
+      pesoEmisionesTx,
+      pesoEmisionesPg,
+      pesoMovimientosTx,
+      pesoMovimientosPg,
+      pesoEscaneoTx,
+      pesoEscaneoPg,
+      metaSlaCasos,
+      metaEmisionesTx,
+      metaMovimientosPg,
+      metaEscaneoPg,
       puntosPorKudo,
       penalidadBaja,
       penalidadMedia,
@@ -196,7 +285,13 @@ const AdminConfiguration: React.FC = () => {
       (value) => !Number.isFinite(value) || value < 0
     );
 
-    if (configurationId === undefined || hasInvalidValue) {
+    if (
+      configurationId === undefined ||
+      hasInvalidValue ||
+      !hasValidProductivityWeights ||
+      !hasValidDailyGoals ||
+      !hasValidCaseSlaGoal
+    ) {
       setErrorMessage('Revise los valores antes de guardar la configuración.');
       return;
     }
@@ -206,9 +301,16 @@ const AdminConfiguration: React.FC = () => {
     try {
       const data: IConfiguracionMetricasUpdate = {
         PesoCasos: pesoCasos,
-        PesoEmisiones: pesoEmisiones,
-        PesoMovimientos: pesoMovimientos,
-        MetaDiaria: metaDiaria,
+        PesoEmisionesTx: pesoEmisionesTx,
+        PesoEmisionesPg: pesoEmisionesPg,
+        PesoMovimientosTx: pesoMovimientosTx,
+        PesoMovimientosPg: pesoMovimientosPg,
+        PesoEscaneoTx: pesoEscaneoTx,
+        PesoEscaneoPg: pesoEscaneoPg,
+        MetaSlaCasos: metaSlaCasos,
+        MetaEmisionesTx: metaEmisionesTx,
+        MetaMovimientosPg: metaMovimientosPg,
+        MetaEscaneoPg: metaEscaneoPg,
         PuntosPorKudo: puntosPorKudo,
         PenalidadBaja: penalidadBaja,
         PenalidadMedia: penalidadMedia,
@@ -324,11 +426,14 @@ const AdminConfiguration: React.FC = () => {
   }
 
   return (
-    <Stack className={styles.panel} tokens={{ childrenGap: 20 }}>
+      <Stack className={styles.panel} tokens={{ childrenGap: 20 }}>
       <Stack tokens={{ childrenGap: 4 }}>
-        <Text variant="xxLarge">Configuración de métricas</Text>
+        <Text variant="xxLarge">
+          Configuración de Métricas de Productividad v4.5
+        </Text>
         <Text className={styles.description}>
-          Define los pesos operativos y la meta diaria global del equipo.
+          Define las metas fijas y la distribución porcentual utilizada por
+          el motor de normalización dinámica.
         </Text>
       </Stack>
 
@@ -345,89 +450,160 @@ const AdminConfiguration: React.FC = () => {
       )}
 
       <Stack className={styles.formCard} tokens={{ childrenGap: 20 }}>
-        <Stack horizontal wrap tokens={{ childrenGap: 20 }}>
-          <Stack.Item className={styles.field} grow>
-            <SpinButton
+        <section className={styles.metricsSection}>
+          <div className={styles.sectionHeading}>
+            <Text variant="xLarge">Metas Operativas</Text>
+            <Text className={styles.description}>
+              El SLA se compara como porcentaje; las metas de volumen se
+              multiplican por las jornadas equivalentes del período.
+            </Text>
+          </div>
+
+          <div className={styles.metricGrid}>
+            <NumericConfigurationField
               disabled={isSubmitting}
-              label="Peso de casos"
-              min={0}
-              onChange={(_, value) => {
-                const parsedValue = parseNumber(value);
-                if (parsedValue !== undefined) {
-                  setPesoCasos(parsedValue);
-                }
-              }}
+              label="Meta de SLA de Casos (%)"
+              max={100}
+              onValueChange={setMetaSlaCasos}
               step={0.1}
-              value={String(pesoCasos)}
+              value={metaSlaCasos}
             />
-          </Stack.Item>
-
-          <Stack.Item className={styles.field} grow>
-            <SpinButton
+            <NumericConfigurationField
               disabled={isSubmitting}
-              label="Peso de emisiones"
-              min={0}
-              onChange={(_, value) => {
-                const parsedValue = parseNumber(value);
-                if (parsedValue !== undefined) {
-                  setPesoEmisiones(parsedValue);
-                }
-              }}
+              label="Meta Emisiones Tx"
+              onValueChange={setMetaEmisionesTx}
+              value={metaEmisionesTx}
+            />
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Meta Movimientos Pg"
+              onValueChange={setMetaMovimientosPg}
+              value={metaMovimientosPg}
+            />
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Meta Escaneo Pg"
+              onValueChange={setMetaEscaneoPg}
+              value={metaEscaneoPg}
+            />
+          </div>
+
+          {!hasValidDailyGoals && (
+            <MessageBar messageBarType={MessageBarType.warning}>
+              Las tres metas diarias deben ser mayores que cero.
+            </MessageBar>
+          )}
+          {!hasValidCaseSlaGoal && (
+            <MessageBar messageBarType={MessageBarType.warning}>
+              La Meta de SLA de Casos debe ser mayor que cero y menor o igual
+              a 100%.
+            </MessageBar>
+          )}
+        </section>
+
+        <section className={`${styles.metricsSection} ${styles.section}`}>
+          <div className={styles.sectionHeading}>
+            <Text variant="xLarge">Pesos Porcentuales (%)</Text>
+            <Text className={styles.description}>
+              La ponderación se normaliza únicamente entre las métricas
+              activas de cada colaborador.
+            </Text>
+          </div>
+
+          <div className={styles.metricGrid}>
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="SLA Casos"
+              onValueChange={setPesoCasos}
               step={0.1}
-              value={String(pesoEmisiones)}
+              value={pesoCasos}
             />
-          </Stack.Item>
-        </Stack>
-
-        <Stack horizontal wrap tokens={{ childrenGap: 20 }}>
-          <Stack.Item className={styles.field} grow>
-            <SpinButton
+            <NumericConfigurationField
               disabled={isSubmitting}
-              label="Peso de movimientos"
-              min={0}
-              onChange={(_, value) => {
-                const parsedValue = parseNumber(value);
-                if (parsedValue !== undefined) {
-                  setPesoMovimientos(parsedValue);
-                }
-              }}
+              label="Emisiones Tx"
+              onValueChange={setPesoEmisionesTx}
               step={0.1}
-              value={String(pesoMovimientos)}
+              value={pesoEmisionesTx}
             />
-          </Stack.Item>
-
-          <Stack.Item className={styles.field} grow>
-            <SpinButton
+            <NumericConfigurationField
               disabled={isSubmitting}
-              label="Meta diaria"
-              min={0}
-              onChange={(_, value) => {
-                const parsedValue = parseNumber(value);
-                if (parsedValue !== undefined) {
-                  setMetaDiaria(parsedValue);
-                }
-              }}
-              step={1}
-              value={String(metaDiaria)}
+              label="Emisiones Pg"
+              onValueChange={setPesoEmisionesPg}
+              step={0.1}
+              value={pesoEmisionesPg}
             />
-          </Stack.Item>
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Movimientos Tx"
+              onValueChange={setPesoMovimientosTx}
+              step={0.1}
+              value={pesoMovimientosTx}
+            />
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Movimientos Pg"
+              onValueChange={setPesoMovimientosPg}
+              step={0.1}
+              value={pesoMovimientosPg}
+            />
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Escaneo Tx"
+              onValueChange={setPesoEscaneoTx}
+              step={0.1}
+              value={pesoEscaneoTx}
+            />
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Escaneo Pg"
+              onValueChange={setPesoEscaneoPg}
+              step={0.1}
+              value={pesoEscaneoPg}
+            />
+          </div>
 
-          <Stack.Item className={styles.field} grow>
-            <SpinButton
+          <div
+            aria-live="polite"
+            className={`${styles.weightStatus} ${
+              hasValidProductivityWeights
+                ? styles.weightStatusValid
+                : styles.weightStatusInvalid
+            }`}
+          >
+            <strong>
+              Total configurado: {productivityWeightTotal.toLocaleString(
+                'es-DO',
+                { maximumFractionDigits: 2 }
+              )}%
+            </strong>
+            <span>
+              {hasValidProductivityWeights
+                ? 'Distribución válida para guardar.'
+                : 'La suma de los siete pesos debe ser exactamente 100%.'}
+            </span>
+          </div>
+
+          {!hasValidProductivityWeights && (
+            <MessageBar messageBarType={MessageBarType.warning}>
+              Ajuste los pesos antes de guardar. El motor requiere una suma
+              total de 100%.
+            </MessageBar>
+          )}
+        </section>
+
+        <section className={`${styles.metricsSection} ${styles.section}`}>
+          <div className={styles.sectionHeading}>
+            <Text variant="xLarge">Reconocimientos</Text>
+          </div>
+          <div className={styles.metricGrid}>
+            <NumericConfigurationField
               disabled={isSubmitting}
               label="Puntos por Kudo"
-              min={0}
-              onChange={(_, value) => {
-                const parsedValue = parseNumber(value);
-                if (parsedValue !== undefined) {
-                  setPuntosPorKudo(parsedValue);
-                }
-              }}
-              step={1}
-              value={String(puntosPorKudo)}
+              onValueChange={setPuntosPorKudo}
+              value={puntosPorKudo}
             />
-          </Stack.Item>
-        </Stack>
+          </div>
+        </section>
 
         <Stack className={styles.section} tokens={{ childrenGap: 16 }}>
           <Text variant="xLarge">
@@ -487,7 +663,13 @@ const AdminConfiguration: React.FC = () => {
 
         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
           <PrimaryButton
-            disabled={isSubmitting || configurationId === undefined}
+            disabled={
+              isSubmitting ||
+              configurationId === undefined ||
+              !hasValidProductivityWeights ||
+              !hasValidDailyGoals ||
+              !hasValidCaseSlaGoal
+            }
             onClick={() => saveConfiguration().catch(() => undefined)}
             text="Guardar Configuración"
           />

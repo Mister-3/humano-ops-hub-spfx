@@ -91,6 +91,22 @@ const formatDuration = (minutes: number): string => {
     : `${hours} h`;
 };
 
+const formatDateTime = (value: string): string => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return date.toLocaleString('es-DO', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+};
+
 const formatPercentage = (value: number): string => `${(
   Number.isFinite(value) ? Math.max(0, value) : 0
 ).toLocaleString('es-DO', {
@@ -734,6 +750,51 @@ const SupervisorTimeView: React.FC<ISupervisorTimeViewProps> = ({
         </div>
           </section>
 
+          {analytics && analytics.fleetCalls.length > 0 && (
+            <section
+              aria-labelledby="fleet-call-details-heading"
+              className={`${styles.card} ${styles.section}`}
+            >
+              <div className={styles.sectionHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>
+                    TRAZABILIDAD OPERATIVA
+                  </div>
+                  <h3 id="fleet-call-details-heading">
+                    Detalle de llamadas registradas
+                  </h3>
+                </div>
+              </div>
+
+              <div className={styles.callTableViewport}>
+                <table className={styles.callTable}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Audit ID</th>
+                      <th scope="col">Fecha y hora</th>
+                      <th scope="col">Caso / Contacto</th>
+                      <th scope="col">Duración</th>
+                      <th scope="col">Comentarios</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.fleetCalls.map((call) => (
+                      <tr key={call.Id}>
+                        <td className={styles.auditIdCell}>
+                          {call.AuditID || '—'}
+                        </td>
+                        <td>{formatDateTime(call.FechaHora)}</td>
+                        <td>{call.Title || '—'}</td>
+                        <td>{formatDuration(call.DuracionMinutos)}</td>
+                        <td>{call.Comentarios || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           <section
             className={`${styles.card} ${styles.section} ${styles.distributionCard}`}
             aria-labelledby="time-distribution-heading"
@@ -745,8 +806,8 @@ const SupervisorTimeView: React.FC<ISupervisorTimeViewProps> = ({
               Uso de la jornada laboral
             </h3>
             <p className={styles.sectionDescription}>
-              Comparación contra una jornada estándar de 8 horas por cada día
-              laborable del período, excluyendo exclusivamente los domingos.
+              Comparación contra 8 horas de lunes a viernes, 4 horas los
+              sábados y 0 horas los domingos.
             </p>
           </div>
         </div>

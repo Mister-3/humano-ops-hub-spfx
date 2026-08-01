@@ -1,8 +1,7 @@
 import * as React from 'react';
 import {
   DatePicker,
-  Dropdown,
-  type IDropdownOption,
+  Icon,
   MessageBar,
   MessageBarType,
   Persona,
@@ -12,15 +11,32 @@ import {
   Text
 } from '@fluentui/react';
 
+import AgentComboBox from '../AgentSelector/AgentComboBox';
 import SkeletonLoader from '../Common/SkeletonLoader';
+import { getKudoMedalDefinition } from '../Dashboard/KudoMedals';
 import type { RoleType } from '../../models/AppModels';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
+  isFaltaApprovedForScoring,
   type IConfiguracionMetricas,
+  type IEvaluacionFaltaItem,
   type IEvaluacionKudoItem,
   type IEvaluacionProductividadItem
 } from '../../services/SharePointService';
-import { getWorkingDaysCount } from '../../utils';
+import {
+  calculateAgentProductivity,
+  calculateProductivityOverlapFactor,
+  calculateTeamMetricAverages,
+  getWorkingDaysCount,
+  PRODUCTIVITY_METRIC_KEYS,
+  resolveCaseSlaGoalPercentage,
+  resolveCaseSlaValues,
+  resolveProductivityMetricValues,
+  type IAgentProductivityResult,
+  type IProductivityAgentRecord,
+  type IProductivityMetricBreakdown,
+  type ProductivityMetricKey
+} from '../../utils';
 import styles from './EvaluacionRendimiento.module.scss';
 
 export interface IEvaluacionRendimientoProps {
@@ -39,17 +55,39 @@ const KUDO_ATTRIBUTES = [
 ] as const;
 
 const ALL_AGENTS_KEY = '__all_agents__';
+const ALL_AGENTS_SCOPE_OPTIONS = [{
+  key: ALL_AGENTS_KEY,
+  text: 'Todos los Agentes'
+}] as const;
+
+const PRODUCTIVITY_METRIC_LABELS: Readonly<
+  Record<ProductivityMetricKey, string>
+> = {
+  Casos: 'SLA Casos',
+  EmisionesTx: 'Emisiones Tx',
+  EmisionesPg: 'Emisiones Pg',
+  MovimientosTx: 'Movimientos Tx',
+  MovimientosPg: 'Movimientos Pg',
+  EscaneoTx: 'Escaneo Tx',
+  EscaneoPg: 'Escaneo Pg'
+};
 
 type KudoAttribute = typeof KUDO_ATTRIBUTES[number];
+
+interface IApprovedFaltaAlertDetail {
+  categoria: string;
+  impacto: string;
+}
 
 interface IAgentAccumulator {
   agente: string;
   agenteEmail: string;
   agenteObjectId: string;
-  emisiones: number;
-  movimientos: number;
+  faltasAprobadas: IApprovedFaltaAlertDetail[];
+  metricasProductividad: IProductivityAgentRecord;
   puntosProductividad: number;
   puntosKudos: number;
+  puntosRestados: number;
   hasProductividad: boolean;
 }
 
@@ -61,34 +99,44 @@ interface IKudoLeader {
 
 interface IProductivityRankingItem {
   agente: string;
-  cumplimientoEmisiones: number;
-  cumplimientoMovimientos: number;
-  emisiones: number;
-  movimientos: number;
-  puntosProductividad: number;
-  porcentajeLider: number;
+  casosATiempo: number;
+  casosAtendidos: number;
+  metricas: ReadonlyArray<IProductivityMetricBreakdown>;
+  puntajeTotal: number;
+  puntosKudos: number;
+  puntosRestados: number;
 }
 
 interface IAgentAlert {
   agente: string;
+  cantidadFaltas: number;
+  motivo: string;
   puntosProductividad: number;
   puntosKudos: number;
+  puntosRestados: number;
+  recomendacion: string;
   desviacionProductividad: number;
   desviacionKudos: number;
   bajoProductividad: boolean;
   bajoKudos: boolean;
+  hasPenaltyRisk: boolean;
   isCritical: boolean;
 }
 
 interface IAnalyticsResult {
   alertas: IAgentAlert[];
+  casosATiempo: number;
+  casosAtendidos: number;
   diasLaborables: number;
   kudosLeaders: IKudoLeader[];
   metaEmisiones: number;
   metaMovimientos: number;
+  metaEscaneo: number;
+  metaSlaCasos: number;
   promedioKudos: number;
   promedioProductividad: number;
   rankingProductividad: IProductivityRankingItem[];
+  slaCasos?: number;
   totalAgentes: number;
 }
 
@@ -97,8 +145,11 @@ const getInitialStartDate = (): Date => {
   return new Date(today.getFullYear(), today.getMonth(), 1);
 };
 
-const normalizeText = (value: string): string =>
-  value.trim().toLocaleLowerCase();
+const normalizeText = (value: string): string => value
+  .trim()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase();
 
 const normalizeEmail = (value: string): string =>
   value.trim().toLocaleLowerCase();
@@ -127,6 +178,24 @@ const getReportKey = (report: IDirectReport): string =>
 
 const toFiniteNumber = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+const getPenaltyForImpact = (
+  impact: string | undefined,
+  config: IConfiguracionMetricas
+): number => {
+  switch (normalizeText(impact || '')) {
+    case 'bajo':
+    case 'leve':
+      return toFiniteNumber(config.PenalidadBaja);
+    case 'medio':
+      return toFiniteNumber(config.PenalidadMedia);
+    case 'critico':
+    case 'grave':
+      return toFiniteNumber(config.PenalidadCritica);
+    default:
+      return 0;
+  }
+};
 
 const formatNumber = (value: number): string => value.toLocaleString('es-DO', {
   maximumFractionDigits: 2,
@@ -157,14 +226,51 @@ const formatPickerDate = (date?: Date): string => {
 const isGlobalRole = (role: RoleType): boolean =>
   role === 'Admin';
 
-const getProductivityPoints = (
+const createEmptyProductivityRecord = (): IProductivityAgentRecord => ({
+  CasosAtendidos: 0,
+  CasosATiempo: 0,
+  hasCaseSlaData: false,
+  EmisionesTx: 0,
+  EmisionesPg: 0,
+  MovimientosTx: 0,
+  MovimientosPg: 0,
+  EscaneoTx: 0,
+  EscaneoPg: 0
+});
+
+const addProductivityRecord = (
+  accumulator: IProductivityAgentRecord,
   item: IEvaluacionProductividadItem,
-  config: IConfiguracionMetricas
-): number => (
-  (toFiniteNumber(item.Casos) * toFiniteNumber(config.PesoCasos)) +
-  (toFiniteNumber(item.Emisiones) * toFiniteNumber(config.PesoEmisiones)) +
-  (toFiniteNumber(item.Movimientos) * toFiniteNumber(config.PesoMovimientos))
-);
+  overlapFactor: number
+): void => {
+  const values = resolveProductivityMetricValues(item);
+  const caseSla = resolveCaseSlaValues(item);
+
+  if (caseSla.hasSlaData) {
+    accumulator.CasosAtendidos =
+      toFiniteNumber(accumulator.CasosAtendidos) +
+      (caseSla.casosAtendidos * overlapFactor);
+    accumulator.CasosATiempo =
+      toFiniteNumber(accumulator.CasosATiempo) +
+      (caseSla.casosATiempo * overlapFactor);
+    accumulator.hasCaseSlaData = true;
+  }
+
+  PRODUCTIVITY_METRIC_KEYS.forEach((metric) => {
+    if (metric === 'Casos') {
+      return;
+    }
+
+    accumulator[metric] = toFiniteNumber(accumulator[metric]) +
+      (values[metric] * overlapFactor);
+  });
+};
+
+const getMetricResult = (
+  result: IAgentProductivityResult,
+  metric: ProductivityMetricKey
+): IProductivityMetricBreakdown | undefined =>
+  result.metrics.find((candidate) => candidate.metric === metric);
 
 const getDeviation = (value: number, average: number): number => {
   if (average <= 0 || value >= average) {
@@ -173,10 +279,6 @@ const getDeviation = (value: number, average: number): number => {
 
   return ((average - value) / average) * 100;
 };
-
-const getCompliance = (actual: number, goal: number): number => (
-  goal > 0 ? (actual / goal) * 100 : 0
-);
 
 const filterByScope = <T extends {
   Title?: string;
@@ -224,11 +326,18 @@ const filterByScope = <T extends {
 const calculateAnalytics = (
   productividad: ReadonlyArray<IEvaluacionProductividadItem>,
   kudos: ReadonlyArray<IEvaluacionKudoItem>,
+  faltas: ReadonlyArray<IEvaluacionFaltaItem>,
   config: IConfiguracionMetricas,
   rosterReports: ReadonlyArray<IDirectReport>,
-  workingDays: number
+  workingDays: number,
+  periodStart: Date,
+  periodEnd: Date,
+  benchmarkProductividad: ReadonlyArray<IEvaluacionProductividadItem>,
+  benchmarkKudos: ReadonlyArray<IEvaluacionKudoItem>,
+  benchmarkRosterReports: ReadonlyArray<IDirectReport>
 ): IAnalyticsResult => {
   const agents = new Map<string, IAgentAccumulator>();
+  const benchmarkAgents = new Map<string, IAgentAccumulator>();
   const attributeScores = new Map<
     KudoAttribute,
     Map<string, { agente: string; puntos: number }>
@@ -241,17 +350,18 @@ const calculateAnalytics = (
   const getAgent = (
     agentName: string,
     agentEmail?: string,
-    agentObjectId?: string
+    agentObjectId?: string,
+    targetAgents: Map<string, IAgentAccumulator> = agents
   ): IAgentAccumulator => {
     const key = getIdentityKey(agentName, agentEmail, agentObjectId);
-    const existingAgent = agents.get(key);
+    const existingAgent = targetAgents.get(key);
 
     if (existingAgent) {
       return existingAgent;
     }
 
     if (!agentEmail?.trim() && !agentObjectId?.trim()) {
-      const legacyAgent = Array.from(agents.values()).find(
+      const legacyAgent = Array.from(targetAgents.values()).find(
         (candidate) =>
           normalizeText(candidate.agente) === normalizeText(agentName)
       );
@@ -265,13 +375,14 @@ const calculateAnalytics = (
       agente: agentName.trim(),
       agenteEmail: agentEmail?.trim() || '',
       agenteObjectId: agentObjectId?.trim() || '',
-      emisiones: 0,
-      movimientos: 0,
+      faltasAprobadas: [],
+      metricasProductividad: createEmptyProductivityRecord(),
       puntosProductividad: 0,
       puntosKudos: 0,
+      puntosRestados: 0,
       hasProductividad: false
     };
-    agents.set(key, newAgent);
+    targetAgents.set(key, newAgent);
     return newAgent;
   };
 
@@ -280,11 +391,21 @@ const calculateAnalytics = (
       getAgent(report.name, report.email, report.id);
     }
   });
+  benchmarkRosterReports.forEach((report) => {
+    if (report.name.trim()) {
+      getAgent(report.name, report.email, report.id, benchmarkAgents);
+    }
+  });
 
   productividad.forEach((item) => {
     const agentName = item.Title?.trim() || item.AgenteEmail?.trim();
+    const overlapFactor = calculateProductivityOverlapFactor(
+      item,
+      periodStart,
+      periodEnd
+    );
 
-    if (!agentName) {
+    if (!agentName || overlapFactor <= 0) {
       return;
     }
 
@@ -294,9 +415,37 @@ const calculateAnalytics = (
       item.AgenteObjectID
     );
     agent.hasProductividad = true;
-    agent.emisiones += toFiniteNumber(item.Emisiones);
-    agent.movimientos += toFiniteNumber(item.Movimientos);
-    agent.puntosProductividad += getProductivityPoints(item, config);
+    addProductivityRecord(
+      agent.metricasProductividad,
+      item,
+      overlapFactor
+    );
+  });
+
+  benchmarkProductividad.forEach((item) => {
+    const agentName = item.Title?.trim() || item.AgenteEmail?.trim();
+    const overlapFactor = calculateProductivityOverlapFactor(
+      item,
+      periodStart,
+      periodEnd
+    );
+
+    if (!agentName || overlapFactor <= 0) {
+      return;
+    }
+
+    const agent = getAgent(
+      agentName,
+      item.AgenteEmail,
+      item.AgenteObjectID,
+      benchmarkAgents
+    );
+    agent.hasProductividad = true;
+    addProductivityRecord(
+      agent.metricasProductividad,
+      item,
+      overlapFactor
+    );
   });
 
   kudos.forEach((item) => {
@@ -340,19 +489,102 @@ const calculateAnalytics = (
     });
   });
 
+  faltas.forEach((item) => {
+    const agentName = item.Title?.trim() || item.AgenteEmail?.trim();
+
+    if (
+      !agentName ||
+      !isFaltaApprovedForScoring(item.EstadoAprobacion) ||
+      normalizeText(item.Categoria || '') === 'capacitacion'
+    ) {
+      return;
+    }
+
+    const agent = getAgent(
+      agentName,
+      item.AgenteEmail,
+      item.AgenteObjectID
+    );
+    agent.puntosRestados += getPenaltyForImpact(item.Impacto, config);
+    agent.faltasAprobadas.push({
+      categoria: item.Categoria?.trim() || 'Falta operativa',
+      impacto: item.Impacto?.trim() || 'Sin nivel informado'
+    });
+  });
+
+  benchmarkKudos.forEach((item) => {
+    const agentName = item.Title?.trim() || item.AgenteEmail?.trim();
+
+    if (!agentName) {
+      return;
+    }
+
+    getAgent(
+      agentName,
+      item.AgenteEmail,
+      item.AgenteObjectID,
+      benchmarkAgents
+    ).puntosKudos += toFiniteNumber(item.Puntos);
+  });
+
   const agentMetrics = Array.from(agents.values());
+  const benchmarkAgentMetrics = Array.from(benchmarkAgents.values());
+  const teamAverages = calculateTeamMetricAverages(
+    benchmarkAgentMetrics
+      .filter((agent) => agent.hasProductividad)
+      .map((agent) => agent.metricasProductividad)
+  );
+
+  benchmarkAgentMetrics.forEach((agent) => {
+    agent.puntosProductividad = calculateAgentProductivity(
+      agent.metricasProductividad,
+      config,
+      teamAverages,
+      workingDays
+    ).productivityPercentage;
+  });
+
+  agentMetrics.forEach((agent) => {
+    const productivityResult = calculateAgentProductivity(
+      agent.metricasProductividad,
+      config,
+      teamAverages,
+      workingDays
+    );
+
+    agent.puntosProductividad = productivityResult.productivityPercentage;
+  });
+
   const totalAgentes = agentMetrics.length;
-  const promedioProductividad = totalAgentes > 0
-    ? agentMetrics.reduce(
+  const caseSlaTotals = agentMetrics.reduce(
+    (totals, agent) => {
+      const caseSla = resolveCaseSlaValues(agent.metricasProductividad);
+
+      if (caseSla.hasSlaData && caseSla.casosAtendidos > 0) {
+        totals.casosAtendidos += caseSla.casosAtendidos;
+        totals.casosATiempo += caseSla.casosATiempo;
+      }
+
+      return totals;
+    },
+    { casosATiempo: 0, casosAtendidos: 0 }
+  );
+  const slaCasos = caseSlaTotals.casosAtendidos > 0
+    ? (caseSlaTotals.casosATiempo / caseSlaTotals.casosAtendidos) * 100
+    : undefined;
+  const metaSlaCasos = resolveCaseSlaGoalPercentage(config);
+  const totalBenchmarkAgents = benchmarkAgentMetrics.length;
+  const promedioProductividad = totalBenchmarkAgents > 0
+    ? benchmarkAgentMetrics.reduce(
       (total, agent) => total + agent.puntosProductividad,
       0
-    ) / totalAgentes
+    ) / totalBenchmarkAgents
     : 0;
-  const promedioKudos = totalAgentes > 0
-    ? agentMetrics.reduce(
+  const promedioKudos = totalBenchmarkAgents > 0
+    ? benchmarkAgentMetrics.reduce(
       (total, agent) => total + agent.puntosKudos,
       0
-    ) / totalAgentes
+    ) / totalBenchmarkAgents
     : 0;
 
   const alertas = agentMetrics
@@ -365,22 +597,65 @@ const calculateAnalytics = (
         promedioProductividad
       );
       const desviacionKudos = getDeviation(agent.puntosKudos, promedioKudos);
+      const hasMediumOrSevereFault = agent.faltasAprobadas.some((fault) => {
+        const impact = normalizeText(fault.impacto);
+        return impact === 'medio' || impact === 'grave' || impact === 'critico';
+      });
+      const hasSevereFault = agent.faltasAprobadas.some((fault) => {
+        const impact = normalizeText(fault.impacto);
+        return impact === 'grave' || impact === 'critico';
+      });
+      const hasPenaltyRisk = agent.puntosRestados > 0 ||
+        hasMediumOrSevereFault;
+      const isRecurring = agent.faltasAprobadas.length >= 2;
+      const categories = Array.from(new Set(
+        agent.faltasAprobadas.map((fault) => fault.categoria)
+      ));
+      const faultReason = categories.length > 0
+        ? `Acumulación de penalizaciones por ${categories.join(' / ')}.`
+        : 'Desviación frente a los indicadores promedio del área.';
 
       return {
         agente: agent.agente,
+        cantidadFaltas: agent.faltasAprobadas.length,
+        motivo: faultReason,
         puntosProductividad: agent.puntosProductividad,
         puntosKudos: agent.puntosKudos,
+        puntosRestados: agent.puntosRestados,
+        recomendacion: hasSevereFault || isRecurring
+          ? 'Priorizar revisión y documentar un plan de acción con el colaborador.'
+          : hasPenaltyRisk
+            ? 'Programar seguimiento preventivo y reforzar el procedimiento aplicable.'
+            : 'Revisar la distribución de trabajo y acordar acciones de mejora.',
         desviacionProductividad,
         desviacionKudos,
         bajoProductividad,
         bajoKudos,
+        hasPenaltyRisk,
         isCritical:
+          hasSevereFault ||
+          isRecurring ||
           (bajoProductividad && bajoKudos) ||
           Math.max(desviacionProductividad, desviacionKudos) >= 50
       };
     })
-    .filter((agent) => agent.bajoProductividad || agent.bajoKudos)
+    .filter((agent) =>
+      agent.bajoProductividad ||
+      agent.bajoKudos ||
+      agent.hasPenaltyRisk
+    )
     .sort((left, right) => {
+      const criticalDifference = Number(right.isCritical) -
+        Number(left.isCritical);
+
+      if (criticalDifference !== 0) {
+        return criticalDifference;
+      }
+
+      if (right.puntosRestados !== left.puntosRestados) {
+        return right.puntosRestados - left.puntosRestados;
+      }
+
       const leftDeviation = Math.max(
         left.desviacionProductividad,
         left.desviacionKudos
@@ -392,34 +667,53 @@ const calculateAnalytics = (
       return rightDeviation - leftDeviation;
     });
 
-  const rankingAgents = agentMetrics
-    .filter((agent) => agent.hasProductividad)
-    .sort(
-      (left, right) =>
-        right.puntosProductividad - left.puntosProductividad
-    );
-  const leaderPoints = rankingAgents[0]?.puntosProductividad || 0;
-  const metaEmisiones = workingDays * 10;
-  const metaMovimientos = workingDays * 350;
-  const rankingProductividad = rankingAgents.map(
-    (agent): IProductivityRankingItem => ({
-      agente: agent.agente,
-      cumplimientoEmisiones: getCompliance(
-        agent.emisiones,
-        metaEmisiones
-      ),
-      cumplimientoMovimientos: getCompliance(
-        agent.movimientos,
-        metaMovimientos
-      ),
-      emisiones: agent.emisiones,
-      movimientos: agent.movimientos,
-      puntosProductividad: agent.puntosProductividad,
-      porcentajeLider: leaderPoints > 0
-        ? Math.min(100, (agent.puntosProductividad / leaderPoints) * 100)
-        : 0
-    })
+  const rankingAgents = agentMetrics.filter(
+    (agent) => agent.hasProductividad
   );
+  const goalReference = calculateAgentProductivity(
+    {
+      ...createEmptyProductivityRecord(),
+      applicableMetrics: [
+        'EmisionesTx',
+        'MovimientosPg',
+        'EscaneoPg'
+      ]
+    },
+    config,
+    teamAverages,
+    workingDays
+  );
+  const metaEmisiones =
+    getMetricResult(goalReference, 'EmisionesTx')?.targetValue || 0;
+  const metaMovimientos =
+    getMetricResult(goalReference, 'MovimientosPg')?.targetValue || 0;
+  const metaEscaneo =
+    getMetricResult(goalReference, 'EscaneoPg')?.targetValue || 0;
+  const rankingProductividad = rankingAgents
+    .map((agent): IProductivityRankingItem => {
+      const result = calculateAgentProductivity(
+        agent.metricasProductividad,
+        config,
+        teamAverages,
+        workingDays
+      );
+
+      const caseSlaValues = resolveCaseSlaValues(
+        agent.metricasProductividad
+      );
+      const puntajeTotal = result.productivityPercentage;
+
+      return {
+        agente: agent.agente,
+        casosATiempo: caseSlaValues.casosATiempo,
+        casosAtendidos: caseSlaValues.casosAtendidos,
+        metricas: result.metrics.filter((metric) => metric.active),
+        puntajeTotal,
+        puntosKudos: agent.puntosKudos,
+        puntosRestados: agent.puntosRestados
+      };
+    })
+    .sort((left, right) => right.puntajeTotal - left.puntajeTotal);
 
   const kudosLeaders = KUDO_ATTRIBUTES.map((attribute): IKudoLeader => {
     const scores = Array.from(attributeScores.get(attribute)?.values() || []);
@@ -437,13 +731,18 @@ const calculateAnalytics = (
 
   return {
     alertas,
+    casosATiempo: caseSlaTotals.casosATiempo,
+    casosAtendidos: caseSlaTotals.casosAtendidos,
     diasLaborables: workingDays,
     kudosLeaders,
     metaEmisiones,
     metaMovimientos,
+    metaEscaneo,
+    metaSlaCasos,
     promedioKudos,
     promedioProductividad,
     rankingProductividad,
+    slaCasos,
     totalAgentes
   };
 };
@@ -468,6 +767,8 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
   const requestIdRef = React.useRef<number>(0);
 
   const hasGlobalScope = isGlobalRole(userRole);
+  const canViewPreventiveAlerts = userRole === 'Supervisor' ||
+    userRole === 'Gerente' || userRole === 'Admin';
   const availableReports = React.useMemo(() => {
     const reportsByKey = new Map<string, IDirectReport>();
 
@@ -483,16 +784,6 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
       (left, right) => left.name.localeCompare(right.name, 'es')
     );
   }, [directReports]);
-  const agentOptions = React.useMemo<IDropdownOption[]>(
-    () => [
-      { key: ALL_AGENTS_KEY, text: 'Todos los Agentes' },
-      ...availableReports.map((report): IDropdownOption => ({
-        key: getReportKey(report),
-        text: report.name
-      }))
-    ],
-    [availableReports]
-  );
   const selectedReport = availableReports.find(
     (report) => getReportKey(report) === selectedAgentKey
   );
@@ -581,13 +872,34 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
         effectiveReports,
         hasGlobalQuery
       );
+      const scopedFaltas = filterByScope(
+        data.faltas,
+        effectiveReports,
+        hasGlobalQuery
+      );
+      const benchmarkProductivity = filterByScope(
+        data.productividad,
+        availableReports,
+        hasGlobalScope
+      );
+      const benchmarkKudos = filterByScope(
+        data.kudos,
+        availableReports,
+        hasGlobalScope
+      );
 
       setAnalytics(calculateAnalytics(
         scopedProductivity,
         scopedKudos,
+        scopedFaltas,
         data.config,
         hasGlobalQuery ? [] : effectiveReports,
-        getWorkingDaysCount(startDate, endDate)
+        getWorkingDaysCount(startDate, endDate),
+        startDate,
+        endDate,
+        benchmarkProductivity,
+        benchmarkKudos,
+        hasGlobalScope ? [] : availableReports
       ));
     } catch (error: unknown) {
       if (requestIdRef.current !== currentRequestId) {
@@ -616,12 +928,9 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
         verticalAlign="center"
         wrap
       >
-        <Stack tokens={{ childrenGap: 5 }}>
-          <Text variant="xxLarge">Evaluación de Rendimiento</Text>
-          <Text className={styles.subtitle}>
-            Analítica ponderada de productividad y cultura corporativa.
-          </Text>
-        </Stack>
+        <Text className={styles.subtitle}>
+          Índice porcentual ponderado de productividad y cultura corporativa.
+        </Text>
         <span className={styles.scopeBadge}>
           {userRole} · {scopeLabel}
         </span>
@@ -660,18 +969,39 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
           placeholder="dd/mm/aaaa"
           value={endDate}
         />
-        <Dropdown
-          className={styles.agentField}
-          disabled={isLoading}
-          label="Seleccionar Agente"
-          onChange={(_, option) => {
-            setSelectedAgentKey(String(option?.key || ALL_AGENTS_KEY));
-            setAnalytics(undefined);
-            setHasProcessed(false);
-          }}
-          options={agentOptions}
-          selectedKey={selectedAgentKey}
-        />
+        <div className={styles.agentField}>
+          <AgentComboBox
+            agents={availableReports}
+            disabled={isLoading}
+            label="Seleccionar Agente"
+            onAgentChange={(agent) => {
+              if (!agent) {
+                return;
+              }
+
+              setSelectedAgentKey(getReportKey(agent));
+              setAnalytics(undefined);
+              setHasProcessed(false);
+            }}
+            onScopeChange={(scopeKey) => {
+              if (scopeKey !== ALL_AGENTS_KEY) {
+                return;
+              }
+
+              setSelectedAgentKey(ALL_AGENTS_KEY);
+              setAnalytics(undefined);
+              setHasProcessed(false);
+            }}
+            placeholder="Escriba un nombre o correo"
+            scopeOptions={ALL_AGENTS_SCOPE_OPTIONS}
+            selectedAgent={selectedReport}
+            selectedScopeKey={
+              selectedAgentKey === ALL_AGENTS_KEY
+                ? ALL_AGENTS_KEY
+                : undefined
+            }
+          />
+        </div>
         <PrimaryButton
           disabled={isLoading}
           iconProps={{ iconName: 'Filter' }}
@@ -702,8 +1032,8 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
                 </span>
                 <h3>Objetivos del período por colaborador</h3>
                 <p className={styles.sectionDescription}>
-                  El rango contiene {analytics.diasLaborables} días laborables;
-                  se excluyen únicamente los domingos.
+                  El rango equivale a {analytics.diasLaborables} jornadas:
+                  lunes a viernes completos, sábados a 0.5 y domingos a 0.
                 </p>
               </div>
             </div>
@@ -712,17 +1042,45 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
               <article className={styles.goalCard}>
                 <span>Días laborables</span>
                 <strong>{analytics.diasLaborables}</strong>
-                <small>Lunes a sábado</small>
+                <small>Sábados equivalen a media jornada</small>
               </article>
               <article className={styles.goalCard}>
-                <span>Meta de Emisiones</span>
+                <span>SLA de Casos</span>
+                <strong>
+                  {analytics.slaCasos === undefined
+                    ? 'N/A'
+                    : formatPercentage(analytics.slaCasos)}
+                </strong>
+                <small>
+                  {analytics.slaCasos === undefined
+                    ? `SLA: N/A (Meta: ${formatPercentage(
+                      analytics.metaSlaCasos
+                    )} · 0/0 casos). El peso se redistribuye.`
+                    : `SLA: ${formatPercentage(
+                      analytics.slaCasos
+                    )} (Meta: ${formatPercentage(
+                      analytics.metaSlaCasos
+                    )} · ${formatNumber(
+                      analytics.casosATiempo
+                    )} / ${formatNumber(
+                      analytics.casosAtendidos
+                    )} casos)`}
+                </small>
+              </article>
+              <article className={styles.goalCard}>
+                <span>Meta de Emisiones Tx</span>
                 <strong>{formatNumber(analytics.metaEmisiones)}</strong>
-                <small>10 transacciones por día</small>
+                <small>Transacciones del período</small>
               </article>
               <article className={styles.goalCard}>
-                <span>Meta de Movimientos</span>
+                <span>Meta de Movimientos Pg</span>
                 <strong>{formatNumber(analytics.metaMovimientos)}</strong>
-                <small>350 páginas por día</small>
+                <small>Páginas del período</small>
+              </article>
+              <article className={styles.goalCard}>
+                <span>Meta de Escaneo Pg</span>
+                <strong>{formatNumber(analytics.metaEscaneo)}</strong>
+                <small>Páginas del período</small>
               </article>
             </div>
           </section>
@@ -744,7 +1102,13 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
               {analytics.kudosLeaders.map((leader) => (
                 <article className={styles.kudoCard} key={leader.atributo}>
                   <span className={styles.kudoAttribute}>
-                    {leader.atributo}
+                    <Icon
+                      className={styles.kudoAttributeIcon}
+                      iconName={
+                        getKudoMedalDefinition(leader.atributo).iconName
+                      }
+                    />
+                    <span>{leader.atributo}</span>
                   </span>
                   {leader.agente ? (
                     <React.Fragment>
@@ -766,17 +1130,19 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
             </div>
           </section>
 
+          {canViewPreventiveAlerts ? (
           <section className={`${styles.sectionCard} ${styles.alertSection}`}>
             <div className={styles.sectionHeader}>
               <div>
                 <span className={styles.sectionEyebrow}>
                   Detección preventiva
                 </span>
-                <h3>Alertas bajo el promedio del área</h3>
+                <h3>Alertas tempranas del período</h3>
                 <p className={styles.sectionDescription}>
-                  Promedio productividad: {
-                    formatNumber(analytics.promedioProductividad)
-                  } · Promedio Kudos: {formatNumber(analytics.promedioKudos)}
+                  Promedio del índice de productividad: {
+                    formatPercentage(analytics.promedioProductividad)
+                  } · Promedio Kudos: {formatNumber(analytics.promedioKudos)}.
+                  Incluye únicamente faltas aprobadas.
                 </p>
               </div>
             </div>
@@ -798,7 +1164,7 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
                           Productividad
                         </span>
                         <strong className={styles.metricValue}>
-                          {formatNumber(alert.puntosProductividad)}
+                          {formatPercentage(alert.puntosProductividad)}
                         </strong>
                         <span>
                           {alert.bajoProductividad
@@ -820,8 +1186,27 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
                               alert.desviacionKudos
                             )} bajo la media`
                             : 'En la media o superior'}
+                          </span>
+                      </div>
+
+                      <div className={styles.metricBlock}>
+                        <span className={styles.metricLabel}>
+                          Penalizaciones aprobadas
+                        </span>
+                        <strong className={styles.penaltyMetricValue}>
+                          -{formatNumber(alert.puntosRestados)} pts
+                        </strong>
+                        <span>
+                          {alert.cantidadFaltas} falta{
+                            alert.cantidadFaltas === 1 ? '' : 's'
+                          } en el período
                         </span>
                       </div>
+                    </div>
+
+                    <div className={styles.alertReason}>
+                      <strong>{alert.motivo}</strong>
+                      <span>{alert.recomendacion}</span>
                     </div>
 
                     <span className={
@@ -836,10 +1221,12 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
               </div>
             ) : (
               <MessageBar messageBarType={MessageBarType.success}>
-                Todos los agentes evaluados están en la media o por encima de ella.
+                No se detectaron desviaciones ni penalizaciones aprobadas que
+                requieran seguimiento en este período.
               </MessageBar>
             )}
           </section>
+          ) : null}
 
           <section className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
@@ -849,8 +1236,8 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
                 </span>
                 <h3>Ranking de Productividad Acumulada</h3>
                 <p className={styles.sectionDescription}>
-                  Puntaje ponderado y cumplimiento frente a las metas
-                  proporcionales del rango.
+                  Puntaje final basado exclusivamente en la productividad
+                  normalizada. Kudos y penalidades se muestran como referencia.
                 </p>
               </div>
             </div>
@@ -858,53 +1245,66 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
             {analytics.rankingProductividad.length > 0 ? (
               <div className={styles.rankingList}>
                 <div className={styles.rankingHeader} aria-hidden="true">
-                  <span>Agente</span>
-                  <span>Progreso respecto al líder</span>
-                  <span>Cumplimiento de metas</span>
-                  <span>Puntaje</span>
+                  <span>Posición y Agente</span>
+                  <span>Cumplimiento de Metas (Detalle de Métricas)</span>
+                  <span>Kudos (+)</span>
+                  <span>Penalidades (-)</span>
+                  <span>Puntaje Total</span>
                 </div>
                 {analytics.rankingProductividad.map((item, index) => (
                   <div className={styles.rankingRow} key={item.agente}>
                     <span className={styles.rankingName}>
                       <strong>#{index + 1}</strong> {item.agente}
                     </span>
-                    <div
-                      aria-label={`${item.agente}: ${formatPercentage(
-                        item.porcentajeLider
-                      )} respecto al primer lugar`}
-                      aria-valuemax={100}
-                      aria-valuemin={0}
-                      aria-valuenow={Math.round(item.porcentajeLider)}
-                      className={styles.barTrack}
-                      role="progressbar"
-                    >
-                      <span
-                        className={styles.barFill}
-                        style={{ width: `${item.porcentajeLider}%` }}
-                      />
-                    </div>
                     <span className={styles.complianceGroup}>
-                      <span className={
-                        item.cumplimientoEmisiones >= 100
-                          ? styles.complianceMet
-                          : styles.compliancePending
-                      }>
-                        Emisiones {formatPercentage(
-                          item.cumplimientoEmisiones
-                        )}
-                      </span>
-                      <span className={
-                        item.cumplimientoMovimientos >= 100
-                          ? styles.complianceMet
-                          : styles.compliancePending
-                      }>
-                        Movimientos {formatPercentage(
-                          item.cumplimientoMovimientos
-                        )}
-                      </span>
+                      {item.metricas.length === 0 ? (
+                        <span className={styles.compliancePending}>
+                          Sin métricas activas
+                        </span>
+                      ) : item.metricas.map((metric) => (
+                        <span
+                          className={
+                            `${
+                              metric.compliancePercentage >= 100
+                                ? styles.complianceMet
+                                : styles.compliancePending
+                            } ${
+                              metric.metric === 'Casos'
+                                ? styles.slaMetricBadge
+                                : ''
+                            }`
+                          }
+                          key={metric.metric}
+                        >
+                          {metric.metric === 'Casos'
+                            ? `SLA: ${formatPercentage(
+                              item.casosAtendidos > 0
+                                ? (item.casosATiempo /
+                                  item.casosAtendidos) * 100
+                                : 0
+                            )} (Meta: ${formatPercentage(
+                              analytics.metaSlaCasos
+                            )} · ${formatNumber(
+                              item.casosATiempo
+                            )}/${formatNumber(
+                              item.casosAtendidos
+                            )} casos)`
+                            : `${PRODUCTIVITY_METRIC_LABELS[metric.metric]} ${
+                              formatNumber(metric.actualValue)
+                            } · ${formatPercentage(
+                              metric.compliancePercentage
+                            )}`}
+                        </span>
+                      ))}
+                    </span>
+                    <span className={styles.rankingKudos}>
+                      +{formatNumber(item.puntosKudos)} pts
+                    </span>
+                    <span className={styles.rankingPenalty}>
+                      -{formatNumber(item.puntosRestados)} pts
                     </span>
                     <span className={styles.rankingValue}>
-                      {formatNumber(item.puntosProductividad)} pts
+                      {formatPercentage(item.puntajeTotal)}
                     </span>
                   </div>
                 ))}

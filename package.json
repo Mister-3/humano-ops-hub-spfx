@@ -1,12 +1,13 @@
 {
   "name": "supervision-app-new",
-  "version": "3.5.0",
+  "version": "4.5.0",
   "private": true,
   "engines": {
     "node": ">=22.14.0 < 23.0.0"
   },
   "scripts": {
-    "build": "heft test --clean --production && heft package-solution --production",
+    "build": "heft clean && heft test --production && heft package-solution --production",
+    "build:vercel": "heft clean && heft build --production && node scripts/prepare-vercel-assets.cjs",
     "clean": "heft clean",
     "eject-webpack": "heft eject-webpack",
     "start": "heft start --clean"

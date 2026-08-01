@@ -20,7 +20,11 @@ import SecurityService from '../services/SecurityService';
 import SharePointService, {
   type IAusenciaItem
 } from '../services/SharePointService';
-import { darkTheme, glowCardStyles } from '../theme/DarkTheme';
+import {
+  darkTheme,
+  ensureTechFontLoaded,
+  glowCardStyles
+} from '../theme/DarkTheme';
 import AdminPanel from './Admin/AdminPanel';
 import AusenciasForm from './Ausencias/AusenciasForm';
 import PlanificacionSemanal from './Ausencias/PlanificacionSemanal';
@@ -41,6 +45,7 @@ import ProductividadForm from './Productividad/ProductividadForm';
 import styles from './SupervisionOperaciones.module.scss';
 
 initializeIcons(undefined, { disableWarnings: true });
+ensureTechFontLoaded();
 
 export interface ISupervisionOperacionesProps {
   graphService: GraphService;
@@ -219,7 +224,9 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           usuario.rol
         );
         const scopedUsers =
-          usuario.rol === 'Asistente' || usuario.rol === 'Oficial'
+          usuario.rol === 'Asistente' ||
+          usuario.rol === 'Analista' ||
+          usuario.rol === 'Oficial'
             ? includeCurrentUserInScope(resolvedUsers, usuario)
             : resolvedUsers;
 
@@ -385,7 +392,6 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
                 availableAgents={visibleAgents}
                 currentUserEmail={currentUser.email}
                 currentUserName={currentUser.displayName}
-                graphService={graphService}
                 isLoadingAgents={isLoadingVisibleAgents}
                 userRole={currentUser.rol}
               />
@@ -421,7 +427,6 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           <KudosForm
             availableAgents={visibleAgents}
             currentUserEmail={currentUser.email}
-            graphService={graphService}
             isLoadingAgents={isLoadingVisibleAgents}
             remitente={currentUser.displayName}
             userRole={currentUser.rol}
@@ -434,7 +439,6 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             availableAgents={visibleAgents}
             currentUserEmail={currentUser.email}
             currentUserName={currentUser.displayName}
-            graphService={graphService}
             isLoadingAgents={isLoadingVisibleAgents}
             userRole={currentUser.rol}
           />

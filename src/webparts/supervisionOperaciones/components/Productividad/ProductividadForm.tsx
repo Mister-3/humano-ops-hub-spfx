@@ -13,24 +13,59 @@ import {
   Text
 } from '@fluentui/react';
 
-import type GraphService from '../../services/GraphService';
 import type { IDirectReport } from '../../services/GraphService';
 import type { RoleType } from '../../models/AppModels';
 import SharePointService, {
   type IRegistrarProductividadData
 } from '../../services/SharePointService';
+import { getWorkingDaysCount } from '../../utils';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
 import HistorialView from '../Historial/HistorialView';
 import styles from './ProductividadForm.module.scss';
 
 export interface IProductividadFormProps {
-  availableAgents?: ReadonlyArray<IDirectReport>;
+  availableAgents: ReadonlyArray<IDirectReport>;
   currentUserEmail: string;
   currentUserName: string;
-  graphService: GraphService;
   isLoadingAgents?: boolean;
   userRole: RoleType;
 }
+
+interface IProductivityMetrics {
+  casosAtendidos: number;
+  casosATiempo: number;
+  emisionesTx: number;
+  emisionesPg: number;
+  movimientosTx: number;
+  movimientosPg: number;
+  escaneoTx: number;
+  escaneoPg: number;
+}
+
+interface IDailyProductivityGoals {
+  emisionesTx: number;
+  movimientosPg: number;
+  escaneoPg: number;
+}
+
+type ProductivityMetricKey = keyof IProductivityMetrics;
+
+const EMPTY_METRICS: IProductivityMetrics = {
+  casosAtendidos: 0,
+  casosATiempo: 0,
+  emisionesTx: 0,
+  emisionesPg: 0,
+  movimientosTx: 0,
+  movimientosPg: 0,
+  escaneoTx: 0,
+  escaneoPg: 0
+};
+
+const DEFAULT_DAILY_GOALS: IDailyProductivityGoals = {
+  emisionesTx: 10,
+  movimientosPg: 350,
+  escaneoPg: 350
+};
 
 const parseNumber = (value: string | undefined): number | undefined => {
   if (value === undefined || value.trim() === '') {
@@ -41,11 +76,18 @@ const parseNumber = (value: string | undefined): number | undefined => {
   return Number.isFinite(parsedValue) ? parsedValue : undefined;
 };
 
+const getSafeGoal = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : fallback;
+
+const formatQuantity = (value: number): string =>
+  value.toLocaleString('es-DO', { maximumFractionDigits: 2 });
+
 const ProductividadForm: React.FC<IProductividadFormProps> = ({
   availableAgents,
   currentUserEmail,
   currentUserName,
-  graphService,
   isLoadingAgents = false,
   userRole
 }) => {
@@ -54,67 +96,116 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
   >();
   const [fechaInicio, setFechaInicio] = React.useState<Date | null>(new Date());
   const [fechaFin, setFechaFin] = React.useState<Date | null>(new Date());
-  const [casos, setCasos] = React.useState<number>(0);
-  const [emisiones, setEmisiones] = React.useState<number>(0);
-  const [movimientos, setMovimientos] = React.useState<number>(0);
+  const [metrics, setMetrics] = React.useState<IProductivityMetrics>({
+    ...EMPTY_METRICS
+  });
+  const [dailyGoals, setDailyGoals] =
+    React.useState<IDailyProductivityGoals>(DEFAULT_DAILY_GOALS);
+  const [isLoadingGoals, setIsLoadingGoals] = React.useState<boolean>(true);
+  const [goalsWarning, setGoalsWarning] = React.useState<string>('');
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
-  const [teamMembers, setTeamMembers] = React.useState<IDirectReport[]>([]);
-  const [isLoadingTeam, setIsLoadingTeam] = React.useState<boolean>(true);
-  const [teamErrorMessage, setTeamErrorMessage] = React.useState<string>('');
+  const teamMembers = availableAgents;
+  const isLoadingTeam = isLoadingAgents;
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
   React.useEffect(() => {
     let isMounted = true;
 
-    const loadTeam = async (): Promise<void> => {
-      setIsLoadingTeam(availableAgents !== undefined
-        ? isLoadingAgents
-        : true);
-      setTeamErrorMessage('');
-      setSelectedAgent(undefined);
-      setTeamMembers([]);
+    const loadProductivityGoals = async (): Promise<void> => {
+      setIsLoadingGoals(true);
+      setGoalsWarning('');
 
       try {
-        const directReports = availableAgents !== undefined
-          ? availableAgents
-          : await graphService.getDirectReports();
+        const configuration = await sharePointService.getConfiguracion();
 
         if (isMounted) {
-          setTeamMembers([...directReports]);
+          setDailyGoals({
+            emisionesTx: getSafeGoal(
+              configuration.MetaEmisionesTx,
+              DEFAULT_DAILY_GOALS.emisionesTx
+            ),
+            movimientosPg: getSafeGoal(
+              configuration.MetaMovimientosPg,
+              DEFAULT_DAILY_GOALS.movimientosPg
+            ),
+            escaneoPg: getSafeGoal(
+              configuration.MetaEscaneoPg,
+              DEFAULT_DAILY_GOALS.escaneoPg
+            )
+          });
         }
-      } catch (error: unknown) {
+      } catch {
         if (isMounted) {
-          const detail = error instanceof Error
-            ? error.message
-            : 'No fue posible cargar el equipo del supervisor.';
-          setTeamMembers([]);
-          setTeamErrorMessage(detail);
+          setDailyGoals(DEFAULT_DAILY_GOALS);
+          setGoalsWarning(
+            'No se pudieron cargar las metas configuradas. Las cuotas mostradas usan valores temporales de respaldo.'
+          );
         }
       } finally {
         if (isMounted) {
-          setIsLoadingTeam(
-            availableAgents !== undefined && isLoadingAgents
-          );
+          setIsLoadingGoals(false);
         }
       }
     };
 
-    loadTeam().catch(() => undefined);
+    loadProductivityGoals().catch(() => undefined);
 
     return () => {
       isMounted = false;
     };
-  }, [availableAgents, graphService, isLoadingAgents]);
+  }, [sharePointService]);
+
+  const workingDays = React.useMemo(
+    () =>
+      fechaInicio && fechaFin
+        ? getWorkingDaysCount(fechaInicio, fechaFin)
+        : 0,
+    [fechaFin, fechaInicio]
+  );
+
+  const expectedQuotas = React.useMemo(
+    () => ({
+      emisionesTx: dailyGoals.emisionesTx * workingDays,
+      movimientosPg: dailyGoals.movimientosPg * workingDays,
+      escaneoPg: dailyGoals.escaneoPg * workingDays
+    }),
+    [dailyGoals, workingDays]
+  );
+
+  const caseSlaPercentage = metrics.casosAtendidos > 0
+    ? (metrics.casosATiempo / metrics.casosAtendidos) * 100
+    : undefined;
+  const hasInvalidCaseSla =
+    metrics.casosATiempo > metrics.casosAtendidos;
+
+  const updateMetric = (
+    key: ProductivityMetricKey,
+    value: string | undefined
+  ): void => {
+    const parsedValue = parseNumber(value);
+
+    if (parsedValue !== undefined) {
+      setMetrics((currentMetrics) => ({
+        ...currentMetrics,
+        [key]: parsedValue
+      }));
+    }
+  };
 
   const submitProductividad = async (): Promise<void> => {
     setSuccessMessage('');
     setErrorMessage('');
 
-    const numericValues = [casos, emisiones, movimientos];
+    const numericValues = Object.keys(metrics).map(
+      (key) => metrics[key as ProductivityMetricKey]
+    );
     const hasInvalidNumber = numericValues.some(
       (value) => !Number.isFinite(value) || value < 0
+    );
+    const hasProductivityActivity = numericValues.some(
+      (value) => value > 0
     );
 
     if (
@@ -125,6 +216,20 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
       hasInvalidNumber
     ) {
       setErrorMessage('Complete correctamente todos los campos obligatorios.');
+      return;
+    }
+
+    if (!hasProductivityActivity) {
+      setErrorMessage(
+        'Registre al menos una métrica de productividad mayor que cero.'
+      );
+      return;
+    }
+
+    if (hasInvalidCaseSla) {
+      setErrorMessage(
+        'Los casos resueltos a tiempo no pueden superar los casos atendidos.'
+      );
       return;
     }
 
@@ -144,9 +249,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
         agenteObjectId: selectedAgent.id,
         fechaInicio,
         fechaFin,
-        casos,
-        emisiones,
-        movimientos
+        ...metrics
       };
 
       await sharePointService.registrarProductividad(data);
@@ -154,9 +257,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
       setSelectedAgent(undefined);
       setFechaInicio(new Date());
       setFechaFin(new Date());
-      setCasos(0);
-      setEmisiones(0);
-      setMovimientos(0);
+      setMetrics({ ...EMPTY_METRICS });
       setSuccessMessage('Productividad registrada correctamente.');
     } catch (error: unknown) {
       const detail = error instanceof Error
@@ -204,9 +305,9 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
               </MessageBar>
             )}
 
-            {teamErrorMessage && (
+            {goalsWarning && (
               <MessageBar messageBarType={MessageBarType.warning}>
-                {teamErrorMessage}
+                {goalsWarning}
               </MessageBar>
             )}
 
@@ -256,55 +357,219 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                 </Stack.Item>
               </Stack>
 
-              <Stack horizontal wrap tokens={{ childrenGap: 20 }}>
-                <Stack.Item className={styles.field} grow>
-                  <SpinButton
-                    disabled={isSubmitting}
-                    label="Casos procesados"
-                    min={0}
-                    onChange={(_, value) => {
-                      const parsedValue = parseNumber(value);
-                      if (parsedValue !== undefined) {
-                        setCasos(parsedValue);
-                      }
-                    }}
-                    step={1}
-                    value={String(casos)}
-                  />
-                </Stack.Item>
+              <section
+                aria-busy={isLoadingGoals}
+                aria-label="Resumen de días laborables y cuotas esperadas"
+                className={styles.quotaPanel}
+              >
+                <div className={styles.workingDaysSummary}>
+                  <Text className={styles.quotaEyebrow}>
+                    PERÍODO OPERATIVO
+                  </Text>
+                  <Text className={styles.workingDaysValue}>
+                    {workingDays}
+                  </Text>
+                  <Text className={styles.workingDaysLabel}>
+                    {workingDays === 1
+                      ? 'día laborable'
+                      : 'días laborables'}{' '}
+                    (sábado equivale a 0.5)
+                  </Text>
+                </div>
 
-                <Stack.Item className={styles.field} grow>
-                  <SpinButton
-                    disabled={isSubmitting}
-                    label="Emisiones"
-                    min={0}
-                    onChange={(_, value) => {
-                      const parsedValue = parseNumber(value);
-                      if (parsedValue !== undefined) {
-                        setEmisiones(parsedValue);
-                      }
-                    }}
-                    step={1}
-                    value={String(emisiones)}
+                {isLoadingGoals ? (
+                  <Spinner
+                    label="Calculando cuotas configuradas..."
+                    size={SpinnerSize.small}
                   />
-                </Stack.Item>
+                ) : (
+                  <div className={styles.quotaGrid}>
+                    <div className={styles.quotaItem}>
+                      <Text className={styles.quotaLabel}>
+                        Meta Emisiones Tx
+                      </Text>
+                      <Text className={styles.quotaValue}>
+                        {formatQuantity(expectedQuotas.emisionesTx)}
+                      </Text>
+                      <Text className={styles.quotaHint}>
+                        {formatQuantity(dailyGoals.emisionesTx)} diarias
+                      </Text>
+                    </div>
 
-                <Stack.Item className={styles.field} grow>
+                    <div className={styles.quotaItem}>
+                      <Text className={styles.quotaLabel}>
+                        Meta Movimientos Pg
+                      </Text>
+                      <Text className={styles.quotaValue}>
+                        {formatQuantity(expectedQuotas.movimientosPg)}
+                      </Text>
+                      <Text className={styles.quotaHint}>
+                        {formatQuantity(dailyGoals.movimientosPg)} diarias
+                      </Text>
+                    </div>
+
+                    <div className={styles.quotaItem}>
+                      <Text className={styles.quotaLabel}>Meta Escaneo Pg</Text>
+                      <Text className={styles.quotaValue}>
+                        {formatQuantity(expectedQuotas.escaneoPg)}
+                      </Text>
+                      <Text className={styles.quotaHint}>
+                        {formatQuantity(dailyGoals.escaneoPg)} diarias
+                      </Text>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <div className={styles.metricsGrid}>
+                <Stack
+                  className={`${styles.metricCard} glowCard`}
+                  tokens={{ childrenGap: 14 }}
+                >
+                  <Stack tokens={{ childrenGap: 3 }}>
+                    <Text className={styles.metricTitle}>
+                      📋 Gestión de Casos
+                    </Text>
+                    <Text className={styles.metricDescription}>
+                      Mide la tasa de cierre dentro del SLA acordado.
+                    </Text>
+                  </Stack>
                   <SpinButton
                     disabled={isSubmitting}
-                    label="Movimientos"
+                    label="Casos Atendidos (Totales)"
                     min={0}
-                    onChange={(_, value) => {
-                      const parsedValue = parseNumber(value);
-                      if (parsedValue !== undefined) {
-                        setMovimientos(parsedValue);
-                      }
-                    }}
+                    onChange={(_, value) =>
+                      updateMetric('casosAtendidos', value)
+                    }
                     step={1}
-                    value={String(movimientos)}
+                    value={String(metrics.casosAtendidos)}
                   />
-                </Stack.Item>
-              </Stack>
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Casos Resueltos a Tiempo (Dentro de SLA)"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('casosATiempo', value)
+                    }
+                    step={1}
+                    value={String(metrics.casosATiempo)}
+                  />
+                  <div
+                    aria-live="polite"
+                    className={`${styles.slaBadge} ${
+                      hasInvalidCaseSla
+                        ? styles.slaBadgeInvalid
+                        : caseSlaPercentage === undefined
+                          ? styles.slaBadgeInactive
+                          : styles.slaBadgeActive
+                    }`}
+                  >
+                    {caseSlaPercentage === undefined
+                      ? 'SLA: N/A - Re-distribuido por Normalización Dinámica'
+                      : hasInvalidCaseSla
+                        ? `SLA: ${formatQuantity(caseSlaPercentage)}% · Revisa los valores`
+                        : `SLA en vivo: ${formatQuantity(caseSlaPercentage)}%`}
+                  </div>
+                </Stack>
+
+                <Stack
+                  className={`${styles.metricCard} glowCard`}
+                  tokens={{ childrenGap: 14 }}
+                >
+                  <Stack tokens={{ childrenGap: 3 }}>
+                    <Text className={styles.metricTitle}>
+                      📦 Proceso Emisiones
+                    </Text>
+                    <Text className={styles.metricDescription}>
+                      Registra transacciones y páginas digitadas.
+                    </Text>
+                  </Stack>
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Transacciones"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('emisionesTx', value)
+                    }
+                    step={1}
+                    value={String(metrics.emisionesTx)}
+                  />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Páginas Digitadas"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('emisionesPg', value)
+                    }
+                    step={1}
+                    value={String(metrics.emisionesPg)}
+                  />
+                </Stack>
+
+                <Stack
+                  className={`${styles.metricCard} glowCard`}
+                  tokens={{ childrenGap: 14 }}
+                >
+                  <Stack tokens={{ childrenGap: 3 }}>
+                    <Text className={styles.metricTitle}>
+                      🔄 Proceso Movimientos
+                    </Text>
+                    <Text className={styles.metricDescription}>
+                      Registra transacciones y páginas digitadas.
+                    </Text>
+                  </Stack>
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Transacciones"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('movimientosTx', value)
+                    }
+                    step={1}
+                    value={String(metrics.movimientosTx)}
+                  />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Páginas Digitadas"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('movimientosPg', value)
+                    }
+                    step={1}
+                    value={String(metrics.movimientosPg)}
+                  />
+                </Stack>
+
+                <Stack
+                  className={`${styles.metricCard} glowCard`}
+                  tokens={{ childrenGap: 14 }}
+                >
+                  <Stack tokens={{ childrenGap: 3 }}>
+                    <Text className={styles.metricTitle}>
+                      🖨️ Proceso Escaneo
+                    </Text>
+                    <Text className={styles.metricDescription}>
+                      Registra transacciones y páginas escaneadas.
+                    </Text>
+                  </Stack>
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Transacciones"
+                    min={0}
+                    onChange={(_, value) => updateMetric('escaneoTx', value)}
+                    step={1}
+                    value={String(metrics.escaneoTx)}
+                  />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Páginas Escaneadas"
+                    min={0}
+                    onChange={(_, value) => updateMetric('escaneoPg', value)}
+                    step={1}
+                    value={String(metrics.escaneoPg)}
+                  />
+                </Stack>
+              </div>
 
               <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
                 <PrimaryButton
@@ -326,7 +591,6 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
           currentUserEmail={currentUserEmail}
           currentUserName={currentUserName}
           availableAgents={availableAgents}
-          graphService={graphService}
           isLoadingAgents={isLoadingAgents}
           moduleType="productividad"
           userRole={userRole}

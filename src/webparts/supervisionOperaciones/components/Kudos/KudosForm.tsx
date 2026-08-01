@@ -18,6 +18,7 @@ import {
 } from '@fluentui/react';
 
 import SharePointService, {
+  isFaltaApprovedForScoring,
   type IConfiguracionMetricas,
   type IEvaluacionKudoItem,
   type IEvaluacionProductividadItem,
@@ -25,13 +26,24 @@ import SharePointService, {
   type IPublicarEmpleadoMesData,
   type IRegistrarKudoData
 } from '../../services/SharePointService';
-import type GraphService from '../../services/GraphService';
 import type { IDirectReport } from '../../services/GraphService';
 import type { RoleType } from '../../models/AppModels';
 import useCurrentDate from '../../hooks/useCurrentDate';
+import {
+  calculateAgentProductivity,
+  calculateProductivityOverlapFactor,
+  calculateTeamMetricAverages,
+  getWorkingDaysCount,
+  PRODUCTIVITY_METRIC_KEYS,
+  resolveCaseSlaValues,
+  resolveProductivityMetricValues,
+  type IProductivityAgentRecord
+} from '../../utils';
 import { EmployeeMonthCard } from '../Dashboard/EmployeeMonthCard';
 import {
   buildKudoMedals,
+  getKudoMedalDefinition,
+  normalizeKudoAttribute,
   type IKudoMedal
 } from '../Dashboard/KudoMedals';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
@@ -39,9 +51,8 @@ import HistorialView from '../Historial/HistorialView';
 import styles from './KudosForm.module.scss';
 
 export interface IKudosFormProps {
-  availableAgents?: ReadonlyArray<IDirectReport>;
+  availableAgents: ReadonlyArray<IDirectReport>;
   currentUserEmail: string;
-  graphService: GraphService;
   isLoadingAgents?: boolean;
   remitente: string;
   userRole: RoleType;
@@ -100,6 +111,8 @@ interface IResolvedAgent {
 }
 
 interface IEmployeeMonthAccumulator extends IResolvedAgent {
+  hasProductividad: boolean;
+  metricasProductividad: IProductivityAgentRecord;
   puntosProductividad: number;
   puntosKudos: number;
   puntosRestados: number;
@@ -270,7 +283,7 @@ const getPenalty = (
   config: IConfiguracionMetricas
 ): number => {
   if (
-    item.Estado !== 'Aprobado' ||
+    !isFaltaApprovedForScoring(item.EstadoAprobacion) ||
     normalizeAttribute(item.Categoria) === 'capacitacion'
   ) {
     return 0;
@@ -278,10 +291,12 @@ const getPenalty = (
 
   switch (normalizeAttribute(item.Impacto)) {
     case 'bajo':
+    case 'leve':
       return toFiniteNumber(config.PenalidadBaja);
     case 'medio':
       return toFiniteNumber(config.PenalidadMedia);
     case 'critico':
+    case 'grave':
       return toFiniteNumber(config.PenalidadCritica);
     default:
       return 0;
@@ -296,7 +311,7 @@ const getPredominantKudoAttribute = (
     points: number;
   }>>((accumulator, kudo) => {
     const label = kudo.Atributo?.trim() || '';
-    const key = normalizeAttribute(label);
+    const key = normalizeKudoAttribute(label);
 
     if (!key) {
       return accumulator;
@@ -319,7 +334,7 @@ const getPredominantKudoAttribute = (
 };
 
 const getKudoConcept = (attribute: string): string => {
-  switch (normalizeAttribute(attribute)) {
+  switch (normalizeKudoAttribute(attribute)) {
     case 'orientado al negocio':
       return 'Colaborador con mayor orientación al negocio';
     case 'empatia':
@@ -339,13 +354,56 @@ const getKudoConcept = (attribute: string): string => {
   }
 };
 
+const createEmptyProductivityRecord = (): IProductivityAgentRecord => ({
+  CasosAtendidos: 0,
+  CasosATiempo: 0,
+  EmisionesTx: 0,
+  EmisionesPg: 0,
+  MovimientosTx: 0,
+  MovimientosPg: 0,
+  EscaneoTx: 0,
+  EscaneoPg: 0,
+  hasCaseSlaData: false
+});
+
+const addProductivityRecord = (
+  accumulator: IProductivityAgentRecord,
+  item: IEvaluacionProductividadItem,
+  overlapFactor: number
+): void => {
+  const values = resolveProductivityMetricValues(item);
+  const caseSla = resolveCaseSlaValues(item);
+
+  if (caseSla.hasSlaData) {
+    accumulator.CasosAtendidos =
+      toFiniteNumber(accumulator.CasosAtendidos) +
+      (caseSla.casosAtendidos * overlapFactor);
+    accumulator.CasosATiempo =
+      toFiniteNumber(accumulator.CasosATiempo) +
+      (caseSla.casosATiempo * overlapFactor);
+    accumulator.hasCaseSlaData = true;
+  }
+
+  PRODUCTIVITY_METRIC_KEYS.forEach((metric) => {
+    if (metric === 'Casos') {
+      return;
+    }
+
+    accumulator[metric] = toFiniteNumber(accumulator[metric]) +
+      (values[metric] * overlapFactor);
+  });
+};
+
 const buildEmployeeMonthCandidate = (
   productividad: ReadonlyArray<IEvaluacionProductividadItem>,
   kudos: ReadonlyArray<IEvaluacionKudoItem>,
   faltas: ReadonlyArray<IFaltaHistorialItem>,
   config: IConfiguracionMetricas,
   allowedAgents: ReadonlyArray<IDirectReport>,
-  hasGlobalScope: boolean
+  hasGlobalScope: boolean,
+  periodStart: Date,
+  periodEnd: Date,
+  workingDays: number
 ): IEmployeeMonthCandidate | undefined => {
   const agents = new Map<string, IEmployeeMonthAccumulator>();
   const getAccumulator = (
@@ -362,6 +420,8 @@ const buildEmployeeMonthCandidate = (
     if (!accumulator) {
       accumulator = {
         ...identity,
+        hasProductividad: false,
+        metricasProductividad: createEmptyProductivityRecord(),
         puntosProductividad: 0,
         puntosKudos: 0,
         puntosRestados: 0,
@@ -375,16 +435,22 @@ const buildEmployeeMonthCandidate = (
 
   productividad.forEach((item) => {
     const agent = getAccumulator(item);
+    const overlapFactor = calculateProductivityOverlapFactor(
+      item,
+      periodStart,
+      periodEnd
+    );
 
-    if (!agent) {
+    if (!agent || overlapFactor <= 0) {
       return;
     }
 
-    agent.puntosProductividad +=
-      (toFiniteNumber(item.Casos) * toFiniteNumber(config.PesoCasos)) +
-      (toFiniteNumber(item.Emisiones) * toFiniteNumber(config.PesoEmisiones)) +
-      (toFiniteNumber(item.Movimientos) *
-        toFiniteNumber(config.PesoMovimientos));
+    agent.hasProductividad = true;
+    addProductivityRecord(
+      agent.metricasProductividad,
+      item,
+      overlapFactor
+    );
   });
 
   kudos.forEach((item) => {
@@ -408,7 +474,25 @@ const buildEmployeeMonthCandidate = (
     agent.puntosRestados += getPenalty(item, config);
   });
 
-  const winner = Array.from(agents.values())
+  const accumulatedAgents = Array.from(agents.values());
+  const teamAverages = calculateTeamMetricAverages(
+    accumulatedAgents
+      .filter((agent) => agent.hasProductividad)
+      .map((agent) => agent.metricasProductividad)
+  );
+
+  accumulatedAgents.forEach((agent) => {
+    agent.puntosProductividad = agent.hasProductividad
+      ? calculateAgentProductivity(
+        agent.metricasProductividad,
+        config,
+        teamAverages,
+        workingDays
+      ).productivityPercentage
+      : 0;
+  });
+
+  const winner = accumulatedAgents
     .map((agent) => ({
       ...agent,
       puntosTotales:
@@ -440,7 +524,6 @@ const buildEmployeeMonthCandidate = (
 const KudosForm: React.FC<IKudosFormProps> = ({
   availableAgents,
   currentUserEmail,
-  graphService,
   isLoadingAgents = false,
   remitente,
   userRole
@@ -457,11 +540,6 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
-  const [teamOptions, setTeamOptions] = React.useState<
-    IDropdownOption<IDirectReport>[]
-  >([]);
-  const [isLoadingTeam, setIsLoadingTeam] = React.useState<boolean>(true);
-  const [teamErrorMessage, setTeamErrorMessage] = React.useState<string>('');
   const [atributoOptions, setAtributoOptions] = React.useState<
     IDropdownOption[]
   >([]);
@@ -496,62 +574,12 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   const currentDay = currentDate.getDate();
   const isPublicationWindowOpen =
     userRole === 'Admin' || (currentDay >= 1 && currentDay <= 5);
-  const scopedAgents = React.useMemo<ReadonlyArray<IDirectReport>>(() => {
-    if (availableAgents !== undefined) {
-      return availableAgents;
-    }
-
-    return teamOptions
-      .map((option) => option.data)
-      .filter((agent): agent is IDirectReport => Boolean(agent));
-  }, [availableAgents, teamOptions]);
+  const scopedAgents = availableAgents;
+  const isLoadingTeam = isLoadingAgents;
 
   React.useEffect(() => {
-    let isMounted = true;
-
-    const loadTeam = async (): Promise<void> => {
-      setIsLoadingTeam(availableAgents !== undefined
-        ? isLoadingAgents
-        : true);
-      setTeamErrorMessage('');
-      setSelectedAgent(undefined);
-
-      try {
-        const directReports = availableAgents !== undefined
-          ? availableAgents
-          : await graphService.getDirectReports();
-
-        if (isMounted) {
-          setTeamOptions(directReports.map(
-            (item): IDropdownOption<IDirectReport> => ({
-              key: item.id,
-              text: item.name,
-              data: item
-            })
-          ));
-        }
-      } catch (error: unknown) {
-        if (isMounted) {
-          const detail = error instanceof Error
-            ? error.message
-            : 'No fue posible cargar el equipo del supervisor.';
-          setTeamErrorMessage(detail);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingTeam(
-            availableAgents !== undefined && isLoadingAgents
-          );
-        }
-      }
-    };
-
-    loadTeam().catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, [availableAgents, graphService, isLoadingAgents]);
+    setSelectedAgent(undefined);
+  }, [availableAgents]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -565,15 +593,22 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           return;
         }
 
-        const options = catalogItems
-          .map((item) => item.Valor.trim())
-          .filter((value, index, values) => (
-            value.length > 0 && values.indexOf(value) === index
-          ))
-          .map((value): IDropdownOption => ({
-            key: value,
-            text: value
-          }));
+        const optionsByAttribute = new Map<string, IDropdownOption>();
+
+        catalogItems.forEach((item) => {
+          const value = item.Valor.trim();
+          const normalizedValue = normalizeKudoAttribute(value);
+
+          if (value && !optionsByAttribute.has(normalizedValue)) {
+            const definition = getKudoMedalDefinition(value);
+            optionsByAttribute.set(normalizedValue, {
+              key: definition.attribute,
+              text: definition.attribute
+            });
+          }
+        });
+
+        const options = Array.from(optionsByAttribute.values());
 
         setAtributoOptions(options);
 
@@ -651,7 +686,13 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           faltas,
           evaluationData.config,
           scopedAgents,
-          userRole === 'Admin'
+          userRole === 'Admin',
+          previousMonthPeriod.startDate,
+          previousMonthPeriod.endDate,
+          getWorkingDaysCount(
+            previousMonthPeriod.startDate,
+            previousMonthPeriod.endDate
+          )
         );
 
         if (isMounted) {
@@ -944,12 +985,6 @@ const KudosForm: React.FC<IKudosFormProps> = ({
               </MessageBar>
             )}
 
-            {teamErrorMessage && (
-              <MessageBar messageBarType={MessageBarType.warning}>
-                {teamErrorMessage}
-              </MessageBar>
-            )}
-
             {catalogErrorMessage && (
               <MessageBar messageBarType={MessageBarType.warning}>
                 {catalogErrorMessage}
@@ -1143,7 +1178,6 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           currentUserEmail={currentUserEmail}
           currentUserName={remitente}
           availableAgents={availableAgents}
-          graphService={graphService}
           isLoadingAgents={isLoadingAgents}
           moduleType="kudos"
           userRole={userRole}

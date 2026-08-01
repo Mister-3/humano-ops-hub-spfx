@@ -15,18 +15,19 @@ interface IKudoMedalDefinition {
   iconName: string;
 }
 
-const normalizeAttribute = (value: string): string => value
+export const normalizeKudoAttribute = (value?: string): string => (value || '')
   .trim()
   .replace(/\s+/g, ' ')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
-  .toLocaleLowerCase();
+  .toLowerCase()
+  .trim();
 
 const MEDAL_DEFINITIONS: ReadonlyArray<IKudoMedalDefinition> = [
   { attribute: 'Empatía', iconName: 'Heart' },
   { attribute: 'Agilidad', iconName: 'LightningBolt' },
   { attribute: 'Pensamiento digital', iconName: 'Devices3' },
-  { attribute: 'Orientado al negocio', iconName: 'Briefcase' },
+  { attribute: 'Orientado al negocio', iconName: 'Bullseye' },
   { attribute: 'Resolución de problemas', iconName: 'Lightbulb' },
   { attribute: 'Trabajo en equipo', iconName: 'Group' }
 ];
@@ -35,10 +36,10 @@ export const getKudoMedalDefinition = (
   attribute?: string
 ): IKudoMedalDefinition => {
   const trimmedAttribute = attribute?.trim() || '';
-  const normalizedAttribute = normalizeAttribute(trimmedAttribute);
+  const normalizedAttribute = normalizeKudoAttribute(trimmedAttribute);
   const knownDefinition = MEDAL_DEFINITIONS.find(
     (definition) =>
-      normalizeAttribute(definition.attribute) === normalizedAttribute
+      normalizeKudoAttribute(definition.attribute) === normalizedAttribute
   );
 
   return knownDefinition || {
@@ -54,7 +55,7 @@ export const buildKudoMedals = (
 
   kudos.forEach((kudo) => {
     const definition = getKudoMedalDefinition(kudo.Atributo);
-    const key = normalizeAttribute(definition.attribute);
+    const key = normalizeKudoAttribute(definition.attribute);
     const points = typeof kudo.Puntos === 'number' &&
       Number.isFinite(kudo.Puntos)
       ? kudo.Puntos

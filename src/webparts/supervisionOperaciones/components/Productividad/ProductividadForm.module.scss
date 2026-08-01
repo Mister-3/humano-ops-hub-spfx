@@ -14,7 +14,7 @@
 }
 
 .description {
-  color: #b9b9c4;
+  color: #e1dfdd;
 }
 
 .formCard {
@@ -110,6 +110,190 @@
   min-width: 180px;
 }
 
+.quotaPanel {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.7fr) minmax(0, 3fr);
+  gap: 20px;
+  align-items: stretch;
+  box-sizing: border-box;
+  padding: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 0 0,
+      rgba(0, 183, 195, 0.14),
+      transparent 42%
+    ),
+    #121214;
+  border: 1px solid rgba(0, 183, 195, 0.34);
+  border-radius: 8px;
+}
+
+.workingDaysSummary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding-right: 18px;
+  border-right: 1px solid #2d2d35;
+}
+
+.quotaEyebrow {
+  margin-bottom: 4px;
+  color: #8ddde3;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.workingDaysValue {
+  color: #00b7c3;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.workingDaysLabel {
+  margin-top: 4px;
+  color: #e1dfdd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.quotaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.quotaItem {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 12px;
+  background: rgba(37, 37, 41, 0.72);
+  border: 1px solid #2d2d35;
+  border-radius: 6px;
+}
+
+.quotaLabel {
+  overflow: hidden;
+  color: #e1dfdd;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quotaValue {
+  margin-top: 4px;
+  color: #0078d4;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.quotaHint {
+  margin-top: 2px;
+  color: #aeb6c2;
+  font-size: 11px;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metricCard {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 18px;
+  background: #1a1a1e;
+  border: 1px solid #2d2d35;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    border-color: #0078d4;
+    box-shadow: 0 6px 20px rgba(0, 120, 212, 0.2);
+    transform: translateY(-2px);
+  }
+}
+
+.metricTitle {
+  color: #f7f7fa;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.metricDescription {
+  color: #e1dfdd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.slaBadge {
+  box-sizing: border-box;
+  padding: 9px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  border: 1px solid;
+  border-radius: 6px;
+}
+
+.slaBadgeActive {
+  color: #8ff0d0;
+  background: rgba(16, 124, 65, 0.16);
+  border-color: rgba(61, 213, 152, 0.52);
+}
+
+.slaBadgeInactive {
+  color: #c5c5ce;
+  background: rgba(93, 93, 108, 0.16);
+  border-color: #40404c;
+}
+
+.slaBadgeInvalid {
+  color: #ffb3b3;
+  background: rgba(209, 52, 56, 0.16);
+  border-color: rgba(255, 91, 95, 0.58);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metricCard {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+@media (max-width: 980px) {
+  .quotaPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .workingDaysSummary {
+    padding-right: 0;
+    padding-bottom: 14px;
+    border-right: 0;
+    border-bottom: 1px solid #2d2d35;
+  }
+
+  .quotaGrid {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .form {
     padding: 18px 0;
@@ -121,5 +305,14 @@
 
   .field {
     min-width: 100%;
+  }
+
+  .metricsGrid,
+  .quotaGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotaLabel {
+    white-space: normal;
   }
 }

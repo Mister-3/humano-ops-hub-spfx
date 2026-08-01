@@ -1,0 +1,220 @@
+.approvalCard {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 24px;
+  color: #f7f7fa;
+  background:
+    linear-gradient(145deg, rgba(0, 120, 212, 0.055), transparent 42%),
+    #1a1a1e;
+  border: 1px solid #2d2d35;
+  border-radius: 8px;
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.28),
+    0 0 24px rgba(0, 120, 212, 0.05);
+
+  :global(.ms-Button--default) {
+    color: #f7f7fa;
+    background: #252529;
+    border-color: #40404c;
+  }
+
+  :global(.ms-Button--default:hover) {
+    color: #ffffff;
+    background: #2f2f36;
+    border-color: #0078d4;
+  }
+}
+
+.title {
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.description {
+  color: #b9b9c4;
+  line-height: 1.5;
+}
+
+.pendingBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 2px 11px;
+  color: #ffd166;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  background: rgba(255, 177, 31, 0.12);
+  border: 1px solid rgba(255, 209, 102, 0.38);
+  border-radius: 999px;
+}
+
+.tableContainer {
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #303039;
+  border-radius: 8px;
+
+  :global(.ms-DetailsList) {
+    min-width: 1610px;
+    color: #f0f0f4;
+    background: transparent;
+  }
+
+  :global(.ms-DetailsHeader) {
+    padding-top: 0;
+    background: #222228;
+    border-bottom: 1px solid #3b3b45;
+  }
+
+  :global(.ms-DetailsHeader-cell) {
+    color: #ffffff;
+    background: #222228;
+  }
+
+  :global(.ms-DetailsHeader-cell:hover) {
+    color: #ffffff;
+    background: #2a2a32;
+  }
+
+  :global(.ms-DetailsHeader-cellName) {
+    color: #dfe8f1;
+    font-weight: 650;
+  }
+
+  :global(.ms-DetailsRow) {
+    color: #eeeef3;
+    background: #1a1a1e;
+    border-bottom: 1px solid #2d2d35;
+  }
+
+  :global(.ms-DetailsRow:hover) {
+    background: #25252b;
+  }
+
+  :global(.ms-DetailsRow-cell) {
+    display: flex;
+    align-items: center;
+    color: #eeeef3;
+  }
+}
+
+.auditIdCell {
+  display: block;
+  overflow: hidden;
+  color: #7dd8ff;
+  font-family:
+    'SFMono-Regular',
+    Consolas,
+    'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authorName {
+  color: #e8e8ed;
+  font-weight: 600;
+}
+
+.authorEmail {
+  color: #9ccff0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.commentsCell {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #dedee5;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.emptyValue {
+  color: #92929e;
+}
+
+.helpdeskBadge {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 24px;
+  align-items: center;
+  padding: 1px 9px;
+  overflow: hidden;
+  color: #7dd8ff;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(0, 120, 212, 0.14);
+  border: 1px solid rgba(77, 184, 255, 0.38);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(0, 120, 212, 0.12);
+}
+
+.attachmentLink {
+  display: block;
+  max-width: 160px;
+  overflow: hidden;
+  color: #55c3ff;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    color: #8bd8ff;
+  }
+}
+
+.approveButton {
+  min-width: 98px;
+  box-shadow: 0 0 14px rgba(0, 120, 212, 0.22);
+}
+
+.rejectButton {
+  min-width: 98px;
+  color: #ff9ca2 !important;
+  background: rgba(235, 70, 81, 0.08) !important;
+  border-color: rgba(255, 116, 124, 0.38) !important;
+
+  &:hover {
+    color: #ffffff !important;
+    background: rgba(235, 70, 81, 0.2) !important;
+    border-color: #ff747c !important;
+  }
+}
+
+.emptyState {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  padding: 28px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(0, 183, 195, 0.08), transparent 54%),
+    #151519;
+  border: 1px dashed #3b3b45;
+  border-radius: 8px;
+}
+
+.emptyTitle {
+  color: #72e6a4;
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  .approvalCard {
+    padding: 18px;
+  }
+}

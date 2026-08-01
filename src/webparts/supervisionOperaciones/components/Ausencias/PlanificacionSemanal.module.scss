@@ -95,6 +95,35 @@
   min-width: 200px;
 }
 
+.agentField {
+  flex: 1 1 320px;
+  min-width: 260px;
+
+  :global(.ms-ComboBox) {
+    color: #ffffff;
+    background: #121214;
+    border-color: #3c3c47;
+    border-radius: 6px;
+  }
+
+  :global(.ms-ComboBox:hover) {
+    border-color: #686878;
+  }
+
+  :global(.ms-ComboBox:focus-within) {
+    border-color: #0078d4;
+    box-shadow:
+      0 0 0 1px #0078d4,
+      0 0 14px rgba(0, 120, 212, 0.2);
+  }
+
+  :global(.ms-ComboBox-Input),
+  :global(.ms-ComboBox-CaretDown-button) {
+    color: #ffffff;
+    background: transparent;
+  }
+}
+
 .capacityCard {
   position: relative;
   display: flex;
@@ -364,6 +393,26 @@
   background: rgba(242, 201, 76, 0.12);
   border: 1px solid rgba(242, 201, 76, 0.42);
   box-shadow: 0 0 12px rgba(242, 201, 76, 0.07);
+}
+
+.absenceBadgeCopy {
+  display: inline-flex;
+  min-width: 0;
+  flex-direction: column;
+
+  small {
+    overflow: hidden;
+    color: #ffd877;
+    font-family:
+      'SFMono-Regular',
+      Consolas,
+      monospace;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.015em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .availableBadge {

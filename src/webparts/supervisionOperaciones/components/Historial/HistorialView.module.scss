@@ -16,24 +16,29 @@
   }
 
   :global(.ms-TextField-fieldGroup),
-  :global(.ms-Dropdown-title) {
+  :global(.ms-Dropdown-title),
+  :global(.ms-ComboBox) {
     color: #ffffff;
     background: #131317;
     border-color: #3a3a44;
   }
 
   :global(.ms-TextField-fieldGroup:hover),
-  :global(.ms-Dropdown-title:hover) {
+  :global(.ms-Dropdown-title:hover),
+  :global(.ms-ComboBox:hover) {
     border-color: #4db8ff;
   }
 
   :global(.ms-TextField-field),
   :global(.ms-Dropdown-title),
-  :global(.ms-Dropdown-caretDown) {
+  :global(.ms-Dropdown-caretDown),
+  :global(.ms-ComboBox-Input),
+  :global(.ms-ComboBox-CaretDown-button) {
     color: #ffffff;
   }
 
-  :global(.ms-TextField-field::placeholder) {
+  :global(.ms-TextField-field::placeholder),
+  :global(.ms-ComboBox-Input::placeholder) {
     color: #92929e;
   }
 }
@@ -154,6 +159,39 @@
   word-break: break-word;
 }
 
+.auditIdCell {
+  display: block;
+  overflow: hidden;
+  color: #7dd8ff;
+  font-family:
+    'SFMono-Regular',
+    Consolas,
+    'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.helpdeskBadge {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 22px;
+  align-items: center;
+  padding: 1px 9px;
+  overflow: hidden;
+  color: #7dd8ff;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(0, 120, 212, 0.14);
+  border: 1px solid rgba(77, 184, 255, 0.35);
+  border-radius: 999px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -171,6 +209,12 @@
   color: #72e6a4;
   background: rgba(16, 185, 102, 0.13);
   border-color: rgba(72, 211, 137, 0.34);
+}
+
+.badgeEthicsLow {
+  color: #73e6d2;
+  background: rgba(0, 183, 195, 0.14);
+  border-color: rgba(77, 214, 222, 0.38);
 }
 
 .badgeMedium,
@@ -191,6 +235,12 @@
   color: #55c3ff;
   background: rgba(0, 120, 212, 0.15);
   border-color: rgba(77, 184, 255, 0.35);
+}
+
+.badgeSla {
+  color: #72e6a4;
+  background: rgba(16, 185, 102, 0.13);
+  border-color: rgba(72, 211, 137, 0.34);
 }
 
 .badgeNeutral {

@@ -80,6 +80,10 @@ export default class SecurityService {
       if (normalizedJobTitle.indexOf('supervisor') >= 0) {
         return 'Supervisor';
       }
+
+      if (normalizedJobTitle.indexOf('analista') >= 0) {
+        return 'Analista';
+      }
     } catch {
       return 'Oficial';
     }
@@ -138,8 +142,8 @@ export default class SecurityService {
             await graphService.getDirectReports()
           );
 
-        case 'Asistente':
-        case 'Oficial': {
+        case 'Analista':
+        case 'Asistente': {
           const peers = await graphService.getSupervisorPeers();
           return this.deduplicateAgents([
             ...peers,
@@ -147,13 +151,18 @@ export default class SecurityService {
           ]);
         }
 
+        case 'Oficial':
+          return [currentUserAsAgent];
+
         default:
           return [currentUserAsAgent];
       }
     } catch {
       // Least-privilege degradation. A directory outage must never expand the
       // Gerente/Admin/Supervisor scope; individual roles retain only self.
-      return userRole === 'Asistente' || userRole === 'Oficial'
+      return userRole === 'Analista' ||
+        userRole === 'Asistente' ||
+        userRole === 'Oficial'
         ? [currentUserAsAgent]
         : [];
     }
@@ -192,6 +201,7 @@ export default class SecurityService {
     return value === 'Admin' ||
       value === 'Gerente' ||
       value === 'Supervisor' ||
+      value === 'Analista' ||
       value === 'Asistente' ||
       value === 'Oficial';
   }

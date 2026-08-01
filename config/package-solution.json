@@ -1,9 +1,9 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
   "solution": {
-    "name": "Humano Ops Hub",
+    "name": "Humano Ops Hub - Supervision de Operaciones",
     "id": "044a91d4-d3cf-4a1d-ae40-416612781780",
-    "version": "3.5.0.0",
+    "version": "4.5.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -40,7 +40,7 @@
         "title": "Humano Ops Hub",
         "description": "Activa los componentes de Humano Ops Hub en SharePoint.",
         "id": "7e289ad3-f974-4355-a9ea-1c0255c6c166",
-        "version": "3.5.0.0"
+        "version": "4.5.0.0"
       }
     ]
   },

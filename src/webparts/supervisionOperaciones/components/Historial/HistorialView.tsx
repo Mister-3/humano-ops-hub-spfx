@@ -16,7 +16,6 @@ import {
 } from '@fluentui/react';
 
 import type { RoleType } from '../../models/AppModels';
-import type GraphService from '../../services/GraphService';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   type ICatalogoItem,
@@ -24,16 +23,22 @@ import SharePointService, {
   type IKudoHistorialItem,
   type IProductividadHistorialItem
 } from '../../services/SharePointService';
+import {
+  resolveProductivityMetricValues,
+  type ProductivityMetricKey
+} from '../../utils';
+import AgentComboBox, {
+  type IAgentComboBoxScopeOption
+} from '../AgentSelector/AgentComboBox';
 import { SkeletonLoader } from '../Common/SkeletonLoader';
 import styles from './HistorialView.module.scss';
 
 export type HistorialModuleType = 'faltas' | 'kudos' | 'productividad';
 
 export interface IHistorialViewProps {
-  availableAgents?: ReadonlyArray<IDirectReport>;
+  availableAgents: ReadonlyArray<IDirectReport>;
   currentUserEmail: string;
   currentUserName: string;
-  graphService: GraphService;
   isLoadingAgents?: boolean;
   moduleType: HistorialModuleType;
   userRole: RoleType;
@@ -49,10 +54,25 @@ interface ISummaryMetric {
   value: string;
 }
 
+interface IProductivityMetricDisplay {
+  key: ProductivityMetricKey;
+  label: string;
+  minWidth: number;
+}
+
 const ALL_AGENTS_KEY = '__all_agents__';
 const TEAM_AGENTS_KEY = '__team_agents__';
 const ALL_CATEGORIES_KEY = '__all_categories__';
 const ALL_CATEGORY_DETAILS_KEY = '__all_category_details__';
+
+const productivityMetricDisplays: ReadonlyArray<IProductivityMetricDisplay> = [
+  { key: 'EmisionesTx', label: 'Emisiones Tx', minWidth: 105 },
+  { key: 'EmisionesPg', label: 'Emisiones Pg', minWidth: 105 },
+  { key: 'MovimientosTx', label: 'Movimientos Tx', minWidth: 120 },
+  { key: 'MovimientosPg', label: 'Movimientos Pg', minWidth: 120 },
+  { key: 'EscaneoTx', label: 'Escaneo Tx', minWidth: 95 },
+  { key: 'EscaneoPg', label: 'Escaneo Pg', minWidth: 95 }
+];
 
 const fallbackErrorProcessOptions: ReadonlyArray<string> = [
   'Error de Digitación',
@@ -68,13 +88,21 @@ const fallbackAreaProcessOptions: ReadonlyArray<string> = [
   'Servicio al Cliente'
 ];
 
+const fallbackEthicsOptions: ReadonlyArray<string> = [
+  'Uso inadecuado de recursos',
+  'Trato irrespetuoso o conducta inapropiada',
+  'Conflicto de interés no declarado',
+  'Fraude, soborno o divulgación indebida'
+];
+
 const fallbackFaltaCategoryOptions: IDropdownOption[] = [
   { key: ALL_CATEGORIES_KEY, text: 'Todas' },
   { key: 'Tardanza', text: 'Tardanza' },
   { key: 'Ausencia Injustificada', text: 'Ausencia Injustificada' },
   { key: 'Error en proceso', text: 'Error en proceso' },
   { key: 'Violación de Política', text: 'Violación de Política' },
-  { key: 'Capacitación', text: 'Capacitación' }
+  { key: 'Capacitación', text: 'Capacitación' },
+  { key: 'Código de Ética', text: 'Código de Ética' }
 ];
 
 const getAgentKey = (agent: IDirectReport): string => {
@@ -119,15 +147,6 @@ const matchesAgentIdentity = (
   );
 };
 
-const toAgentOptions = (
-  agents: ReadonlyArray<IDirectReport>
-): IDropdownOption[] => agents.map((agent) => ({
-  key: getAgentKey(agent),
-  text: agent.email
-    ? `${agent.name} · ${agent.email}`
-    : agent.name
-}));
-
 const toCategoryOptions = (
   items: ReadonlyArray<ICatalogoItem>
 ): IDropdownOption[] => {
@@ -161,12 +180,14 @@ const normalizeCatalogValue = (value?: string): string => (
 
 const getDetailCatalog = (
   category: string
-): 'ErrorProceso' | 'ProcesoArea' | undefined => {
+): 'CodigoEtica' | 'ErrorProceso' | 'ProcesoArea' | undefined => {
   switch (normalizeCatalogValue(category)) {
     case 'error en proceso':
       return 'ErrorProceso';
     case 'capacitacion':
       return 'ProcesoArea';
+    case 'codigo de etica':
+      return 'CodigoEtica';
     default:
       return undefined;
   }
@@ -174,7 +195,7 @@ const getDetailCatalog = (
 
 const toCategoryDetailOptions = (
   values: ReadonlyArray<string>,
-  catalog: 'ErrorProceso' | 'ProcesoArea'
+  catalog: 'CodigoEtica' | 'ErrorProceso' | 'ProcesoArea'
 ): IDropdownOption[] => {
   const seenValues: { [normalizedValue: string]: boolean } = {};
   const options = values
@@ -191,9 +212,9 @@ const toCategoryDetailOptions = (
     })
     .sort((left, right) => left.localeCompare(right, 'es'))
     .map((value): IDropdownOption => ({ key: value, text: value }));
-  const allLabel = catalog === 'ErrorProceso'
-    ? 'Todas las subcategorías'
-    : 'Todos los procesos';
+  const allLabel = catalog === 'ProcesoArea'
+    ? 'Todos los procesos'
+    : 'Todas las subcategorías';
 
   return [
     { key: ALL_CATEGORY_DETAILS_KEY, text: allLabel },
@@ -242,6 +263,71 @@ const formatNumber = (value: number): string => value.toLocaleString('es-DO', {
   maximumFractionDigits: 2
 });
 
+const getAuditId = (item?: HistorialItem): string => {
+  if (!item || !('AuditID' in item) || typeof item.AuditID !== 'string') {
+    return '';
+  }
+
+  return item.AuditID.trim();
+};
+
+const getOptionalNumericField = (
+  item: IProductividadHistorialItem,
+  fieldName: 'CasosAtendidos' | 'CasosATiempo'
+): number | undefined => {
+  const value = (item as unknown as Record<string, unknown>)[fieldName];
+
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : undefined;
+};
+
+interface ICaseSlaValues {
+  attended: number;
+  hasSlaData: boolean;
+  onTime: number;
+  percentage?: number;
+}
+
+const getCaseSlaValues = (
+  item: IProductividadHistorialItem
+): ICaseSlaValues => {
+  const explicitAttended = getOptionalNumericField(item, 'CasosAtendidos');
+  const explicitOnTime = getOptionalNumericField(item, 'CasosATiempo');
+  const attended = explicitAttended ??
+    resolveProductivityMetricValues(item).Casos;
+  const onTime = explicitOnTime ?? 0;
+  const hasSlaData = item.TieneDatosSLA ?? explicitOnTime !== undefined;
+
+  return {
+    attended,
+    hasSlaData,
+    onTime,
+    percentage: attended > 0 && hasSlaData
+      ? (onTime / attended) * 100
+      : undefined
+  };
+};
+
+const formatSlaPercentage = (values: ICaseSlaValues): string => {
+  if (values.attended <= 0) {
+    return 'SLA: N/A (0 / 0) · redistribuido';
+  }
+
+  if (values.percentage === undefined) {
+    return `SLA: N/A (— / ${formatNumber(values.attended)}) · histórico`;
+  }
+
+  const percentage = values.percentage.toLocaleString('es-DO', {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1
+  });
+
+  return `SLA: ${percentage}% (${formatNumber(values.onTime)} / ${
+    formatNumber(values.attended)
+  })`;
+};
+
 const isFaltaItem = (item: HistorialItem): item is IFaltaHistorialItem => (
   'FechaFalta' in item
 );
@@ -270,21 +356,53 @@ const getImpactBadgeClass = (impacto: string): string => {
   switch (impacto.trim().toLocaleLowerCase()) {
     case 'bajo':
       return styles.badgeLow;
+    case 'leve':
+      return styles.badgeEthicsLow;
     case 'medio':
       return styles.badgeMedium;
     case 'crítico':
     case 'critico':
+    case 'grave':
       return styles.badgeCritical;
     default:
       return styles.badgeNeutral;
   }
 };
 
+const getApprovalStatus = (item?: IFaltaHistorialItem): string => {
+  if (!item) {
+    return 'Aprobado';
+  }
+
+  const approvalValue = item.EstadoAprobacion;
+
+  return approvalValue?.trim()
+    ? approvalValue.trim()
+    : 'Aprobado';
+};
+
+const formatHelpdeskCase = (value?: string): string => {
+  const normalizedValue = value?.trim() || '';
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return normalizedValue.startsWith('#')
+    ? normalizedValue
+    : `#${normalizedValue}`;
+};
+
+const isApprovedFalta = (item: IFaltaHistorialItem): boolean => (
+  normalizeCatalogValue(getApprovalStatus(item)) === 'aprobado'
+);
+
 const getStatusBadgeClass = (estado: string): string => {
   switch (estado.trim().toLocaleLowerCase()) {
     case 'aprobado':
       return styles.badgeApproved;
     case 'borrador':
+    case 'pendiente':
       return styles.badgeDraft;
     case 'rechazado':
       return styles.badgeRejected;
@@ -294,6 +412,16 @@ const getStatusBadgeClass = (estado: string): string => {
 };
 
 const createFaltasColumns = (): IColumn[] => [
+  {
+    key: 'auditId',
+    minWidth: 135,
+    name: 'Audit ID',
+    onRender: (item?: IFaltaHistorialItem) => (
+      <Text className={styles.auditIdCell} title={getAuditId(item)}>
+        {getAuditId(item) || '—'}
+      </Text>
+    )
+  },
   {
     key: 'fecha',
     name: 'Fecha',
@@ -353,9 +481,17 @@ const createFaltasColumns = (): IColumn[] => [
     key: 'casoRef',
     minWidth: 145,
     name: 'Caso Helpdesk / Calidad',
-    onRender: (item?: IFaltaHistorialItem) => (
-      <Text>{item?.CasoRef || '—'}</Text>
-    )
+    onRender: (item?: IFaltaHistorialItem) => {
+      const helpdeskCase = formatHelpdeskCase(item?.CasoRef);
+
+      return helpdeskCase ? (
+        <span className={styles.helpdeskBadge} title={item?.CasoRef}>
+          🎫 {helpdeskCase}
+        </span>
+      ) : (
+        <Text>—</Text>
+      );
+    }
   },
   {
     fieldName: 'ProcesoArea',
@@ -401,6 +537,20 @@ const createFaltasColumns = (): IColumn[] => [
     )
   },
   {
+    key: 'estadoAprobacion',
+    name: 'Aprobación',
+    minWidth: 105,
+    onRender: (item?: IFaltaHistorialItem) => item && (
+      <span
+        className={`${styles.badge} ${getStatusBadgeClass(
+          getApprovalStatus(item)
+        )}`}
+      >
+        {getApprovalStatus(item)}
+      </span>
+    )
+  },
+  {
     fieldName: 'RolOriginador',
     isResizable: true,
     key: 'rolOriginador',
@@ -410,6 +560,16 @@ const createFaltasColumns = (): IColumn[] => [
 ];
 
 const createKudosColumns = (): IColumn[] => [
+  {
+    key: 'auditId',
+    minWidth: 135,
+    name: 'Audit ID',
+    onRender: (item?: IKudoHistorialItem) => (
+      <Text className={styles.auditIdCell} title={getAuditId(item)}>
+        {getAuditId(item) || '—'}
+      </Text>
+    )
+  },
   {
     key: 'fecha',
     name: 'Fecha',
@@ -486,6 +646,16 @@ const createKudosColumns = (): IColumn[] => [
 
 const createProductividadColumns = (): IColumn[] => [
   {
+    key: 'auditId',
+    minWidth: 135,
+    name: 'Audit ID',
+    onRender: (item?: IProductividadHistorialItem) => (
+      <Text className={styles.auditIdCell} title={getAuditId(item)}>
+        {getAuditId(item) || '—'}
+      </Text>
+    )
+  },
+  {
     key: 'fechaInicio',
     name: 'Fecha Inicio',
     minWidth: 90,
@@ -541,43 +711,71 @@ const createProductividadColumns = (): IColumn[] => [
     )
   },
   {
-    key: 'casos',
-    name: 'Casos',
-    minWidth: 85,
+    key: 'casosAtendidos',
+    minWidth: 110,
+    name: 'Casos Atendidos',
     onRender: (item?: IProductividadHistorialItem) => (
-      <Text>{formatNumber(item?.Casos || 0)}</Text>
+      <Text>
+        {formatNumber(item ? getCaseSlaValues(item).attended : 0)}
+      </Text>
     )
   },
   {
-    key: 'emisiones',
-    name: 'Emisiones',
-    minWidth: 90,
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text>{formatNumber(item?.Emisiones || 0)}</Text>
-    )
-  },
-  {
-    key: 'movimientos',
-    name: 'Movimientos',
-    minWidth: 105,
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text>{formatNumber(item?.Movimientos || 0)}</Text>
-    )
-  },
-  {
-    key: 'total',
-    name: 'Total operaciones',
+    key: 'casosATiempo',
     minWidth: 115,
+    name: 'Casos a Tiempo',
+    onRender: (item?: IProductividadHistorialItem) => {
+      if (!item) {
+        return <Text>—</Text>;
+      }
+
+      const caseValues = getCaseSlaValues(item);
+
+      return (
+        <Text>
+          {caseValues.hasSlaData ? formatNumber(caseValues.onTime) : '—'}
+        </Text>
+      );
+    }
+  },
+  {
+    key: 'sla',
+    minWidth: 210,
+    name: 'Cumplimiento SLA',
+    onRender: (item?: IProductividadHistorialItem) => {
+      if (!item) {
+        return <Text>—</Text>;
+      }
+
+      const caseValues = getCaseSlaValues(item);
+
+      return (
+        <span
+          className={`${styles.badge} ${
+            caseValues.percentage === undefined
+              ? styles.badgeNeutral
+              : styles.badgeSla
+          }`}
+        >
+          {formatSlaPercentage(caseValues)}
+        </span>
+      );
+    }
+  },
+  ...productivityMetricDisplays.map((metric): IColumn => ({
+    key: `metric-${metric.key}`,
+    minWidth: metric.minWidth,
+    name: metric.label,
     onRender: (item?: IProductividadHistorialItem) => (
-      <strong className={styles.totalValue}>
+      <Text>
         {formatNumber(
-          (item?.Casos || 0) +
-          (item?.Emisiones || 0) +
-          (item?.Movimientos || 0)
+          item
+            ? resolveProductivityMetricValues(item)[metric.key]
+            : 0
         )}
-      </strong>
+      </Text>
     )
-  }
+  }))
 ];
 
 const escapeCsvValue = (value: string | number): string => (
@@ -588,7 +786,6 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
   availableAgents,
   currentUserEmail,
   currentUserName,
-  graphService,
   isLoadingAgents = false,
   moduleType,
   userRole
@@ -597,7 +794,10 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     getInitialStartDate()
   );
   const [endDate, setEndDate] = React.useState<Date | undefined>(new Date());
-  const [selectedAgent, setSelectedAgent] = React.useState<string>('');
+  const [selectedAgent, setSelectedAgent] =
+    React.useState<IDirectReport | undefined>();
+  const [selectedScopeKey, setSelectedScopeKey] =
+    React.useState<string | undefined>();
   const [selectedCategory, setSelectedCategory] = React.useState<string>(
     ALL_CATEGORIES_KEY
   );
@@ -605,7 +805,6 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     React.useState<string>(ALL_CATEGORY_DETAILS_KEY);
   const [allowedAgents, setAllowedAgents] =
     React.useState<IDirectReport[]>([]);
-  const [agentOptions, setAgentOptions] = React.useState<IDropdownOption[]>([]);
   const [categoryOptions, setCategoryOptions] =
     React.useState<IDropdownOption[]>(fallbackFaltaCategoryOptions);
   const [categoryDetailOptions, setCategoryDetailOptions] =
@@ -625,108 +824,78 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
   const isAdministrator = userRole === 'Admin';
-  const isTeamManager = userRole === 'Supervisor' || userRole === 'Gerente';
-  const isRestrictedToSelf = userRole === 'Asistente' || userRole === 'Oficial';
+  const hasTeamScope = userRole === 'Supervisor' ||
+    userRole === 'Gerente' ||
+    userRole === 'Asistente' ||
+    userRole === 'Analista';
+  const isRestrictedToSelf = userRole === 'Oficial';
+  const scopeOptions = React.useMemo(
+    (): ReadonlyArray<IAgentComboBoxScopeOption> => {
+      if (isAdministrator) {
+        return [{ key: ALL_AGENTS_KEY, text: 'Todos los Agentes' }];
+      }
+
+      if (hasTeamScope) {
+        return [{ key: TEAM_AGENTS_KEY, text: 'Todo mi equipo' }];
+      }
+
+      return [];
+    },
+    [hasTeamScope, isAdministrator]
+  );
 
   React.useEffect(() => {
-    let isMounted = true;
+    setIsLoadingTeam(isLoadingAgents);
+    setErrorMessage('');
+    setItems([]);
+    setHasSearched(false);
+    setAllowedAgents([]);
+    setSelectedAgent(undefined);
+    setSelectedScopeKey(undefined);
 
-    const loadAgentScope = async (): Promise<void> => {
-      setIsLoadingTeam(availableAgents !== undefined
-        ? isLoadingAgents
-        : true);
-      setErrorMessage('');
-      setItems([]);
-      setHasSearched(false);
-      setAllowedAgents([]);
-      setAgentOptions([]);
-      setSelectedAgent('');
+    if (isRestrictedToSelf) {
+      const ownName = currentUserName.trim();
+      const ownEmail = currentUserEmail.trim();
+      const ownIdentity: IDirectReport = {
+        email: ownEmail,
+        id: '',
+        name: ownName
+      };
+      const hasIdentity = Boolean(ownName || ownEmail);
 
-      try {
-        if (isRestrictedToSelf) {
-          const ownName = currentUserName.trim();
-          const ownEmail = currentUserEmail.trim();
-          const ownIdentity: IDirectReport = {
-            email: ownEmail,
-            id: '',
-            name: ownName
-          };
+      setAllowedAgents(hasIdentity ? [ownIdentity] : []);
+      setSelectedAgent(hasIdentity ? ownIdentity : undefined);
+      return;
+    }
 
-          if (isMounted) {
-            const hasIdentity = Boolean(ownName || ownEmail);
-            setAllowedAgents(hasIdentity ? [ownIdentity] : []);
-            setAgentOptions(hasIdentity ? toAgentOptions([ownIdentity]) : []);
-            setSelectedAgent(hasIdentity ? getAgentKey(ownIdentity) : '');
-          }
+    const seenIdentities: { [identity: string]: boolean } = {};
+    const uniqueUsers = availableAgents
+      .map((user): IDirectReport => ({
+        ...user,
+        email: user.email.trim(),
+        id: user.id.trim(),
+        name: user.name.trim()
+      }))
+      .filter((user) => {
+        const identity = getAgentKey(user);
 
-          return;
+        if (!user.name || seenIdentities[identity]) {
+          return false;
         }
 
-        const users = availableAgents !== undefined
-          ? availableAgents
-          : isAdministrator
-            ? await graphService.getAllUsers()
-            : await graphService.getDirectReports();
-        const seenIdentities: { [identity: string]: boolean } = {};
-        const uniqueUsers = users
-          .map((user): IDirectReport => ({
-            ...user,
-            email: user.email.trim(),
-            id: user.id.trim(),
-            name: user.name.trim()
-          }))
-          .filter((user) => {
-            const identity = getAgentKey(user);
+        seenIdentities[identity] = true;
+        return true;
+      })
+      .sort((left, right) => left.name.localeCompare(right.name, 'es'));
 
-            if (!user.name || seenIdentities[identity]) {
-              return false;
-            }
-
-            seenIdentities[identity] = true;
-            return true;
-          })
-          .sort((left, right) => left.name.localeCompare(right.name, 'es'));
-        const scopeOption: IDropdownOption = isAdministrator
-          ? { key: ALL_AGENTS_KEY, text: 'Todos los Agentes' }
-          : { key: TEAM_AGENTS_KEY, text: 'Todo mi equipo' };
-
-        if (isMounted) {
-          setAllowedAgents(uniqueUsers);
-          setAgentOptions([
-            scopeOption,
-            ...toAgentOptions(uniqueUsers)
-          ]);
-          setSelectedAgent(String(scopeOption.key));
-        }
-      } catch (error: unknown) {
-        if (isMounted) {
-          const detail = error instanceof Error
-            ? error.message
-            : 'No fue posible cargar los agentes disponibles.';
-          setAllowedAgents([]);
-          setAgentOptions([]);
-          setSelectedAgent('');
-          setErrorMessage(detail);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingTeam(
-            availableAgents !== undefined && isLoadingAgents
-          );
-        }
-      }
-    };
-
-    loadAgentScope().catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
+    setAllowedAgents(uniqueUsers);
+    setSelectedScopeKey(
+      isAdministrator ? ALL_AGENTS_KEY : TEAM_AGENTS_KEY
+    );
   }, [
     availableAgents,
     currentUserEmail,
     currentUserName,
-    graphService,
     isAdministrator,
     isLoadingAgents,
     isRestrictedToSelf
@@ -823,7 +992,9 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
           setCategoryDetailWarning(
             detailCatalog === 'ErrorProceso'
               ? 'No hay subcategorías de error configuradas.'
-              : 'No hay procesos del área configurados.'
+              : detailCatalog === 'CodigoEtica'
+                ? 'No hay subcategorías de Código de Ética configuradas.'
+                : 'No hay procesos del área configurados.'
           );
         }
       } catch (error: unknown) {
@@ -836,7 +1007,9 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
           : 'No fue posible cargar el filtro dependiente.';
         const fallbackValues = detailCatalog === 'ErrorProceso'
           ? fallbackErrorProcessOptions
-          : fallbackAreaProcessOptions;
+          : detailCatalog === 'CodigoEtica'
+            ? fallbackEthicsOptions
+            : fallbackAreaProcessOptions;
 
         setCategoryDetailOptions(
           toCategoryDetailOptions(fallbackValues, detailCatalog)
@@ -921,7 +1094,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       return;
     }
 
-    if (!selectedAgent) {
+    if (!selectedAgent && !selectedScopeKey) {
       setErrorMessage('Seleccione el alcance de agentes que desea consultar.');
       return;
     }
@@ -932,9 +1105,9 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     try {
       let records: HistorialItem[];
 
-      if (isAdministrator && selectedAgent === ALL_AGENTS_KEY) {
+      if (isAdministrator && selectedScopeKey === ALL_AGENTS_KEY) {
         records = await getRecords(normalizedStart, normalizedEnd);
-      } else if (isTeamManager && selectedAgent === TEAM_AGENTS_KEY) {
+      } else if (hasTeamScope && selectedScopeKey === TEAM_AGENTS_KEY) {
         const rangeRecords = await getRecords(
           normalizedStart,
           normalizedEnd
@@ -945,9 +1118,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       } else {
         const enforcedAgent = isRestrictedToSelf
           ? allowedAgents[0]
-          : allowedAgents.find(
-            (agent) => getAgentKey(agent) === selectedAgent
-          );
+          : selectedAgent;
 
         if (!enforcedAgent) {
           throw new Error('No se pudo determinar el usuario autorizado para la consulta.');
@@ -984,10 +1155,18 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
             ? item.Subcategoria
             : detailCatalog === 'ProcesoArea'
               ? item.ProcesoArea
-              : undefined;
+              : detailCatalog === 'CodigoEtica'
+                ? item.Subcategoria
+                : undefined;
 
           return normalizeCatalogValue(itemValue) === normalizedDetail;
         });
+      }
+
+      if (moduleType === 'faltas') {
+        records = records.filter((item) => (
+          isFaltaItem(item) && isApprovedFalta(item)
+        ));
       }
 
       records.sort((left, right) => (
@@ -1010,6 +1189,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       case 'faltas':
         return [
           [
+            'Audit ID',
             'Fecha',
             'Agente',
             'Correo del agente',
@@ -1021,9 +1201,11 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
             'Comentarios / Observaciones',
             'Impacto',
             'Estado',
+            'Estado de Aprobación',
             'Rol originador'
           ],
           ...items.filter(isFaltaItem).map((item) => [
+            getAuditId(item),
             formatDateValue(item.FechaFalta),
             item.Title,
             item.AgenteEmail || '',
@@ -1035,12 +1217,14 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
             item.Comentarios || item.ComentariosCapacitacion || '',
             item.Impacto,
             item.Estado,
+            getApprovalStatus(item),
             item.RolOriginador
           ])
         ];
       case 'kudos':
         return [
           [
+            'Audit ID',
             'Fecha',
             'Agente receptor',
             'Correo del agente',
@@ -1051,6 +1235,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
             'Enviado por'
           ],
           ...items.filter(isKudoItem).map((item) => [
+            getAuditId(item),
             formatDateValue(item.FechaKudo),
             item.Title,
             item.AgenteEmail || '',
@@ -1061,33 +1246,55 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
             item.Remitente
           ])
         ];
-      case 'productividad':
+      case 'productividad': {
+        const productividadRows = items
+          .filter(isProductividadItem)
+          .map((item) => {
+            const metricValues = resolveProductivityMetricValues(item);
+            const caseValues = getCaseSlaValues(item);
+
+            return [
+              getAuditId(item),
+              formatDateValue(item.FechaInicio || item.FechaRegistro),
+              formatDateValue(
+                item.FechaFin || item.FechaInicio || item.FechaRegistro
+              ),
+              item.Title,
+              item.AgenteEmail || '',
+              item.AgenteObjectID || '',
+              caseValues.attended,
+              caseValues.hasSlaData ? caseValues.onTime : '',
+              formatSlaPercentage(caseValues),
+              metricValues.EmisionesTx,
+              metricValues.EmisionesPg,
+              metricValues.MovimientosTx,
+              metricValues.MovimientosPg,
+              metricValues.EscaneoTx,
+              metricValues.EscaneoPg
+            ];
+          });
+
         return [
           [
+            'Audit ID',
             'Fecha Inicio',
             'Fecha Fin',
             'Agente',
             'Correo del agente',
             'Object ID Entra ID',
-            'Casos',
-            'Emisiones',
-            'Movimientos',
-            'Total operaciones'
+            'Casos Atendidos',
+            'Casos Resueltos a Tiempo',
+            'Cumplimiento SLA',
+            'Emisiones - Transacciones',
+            'Emisiones - Páginas Digitadas',
+            'Movimientos - Transacciones',
+            'Movimientos - Páginas Digitadas',
+            'Escaneo - Transacciones',
+            'Escaneo - Páginas Escaneadas'
           ],
-          ...items.filter(isProductividadItem).map((item) => [
-            formatDateValue(item.FechaInicio || item.FechaRegistro),
-            formatDateValue(
-              item.FechaFin || item.FechaInicio || item.FechaRegistro
-            ),
-            item.Title,
-            item.AgenteEmail || '',
-            item.AgenteObjectID || '',
-            item.Casos,
-            item.Emisiones,
-            item.Movimientos,
-            item.Casos + item.Emisiones + item.Movimientos
-          ])
+          ...productividadRows
         ];
+      }
     }
   };
 
@@ -1122,14 +1329,15 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       return [
         { label: 'Registros', value: formatNumber(faltas.length) },
         {
-          label: 'Aprobadas',
-          value: formatNumber(faltas.filter((item) => item.Estado === 'Aprobado').length)
+          label: 'Aprobación vigente',
+          value: formatNumber(faltas.filter(isApprovedFalta).length)
         },
         {
-          label: 'Impacto crítico',
+          label: 'Impacto alto',
           value: formatNumber(faltas.filter((item) => (
             item.Impacto.toLocaleLowerCase() === 'crítico' ||
-            item.Impacto.toLocaleLowerCase() === 'critico'
+            item.Impacto.toLocaleLowerCase() === 'critico' ||
+            item.Impacto.toLocaleLowerCase() === 'grave'
           )).length)
         }
       ];
@@ -1150,26 +1358,56 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     }
 
     const productividad = items.filter(isProductividadItem);
+    const totals: Record<ProductivityMetricKey, number> = {
+      Casos: 0,
+      EmisionesTx: 0,
+      EmisionesPg: 0,
+      MovimientosTx: 0,
+      MovimientosPg: 0,
+      EscaneoTx: 0,
+      EscaneoPg: 0
+    };
+
+    let totalCasesAttended = 0;
+    let slaCasesAttended = 0;
+    let totalCasesOnTime = 0;
+    let hasSlaData = false;
+
+    productividad.forEach((item) => {
+      const metricValues = resolveProductivityMetricValues(item);
+      const caseValues = getCaseSlaValues(item);
+
+      totalCasesAttended += caseValues.attended;
+
+      if (caseValues.hasSlaData) {
+        slaCasesAttended += caseValues.attended;
+        totalCasesOnTime += caseValues.onTime;
+        hasSlaData = true;
+      }
+
+      productivityMetricDisplays.forEach((metric) => {
+        totals[metric.key] += metricValues[metric.key];
+      });
+    });
+
+    const globalSla = slaCasesAttended > 0 && hasSlaData
+      ? `${((totalCasesOnTime / slaCasesAttended) * 100).toLocaleString(
+        'es-DO',
+        { maximumFractionDigits: 1, minimumFractionDigits: 1 }
+      )}%`
+      : 'N/A';
 
     return [
+      { label: 'Casos atendidos', value: formatNumber(totalCasesAttended) },
       {
-        label: 'Casos',
-        value: formatNumber(productividad.reduce((total, item) => total + item.Casos, 0))
+        label: 'Casos a tiempo',
+        value: hasSlaData ? formatNumber(totalCasesOnTime) : 'N/A'
       },
-      {
-        label: 'Emisiones',
-        value: formatNumber(productividad.reduce(
-          (total, item) => total + item.Emisiones,
-          0
-        ))
-      },
-      {
-        label: 'Movimientos',
-        value: formatNumber(productividad.reduce(
-          (total, item) => total + item.Movimientos,
-          0
-        ))
-      }
+      { label: 'SLA global', value: globalSla },
+      ...productivityMetricDisplays.map((metric) => ({
+        label: metric.label,
+        value: formatNumber(totals[metric.key])
+      }))
     ];
   }, [items, moduleType]);
 
@@ -1179,7 +1417,8 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       ? 'Historial de reconocimientos'
       : 'Historial de productividad';
   const isQueryDisabled = isLoadingTeam || isLoadingQuery ||
-    isLoadingCategories || isLoadingCategoryDetails || !selectedAgent ||
+    isLoadingCategories || isLoadingCategoryDetails ||
+    (!selectedAgent && !selectedScopeKey) ||
     (isRestrictedToSelf && !currentUserName.trim() && !currentUserEmail.trim());
   const isLoadingHistoryData = isLoadingTeam ||
     isLoadingCategories ||
@@ -1247,15 +1486,33 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
             placeholder="dd/mm/aaaa"
             value={endDate}
           />
-          <Dropdown
-            className={styles.agentField}
-            disabled={isLoadingTeam || isLoadingQuery || isRestrictedToSelf}
-            label="Seleccionar Agente"
-            onChange={(_, option) => setSelectedAgent(String(option?.key || ''))}
-            options={agentOptions}
-            placeholder={isLoadingTeam ? 'Cargando agentes...' : 'Seleccione un agente'}
-            selectedKey={selectedAgent || undefined}
-          />
+          <Stack.Item className={styles.agentField}>
+            <AgentComboBox
+              agents={allowedAgents}
+              disabled={isLoadingTeam || isLoadingQuery || isRestrictedToSelf}
+              label="Seleccionar Agente"
+              onAgentChange={(agent) => {
+                setSelectedAgent(agent);
+
+                if (agent) {
+                  setSelectedScopeKey(undefined);
+                }
+              }}
+              onScopeChange={(scopeKey) => {
+                setSelectedScopeKey(scopeKey);
+
+                if (scopeKey) {
+                  setSelectedAgent(undefined);
+                }
+              }}
+              placeholder={isLoadingTeam
+                ? 'Cargando agentes...'
+                : 'Escriba un nombre o correo'}
+              selectedAgent={selectedAgent}
+              selectedScopeKey={selectedScopeKey}
+              scopeOptions={scopeOptions}
+            />
+          </Stack.Item>
           {moduleType === 'faltas' && (
             <Dropdown
               className={styles.categoryField}

@@ -1,8 +1,6 @@
 /**
- * Counts calendar days in an inclusive range, excluding Sundays only.
- *
- * Humano Ops Hub operates Monday through Saturday, so Saturdays are treated
- * as regular working days for proportional productivity goals.
+ * Cuenta jornadas laborables equivalentes dentro de un rango inclusivo.
+ * Lunes a viernes representan 1 jornada, sábado 0.5 y domingo 0.
  */
 export const getWorkingDaysCount = (
   startDate: Date,
@@ -31,8 +29,12 @@ export const getWorkingDaysCount = (
   const cursor = new Date(normalizedStart);
 
   while (cursor.getTime() <= normalizedEnd.getTime()) {
-    if (cursor.getDay() !== 0) {
+    const dayOfWeek = cursor.getDay();
+
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
       workingDays += 1;
+    } else if (dayOfWeek === 6) {
+      workingDays += 0.5;
     }
 
     cursor.setDate(cursor.getDate() + 1);

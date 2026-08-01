@@ -175,7 +175,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
       </nav>
 
       <div className={styles.sidebarFooter} aria-hidden="true">
-        <span className={styles.versionMark}>OPS HUB · V3.5.0</span>
+        <span className={styles.versionMark}>OPS HUB · V4.5.0</span>
       </div>
     </aside>
   );

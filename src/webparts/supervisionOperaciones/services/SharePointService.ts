@@ -7,7 +7,17 @@ import '@pnp/sp/lists';
 import '@pnp/sp/views';
 import '@pnp/sp/webs';
 
-import type { IFalta, RoleType } from '../models/AppModels';
+import type {
+  FaltaApprovalStatus,
+  IFalta,
+  IFaltaAprobacionItem,
+  RoleType
+} from '../models/AppModels';
+export type {
+  FaltaApprovalStatus,
+  IFaltaAprobacionItem
+} from '../models/AppModels';
+import { generateAuditID } from '../utils/auditUtils';
 import { getSP } from './pnpjsConfig';
 
 const LIST_TITLE = 'Registro_Faltas';
@@ -16,6 +26,7 @@ const KUDOS_LIST_TITLE = 'Registro_Kudos';
 const KUDOS_LIST_DESCRIPTION = 'Lista para reconocimientos corporativos';
 const CONFIG_LIST_TITLE = 'Configuracion_Metricas';
 const CONFIG_LIST_DESCRIPTION = 'Configuración global de métricas operativas';
+const GLOBAL_CONFIG_TITLE = 'Config_Global';
 const PRODUCTIVITY_LIST_TITLE = 'Registro_Productividad';
 const PRODUCTIVITY_LIST_DESCRIPTION = 'Registro de productividad operativa';
 const ROLES_CONFIG_LIST_TITLE = 'Configuracion_Roles';
@@ -48,6 +59,7 @@ const ROLE_VALUES: ReadonlyArray<string> = [
   'Admin',
   'Gerente',
   'Supervisor',
+  'Analista',
   'Asistente',
   'Oficial'
 ];
@@ -57,12 +69,14 @@ type HistorialDateField = 'FechaFalta' | 'FechaKudo' | 'FechaRegistro';
 export type CatalogCategory =
   | 'Falta'
   | 'ErrorProceso'
+  | 'CodigoEtica'
   | 'Kudo'
   | 'ProcesoArea';
 
 const CATALOG_CATEGORIES: ReadonlyArray<CatalogCategory> = [
   'Falta',
   'ErrorProceso',
+  'CodigoEtica',
   'Kudo',
   'ProcesoArea'
 ];
@@ -89,10 +103,24 @@ const DEFAULT_CATALOG_ITEMS: ReadonlyArray<{
   { categoria: 'Falta', valor: 'Error en proceso' },
   { categoria: 'Falta', valor: 'Violación de Política' },
   { categoria: 'Falta', valor: 'Capacitación' },
+  { categoria: 'Falta', valor: 'Código de Ética' },
   { categoria: 'ErrorProceso', valor: 'Error de Digitación' },
   { categoria: 'ErrorProceso', valor: 'Incumplimiento SLA' },
   { categoria: 'ErrorProceso', valor: 'Procedimiento Incompleto' },
   { categoria: 'ErrorProceso', valor: 'Omisión de Verificación' },
+  { categoria: 'CodigoEtica', valor: 'Uso inadecuado de recursos' },
+  {
+    categoria: 'CodigoEtica',
+    valor: 'Trato irrespetuoso o conducta inapropiada'
+  },
+  {
+    categoria: 'CodigoEtica',
+    valor: 'Conflicto de interés no declarado'
+  },
+  {
+    categoria: 'CodigoEtica',
+    valor: 'Fraude, soborno o divulgación indebida'
+  },
   { categoria: 'Kudo', valor: 'Orientado al negocio' },
   { categoria: 'Kudo', valor: 'Empatía' },
   { categoria: 'Kudo', valor: 'Agilidad' },
@@ -104,6 +132,21 @@ const DEFAULT_CATALOG_ITEMS: ReadonlyArray<{
   { categoria: 'ProcesoArea', valor: 'Reclamaciones' },
   { categoria: 'ProcesoArea', valor: 'Servicio al Cliente' }
 ];
+
+const MANDATORY_ETHICS_CATEGORY_ITEM: ReadonlyArray<{
+  categoria: CatalogCategory;
+  valor: string;
+}> = DEFAULT_CATALOG_ITEMS.filter(
+  (item) =>
+    item.categoria === 'Falta' && item.valor === 'Código de Ética'
+);
+
+const DEFAULT_ETHICS_SUBCATEGORY_ITEMS: ReadonlyArray<{
+  categoria: CatalogCategory;
+  valor: string;
+}> = DEFAULT_CATALOG_ITEMS.filter(
+  (item) => item.categoria === 'CodigoEtica'
+);
 
 const escapeODataString = (value: string): string => value.replace(/'/g, "''");
 
@@ -175,6 +218,24 @@ const isSharePointNotFoundError = (error: unknown): boolean => {
 
 const normalizeEmail = (email?: string): string =>
   email?.trim().toLowerCase() || '';
+
+const getApprovalStatusForRole = (
+  role: RoleType
+): FaltaApprovalStatus =>
+  role === 'Analista' || role === 'Asistente' || role === 'Oficial'
+    ? 'Pendiente'
+    : 'Aprobado';
+
+/**
+ * Los registros anteriores a v4.5 no contienen EstadoAprobacion. Por diseño,
+ * esa ausencia equivale a una aprobación ya consolidada.
+ */
+export const isFaltaApprovedForScoring = (
+  approvalStatus?: string
+): boolean => {
+  const normalizedStatus = approvalStatus?.trim().toLocaleLowerCase() || '';
+  return normalizedStatus === '' || normalizedStatus === 'aprobado';
+};
 
 const validateKudoAttachments = (
   files: ReadonlyArray<File>
@@ -343,9 +404,20 @@ export interface IRegistrarProductividadData {
   agenteObjectId?: string;
   fechaInicio: Date;
   fechaFin: Date;
-  casos: number;
-  emisiones: number;
-  movimientos: number;
+  casosAtendidos: number;
+  casosATiempo: number;
+  emisionesTx: number;
+  emisionesPg: number;
+  movimientosTx: number;
+  movimientosPg: number;
+  escaneoTx: number;
+  escaneoPg: number;
+  /**
+   * Alias v3 conservados para integraciones que todavía consumen el esquema
+   * agregado. Los registros v4 siempre persisten también estos valores.
+   */
+  emisiones?: number;
+  movimientos?: number;
 }
 
 interface IExistingProductividadRange {
@@ -374,6 +446,7 @@ export interface IAusenciaItem {
   FechaInicio: string;
   FechaFin: string;
   Comentarios: string;
+  AuditID?: string;
 }
 
 export interface IRegistrarLlamadaFlotaData {
@@ -391,6 +464,7 @@ export interface ILlamadaFlotaItem {
   FechaHora: string;
   DuracionMinutos: number;
   Comentarios: string;
+  AuditID?: string;
 }
 
 export interface IRegistrarConteoCorreosData {
@@ -426,7 +500,9 @@ export interface IFaltaHistorialItem {
   OrigenError?: string;
   Impacto: string;
   Estado: IFalta['estado'];
+  EstadoAprobacion?: FaltaApprovalStatus;
   RolOriginador: RoleType;
+  AuditID?: string;
   Author?: {
     EMail?: string;
     Title?: string;
@@ -449,6 +525,7 @@ export interface IKudoHistorialItem {
   Puntos: number;
   FechaKudo: string;
   Remitente: string;
+  AuditID?: string;
 }
 
 export interface IProductividadHistorialItem {
@@ -460,8 +537,18 @@ export interface IProductividadHistorialItem {
   FechaInicio?: string;
   FechaFin?: string;
   Casos: number;
+  CasosAtendidos: number;
+  CasosATiempo?: number;
+  TieneDatosSLA?: boolean;
   Emisiones: number;
   Movimientos: number;
+  EmisionesTx: number;
+  EmisionesPg: number;
+  MovimientosTx: number;
+  MovimientosPg: number;
+  EscaneoTx: number;
+  EscaneoPg: number;
+  AuditID?: string;
 }
 
 export interface IDashboardProductividadItem {
@@ -472,8 +559,17 @@ export interface IDashboardProductividadItem {
   FechaInicio?: string;
   FechaFin?: string;
   Casos?: number;
+  CasosAtendidos?: number;
+  CasosATiempo?: number;
+  TieneDatosSLA?: boolean;
   Emisiones?: number;
   Movimientos?: number;
+  EmisionesTx?: number;
+  EmisionesPg?: number;
+  MovimientosTx?: number;
+  MovimientosPg?: number;
+  EscaneoTx?: number;
+  EscaneoPg?: number;
 }
 
 export interface IDashboardFaltaItem {
@@ -483,6 +579,7 @@ export interface IDashboardFaltaItem {
   Categoria?: string;
   Impacto?: string;
   Estado?: string;
+  EstadoAprobacion?: FaltaApprovalStatus;
 }
 
 export interface IDatosDashboard {
@@ -493,6 +590,7 @@ export interface IDatosDashboard {
 }
 
 export interface IEvaluacionProductividadItem {
+  Id: number;
   Title?: string;
   AgenteEmail?: string;
   AgenteObjectID?: string;
@@ -500,8 +598,17 @@ export interface IEvaluacionProductividadItem {
   FechaInicio?: string;
   FechaFin?: string;
   Casos?: number;
+  CasosAtendidos?: number;
+  CasosATiempo?: number;
+  TieneDatosSLA?: boolean;
   Emisiones?: number;
   Movimientos?: number;
+  EmisionesTx?: number;
+  EmisionesPg?: number;
+  MovimientosTx?: number;
+  MovimientosPg?: number;
+  EscaneoTx?: number;
+  EscaneoPg?: number;
 }
 
 export interface IEvaluacionKudoItem {
@@ -513,9 +620,22 @@ export interface IEvaluacionKudoItem {
   Puntos?: number;
 }
 
+export interface IEvaluacionFaltaItem {
+  Id: number;
+  Title?: string;
+  AgenteEmail?: string;
+  AgenteObjectID?: string;
+  FechaFalta?: string;
+  Categoria?: string;
+  Impacto?: string;
+  Estado?: string;
+  EstadoAprobacion?: FaltaApprovalStatus;
+}
+
 export interface IDatosEvaluacion {
   productividad: IEvaluacionProductividadItem[];
   kudos: IEvaluacionKudoItem[];
+  faltas: IEvaluacionFaltaItem[];
   config: IConfiguracionMetricas;
 }
 
@@ -535,6 +655,17 @@ export interface IConfiguracionMetricas {
   Id: number;
   Title: string;
   PesoCasos: number;
+  PesoEmisionesTx: number;
+  PesoEmisionesPg: number;
+  PesoMovimientosTx: number;
+  PesoMovimientosPg: number;
+  PesoEscaneoTx: number;
+  PesoEscaneoPg: number;
+  MetaSlaCasos: number;
+  MetaEmisionesTx: number;
+  MetaMovimientosPg: number;
+  MetaEscaneoPg: number;
+  /** Campos v3 conservados mientras Dashboard/Evaluación migran a v4. */
   PesoEmisiones: number;
   PesoMovimientos: number;
   MetaDiaria: number;
@@ -543,6 +674,20 @@ export interface IConfiguracionMetricas {
   PenalidadMedia: number;
   PenalidadCritica: number;
 }
+
+const PRODUCTIVITY_V4_DEFAULTS = {
+  MetaSlaCasos: 90,
+  MetaEmisionesTx: 10,
+  MetaMovimientosPg: 350,
+  MetaEscaneoPg: 350,
+  PesoCasos: 20,
+  PesoEmisionesTx: 15,
+  PesoEmisionesPg: 10,
+  PesoMovimientosTx: 15,
+  PesoMovimientosPg: 15,
+  PesoEscaneoTx: 10,
+  PesoEscaneoPg: 15
+} as const;
 
 export type PublicacionEmpleadoMesEstado = 'Borrador' | 'Publicado';
 
@@ -572,14 +717,104 @@ export interface IPublicarEmpleadoMesData {
 export type IConfiguracionMetricasUpdate = Pick<
   IConfiguracionMetricas,
   | 'PesoCasos'
-  | 'PesoEmisiones'
-  | 'PesoMovimientos'
-  | 'MetaDiaria'
+  | 'PesoEmisionesTx'
+  | 'PesoEmisionesPg'
+  | 'PesoMovimientosTx'
+  | 'PesoMovimientosPg'
+  | 'PesoEscaneoTx'
+  | 'PesoEscaneoPg'
+  | 'MetaSlaCasos'
+  | 'MetaEmisionesTx'
+  | 'MetaMovimientosPg'
+  | 'MetaEscaneoPg'
   | 'PuntosPorKudo'
   | 'PenalidadBaja'
   | 'PenalidadMedia'
   | 'PenalidadCritica'
->;
+> &
+  Partial<
+    Pick<
+      IConfiguracionMetricas,
+      'PesoEmisiones' | 'PesoMovimientos' | 'MetaDiaria'
+    >
+  >;
+
+interface IProductividadMetricFields {
+  Casos?: number;
+  CasosAtendidos?: number;
+  CasosATiempo?: number;
+  TieneDatosSLA?: boolean;
+  Emisiones?: number;
+  Movimientos?: number;
+  EmisionesTx?: number;
+  EmisionesPg?: number;
+  MovimientosTx?: number;
+  MovimientosPg?: number;
+  EscaneoTx?: number;
+  EscaneoPg?: number;
+}
+
+type NormalizedProductividadMetrics = Required<
+  Omit<IProductividadMetricFields, 'CasosATiempo' | 'TieneDatosSLA'>
+> &
+  Pick<IProductividadMetricFields, 'CasosATiempo'> & {
+    TieneDatosSLA: boolean;
+  };
+
+const getMetricValue = (
+  value: number | undefined,
+  fallback = 0
+): number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback;
+
+/**
+ * Los ítems anteriores a v4 no contienen las siete métricas. Emisiones y
+ * Movimientos se proyectan sobre las métricas equivalentes usadas en v3 y el
+ * resto se inicializa en cero para que los consumidores no reciban null.
+ */
+const normalizeProductividadMetrics = <
+  T extends IProductividadMetricFields
+>(
+  item: T
+): T & NormalizedProductividadMetrics => {
+  const emisionesTx = getMetricValue(
+    item.EmisionesTx,
+    getMetricValue(item.Emisiones)
+  );
+  const movimientosPg = getMetricValue(
+    item.MovimientosPg,
+    getMetricValue(item.Movimientos)
+  );
+  const casosAtendidos = getMetricValue(
+    item.CasosAtendidos,
+    getMetricValue(item.Casos)
+  );
+  const tieneDatosSLA =
+    typeof item.CasosATiempo === 'number' &&
+    Number.isFinite(item.CasosATiempo) &&
+    item.CasosATiempo >= 0;
+
+  return {
+    ...item,
+    Casos: getMetricValue(item.Casos, casosAtendidos),
+    CasosAtendidos: casosAtendidos,
+    CasosATiempo:
+      tieneDatosSLA
+        ? item.CasosATiempo
+        : undefined,
+    TieneDatosSLA: tieneDatosSLA,
+    Emisiones: getMetricValue(item.Emisiones, emisionesTx),
+    Movimientos: getMetricValue(item.Movimientos, movimientosPg),
+    EmisionesTx: emisionesTx,
+    EmisionesPg: getMetricValue(item.EmisionesPg),
+    MovimientosTx: getMetricValue(item.MovimientosTx),
+    MovimientosPg: movimientosPg,
+    EscaneoTx: getMetricValue(item.EscaneoTx),
+    EscaneoPg: getMetricValue(item.EscaneoPg)
+  };
+};
 
 export class SharePointService {
   public constructor(private readonly sp: SPFI = getSP()) {}
@@ -760,6 +995,22 @@ export class SharePointService {
         await result.field.update({ Title: 'Object ID Entra ID' });
       }
 
+      if (existingInternalNames.indexOf('AuditID') < 0) {
+        provisioningStep = 'crear la columna AuditID';
+        const result = await listEnsure.list.fields.addText('AuditID');
+        provisioningStep = 'asignar el nombre visible de AuditID';
+        await result.field.update({ Title: 'ID de Auditoría' });
+      }
+
+      if (existingInternalNames.indexOf('EstadoAprobacion') < 0) {
+        provisioningStep = 'crear la columna EstadoAprobacion';
+        const result = await listEnsure.list.fields.addText(
+          'EstadoAprobacion'
+        );
+        provisioningStep = 'asignar el nombre visible de EstadoAprobacion';
+        await result.field.update({ Title: 'Estado de Aprobación' });
+      }
+
       provisioningStep = 'obtener la vista predeterminada';
       const defaultView = await listEnsure.list.defaultView;
       const defaultViewFields = await defaultView.fields();
@@ -846,6 +1097,17 @@ export class SharePointService {
         provisioningStep = 'agregar AgenteObjectID a la vista predeterminada';
         await defaultView.fields.add('AgenteObjectID');
       }
+
+      if (visibleFields.indexOf('AuditID') < 0) {
+        provisioningStep = 'agregar AuditID a la vista predeterminada';
+        await defaultView.fields.add('AuditID');
+      }
+
+      if (visibleFields.indexOf('EstadoAprobacion') < 0) {
+        provisioningStep =
+          'agregar EstadoAprobacion a la vista predeterminada';
+        await defaultView.fields.add('EstadoAprobacion');
+      }
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -868,6 +1130,7 @@ export class SharePointService {
       const iar = await this.sp.web.lists
         .getByTitle(LIST_TITLE)
         .items.add({
+          AuditID: generateAuditID(),
           Title: faltaData.agente,
           AgenteEmail: normalizeEmail(faltaData.agenteEmail),
           AgenteObjectID: faltaData.agenteObjectId?.trim() || '',
@@ -885,6 +1148,9 @@ export class SharePointService {
           OrigenError: faltaData.origenError?.trim() || '',
           Impacto: faltaData.impacto,
           Estado: faltaData.estado,
+          EstadoAprobacion: getApprovalStatusForRole(
+            faltaData.rolOriginador
+          ),
           RolOriginador: faltaData.rolOriginador
         });
 
@@ -944,7 +1210,9 @@ export class SharePointService {
           'OrigenError',
           'Impacto',
           'Estado',
-          'RolOriginador'
+          'EstadoAprobacion',
+          'RolOriginador',
+          'AuditID'
         )
         .orderBy('FechaFalta', false);
       const items = dateFilter
@@ -964,12 +1232,108 @@ export class SharePointService {
           item.Categoria?.trim().toLocaleLowerCase() ===
             normalizedCategory.toLocaleLowerCase();
 
-        return matchesAgent && matchesCategory;
+        return matchesAgent &&
+          matchesCategory &&
+          isFaltaApprovedForScoring(item.EstadoAprobacion);
       });
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(
         `No fue posible consultar el historial de faltas en ${LIST_TITLE}: ${detail}`
+      );
+    }
+  }
+
+  public async getFaltasPendientes(
+    allowedAuthorEmails?: ReadonlyArray<string>
+  ): Promise<IFaltaAprobacionItem[]> {
+    try {
+      await this.ensureRegistroFaltasList();
+
+      const hasAuthorScope = allowedAuthorEmails !== undefined;
+      const normalizedAuthorEmails = new Set(
+        (allowedAuthorEmails || [])
+          .map((email) => normalizeEmail(email))
+          .filter(Boolean)
+      );
+
+      if (hasAuthorScope && normalizedAuthorEmails.size === 0) {
+        return [];
+      }
+
+      const items = await this.sp.web.lists
+        .getByTitle(LIST_TITLE)
+        .items
+        .select(
+          'Id',
+          'Title',
+          'AgenteEmail',
+          'AgenteObjectID',
+          'AuditID',
+          'FechaFalta',
+          'Categoria',
+          'Subcategoria',
+          'CasoRef',
+          'Comentarios',
+          'Impacto',
+          'Estado',
+          'EstadoAprobacion',
+          'RolOriginador',
+          'AttachmentFiles/FileName',
+          'AttachmentFiles/ServerRelativeUrl',
+          'Author/Title',
+          'Author/EMail'
+        )
+        .expand('AttachmentFiles', 'Author')
+        .filter("EstadoAprobacion eq 'Pendiente'")
+        .orderBy('FechaFalta', false)
+        .getAll<IFaltaAprobacionItem>();
+
+      return items
+        .filter((item) => (
+          !hasAuthorScope ||
+          normalizedAuthorEmails.has(normalizeEmail(item.Author?.EMail))
+        ))
+        .map((item) => ({
+          ...item,
+          EstadoAprobacion: 'Pendiente',
+          AttachmentFiles: item.AttachmentFiles || []
+        }));
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `No fue posible consultar la cola de aprobación: ${detail}`
+      );
+    }
+  }
+
+  public async actualizarEstadoAprobacion(
+    id: number,
+    estado: Extract<FaltaApprovalStatus, 'Aprobado' | 'Rechazado'>
+  ): Promise<void> {
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new Error('El identificador de la falta no es válido.');
+    }
+
+    if (estado !== 'Aprobado' && estado !== 'Rechazado') {
+      throw new Error('El estado de aprobación no es válido.');
+    }
+
+    try {
+      await this.ensureRegistroFaltasList();
+      await this.sp.web.lists
+        .getByTitle(LIST_TITLE)
+        .items
+        .getById(id)
+        .update({
+          EstadoAprobacion: estado,
+          Estado: estado
+        });
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `No fue posible marcar la falta como ${estado.toLowerCase()}: ` +
+        detail
       );
     }
   }
@@ -1001,7 +1365,7 @@ export class SharePointService {
         );
       }
 
-      return await this.sp.web.lists
+      const items = await this.sp.web.lists
         .getByTitle(LIST_TITLE)
         .items
         .select(
@@ -1017,7 +1381,9 @@ export class SharePointService {
           'Comentarios',
           'Impacto',
           'Estado',
+          'EstadoAprobacion',
           'RolOriginador',
+          'AuditID',
           'Author/EMail',
           'Author/Title'
         )
@@ -1025,6 +1391,10 @@ export class SharePointService {
         .filter(clauses.join(' and '))
         .orderBy('FechaFalta', false)
         .getAll<IFaltaHistorialItem>();
+
+      return items.filter((item) =>
+        isFaltaApprovedForScoring(item.EstadoAprobacion)
+      );
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -1126,6 +1496,13 @@ export class SharePointService {
         await result.field.update({ Title: 'Object ID Entra ID' });
       }
 
+      if (existingInternalNames.indexOf('AuditID') < 0) {
+        provisioningStep = 'crear la columna AuditID';
+        const result = await listEnsure.list.fields.addText('AuditID');
+        provisioningStep = 'asignar el nombre visible de AuditID';
+        await result.field.update({ Title: 'ID de Auditoría' });
+      }
+
       provisioningStep = 'obtener la vista predeterminada';
       const defaultView = await listEnsure.list.defaultView;
       const defaultViewFields = await defaultView.fields();
@@ -1165,6 +1542,11 @@ export class SharePointService {
         provisioningStep = 'agregar AgenteObjectID a la vista predeterminada';
         await defaultView.fields.add('AgenteObjectID');
       }
+
+      if (visibleFields.indexOf('AuditID') < 0) {
+        provisioningStep = 'agregar AuditID a la vista predeterminada';
+        await defaultView.fields.add('AuditID');
+      }
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -1188,6 +1570,7 @@ export class SharePointService {
       const iar = await this.sp.web.lists
         .getByTitle(KUDOS_LIST_TITLE)
         .items.add({
+          AuditID: generateAuditID(),
           Title: kudoData.agente,
           AgenteEmail: normalizeEmail(kudoData.agenteEmail),
           AgenteObjectID: kudoData.agenteObjectId?.trim() || '',
@@ -1246,7 +1629,8 @@ export class SharePointService {
           'Mensaje',
           'Puntos',
           'FechaKudo',
-          'Remitente'
+          'Remitente',
+          'AuditID'
         )
         .orderBy('FechaKudo', false);
 
@@ -1340,9 +1724,93 @@ export class SharePointService {
           { MinimumValue: 0 }
         );
         provisioningStep = 'asignar el nombre visible de Casos';
-        await result.field.update({ Title: 'Casos Procesados' });
+        await result.field.update({ Title: 'Cantidad de Casos' });
       }
 
+      if (existingInternalNames.indexOf('CasosAtendidos') < 0) {
+        provisioningStep = 'crear la columna CasosAtendidos';
+        const result = await listEnsure.list.fields.addNumber(
+          'CasosAtendidos',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de CasosAtendidos';
+        await result.field.update({ Title: 'Casos Atendidos (Totales)' });
+      }
+
+      if (existingInternalNames.indexOf('CasosATiempo') < 0) {
+        provisioningStep = 'crear la columna CasosATiempo';
+        const result = await listEnsure.list.fields.addNumber(
+          'CasosATiempo',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de CasosATiempo';
+        await result.field.update({
+          Title: 'Casos Resueltos a Tiempo (Dentro de SLA)'
+        });
+      }
+
+      if (existingInternalNames.indexOf('EmisionesTx') < 0) {
+        provisioningStep = 'crear la columna EmisionesTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'EmisionesTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de EmisionesTx';
+        await result.field.update({ Title: 'Emisiones - Transacciones' });
+      }
+
+      if (existingInternalNames.indexOf('EmisionesPg') < 0) {
+        provisioningStep = 'crear la columna EmisionesPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'EmisionesPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de EmisionesPg';
+        await result.field.update({ Title: 'Emisiones - Páginas Digitadas' });
+      }
+
+      if (existingInternalNames.indexOf('MovimientosTx') < 0) {
+        provisioningStep = 'crear la columna MovimientosTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'MovimientosTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de MovimientosTx';
+        await result.field.update({ Title: 'Movimientos - Transacciones' });
+      }
+
+      if (existingInternalNames.indexOf('MovimientosPg') < 0) {
+        provisioningStep = 'crear la columna MovimientosPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'MovimientosPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de MovimientosPg';
+        await result.field.update({ Title: 'Movimientos - Páginas Digitadas' });
+      }
+
+      if (existingInternalNames.indexOf('EscaneoTx') < 0) {
+        provisioningStep = 'crear la columna EscaneoTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'EscaneoTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de EscaneoTx';
+        await result.field.update({ Title: 'Escaneo - Transacciones' });
+      }
+
+      if (existingInternalNames.indexOf('EscaneoPg') < 0) {
+        provisioningStep = 'crear la columna EscaneoPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'EscaneoPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de EscaneoPg';
+        await result.field.update({ Title: 'Escaneo - Páginas Escaneadas' });
+      }
+
+      // Campos agregados v3: se conservan para lecturas históricas y para
+      // consumidores que todavía no migran al detalle de siete métricas.
       if (existingInternalNames.indexOf('Emisiones') < 0) {
         provisioningStep = 'crear la columna Emisiones';
         const result = await listEnsure.list.fields.addNumber(
@@ -1377,6 +1845,13 @@ export class SharePointService {
         await result.field.update({ Title: 'Object ID Entra ID' });
       }
 
+      if (existingInternalNames.indexOf('AuditID') < 0) {
+        provisioningStep = 'crear la columna AuditID';
+        const result = await listEnsure.list.fields.addText('AuditID');
+        provisioningStep = 'asignar el nombre visible de AuditID';
+        await result.field.update({ Title: 'ID de Auditoría' });
+      }
+
       provisioningStep = 'obtener la vista predeterminada';
       const defaultView = await listEnsure.list.defaultView;
       const defaultViewFields = await defaultView.fields();
@@ -1401,6 +1876,46 @@ export class SharePointService {
         await defaultView.fields.add('Casos');
       }
 
+      if (defaultViewFields.Items.indexOf('CasosAtendidos') < 0) {
+        provisioningStep = 'agregar CasosAtendidos a la vista predeterminada';
+        await defaultView.fields.add('CasosAtendidos');
+      }
+
+      if (defaultViewFields.Items.indexOf('CasosATiempo') < 0) {
+        provisioningStep = 'agregar CasosATiempo a la vista predeterminada';
+        await defaultView.fields.add('CasosATiempo');
+      }
+
+      if (defaultViewFields.Items.indexOf('EmisionesTx') < 0) {
+        provisioningStep = 'agregar EmisionesTx a la vista predeterminada';
+        await defaultView.fields.add('EmisionesTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('EmisionesPg') < 0) {
+        provisioningStep = 'agregar EmisionesPg a la vista predeterminada';
+        await defaultView.fields.add('EmisionesPg');
+      }
+
+      if (defaultViewFields.Items.indexOf('MovimientosTx') < 0) {
+        provisioningStep = 'agregar MovimientosTx a la vista predeterminada';
+        await defaultView.fields.add('MovimientosTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('MovimientosPg') < 0) {
+        provisioningStep = 'agregar MovimientosPg a la vista predeterminada';
+        await defaultView.fields.add('MovimientosPg');
+      }
+
+      if (defaultViewFields.Items.indexOf('EscaneoTx') < 0) {
+        provisioningStep = 'agregar EscaneoTx a la vista predeterminada';
+        await defaultView.fields.add('EscaneoTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('EscaneoPg') < 0) {
+        provisioningStep = 'agregar EscaneoPg a la vista predeterminada';
+        await defaultView.fields.add('EscaneoPg');
+      }
+
       if (defaultViewFields.Items.indexOf('Emisiones') < 0) {
         provisioningStep = 'agregar Emisiones a la vista predeterminada';
         await defaultView.fields.add('Emisiones');
@@ -1419,6 +1934,11 @@ export class SharePointService {
       if (defaultViewFields.Items.indexOf('AgenteObjectID') < 0) {
         provisioningStep = 'agregar AgenteObjectID a la vista predeterminada';
         await defaultView.fields.add('AgenteObjectID');
+      }
+
+      if (defaultViewFields.Items.indexOf('AuditID') < 0) {
+        provisioningStep = 'agregar AuditID a la vista predeterminada';
+        await defaultView.fields.add('AuditID');
       }
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -1470,13 +1990,28 @@ export class SharePointService {
         );
       }
 
-      const numericValues = [data.casos, data.emisiones, data.movimientos];
+      const numericValues = [
+        data.casosAtendidos,
+        data.casosATiempo,
+        data.emisionesTx,
+        data.emisionesPg,
+        data.movimientosTx,
+        data.movimientosPg,
+        data.escaneoTx,
+        data.escaneoPg
+      ];
 
       if (numericValues.some(
         (value) => !Number.isFinite(value) || value < 0
       )) {
         throw new Error(
           'Los valores de productividad deben ser números mayores o iguales a cero.'
+        );
+      }
+
+      if (data.casosATiempo > data.casosAtendidos) {
+        throw new Error(
+          'Los casos resueltos a tiempo no pueden exceder los casos atendidos.'
         );
       }
 
@@ -1533,15 +2068,25 @@ export class SharePointService {
       }
 
       await list.items.add({
+        AuditID: generateAuditID(),
         Title: agente,
         AgenteEmail: agenteEmail,
         AgenteObjectID: data.agenteObjectId?.trim() || '',
-        FechaRegistro: startBoundary.toISOString(),
+        FechaRegistro: new Date().toISOString(),
         FechaInicio: startBoundary.toISOString(),
         FechaFin: endBoundary.toISOString(),
-        Casos: data.casos,
-        Emisiones: data.emisiones,
-        Movimientos: data.movimientos
+        CasosAtendidos: data.casosAtendidos,
+        CasosATiempo: data.casosATiempo,
+        EmisionesTx: data.emisionesTx,
+        EmisionesPg: data.emisionesPg,
+        MovimientosTx: data.movimientosTx,
+        MovimientosPg: data.movimientosPg,
+        EscaneoTx: data.escaneoTx,
+        EscaneoPg: data.escaneoPg,
+        // Alias v3: mantienen funcionales los reportes existentes durante la
+        // transición y permiten comparar registros históricos con v4.
+        Emisiones: data.emisiones ?? data.emisionesTx,
+        Movimientos: data.movimientos ?? data.movimientosPg
       });
     } catch (error: unknown) {
       if (
@@ -1612,8 +2157,17 @@ export class SharePointService {
         'FechaInicio',
         'FechaFin',
         'Casos',
+        'CasosAtendidos',
+        'CasosATiempo',
         'Emisiones',
-        'Movimientos'
+        'Movimientos',
+        'EmisionesTx',
+        'EmisionesPg',
+        'MovimientosTx',
+        'MovimientosPg',
+        'EscaneoTx',
+        'EscaneoPg',
+        'AuditID'
       ];
       const list = this.sp.web.lists.getByTitle(PRODUCTIVITY_LIST_TITLE);
       let items: IProductividadHistorialItem[];
@@ -1642,7 +2196,7 @@ export class SharePointService {
         items = Array.from(itemsById.values());
       }
 
-      return items.filter((item) => {
+      return items.map(normalizeProductividadMetrics).filter((item) => {
         if (!isItemInAgentScope(
           item,
           agenteNombre,
@@ -1785,6 +2339,13 @@ export class SharePointService {
         await result.field.update({ Title: 'Comentarios' });
       }
 
+      if (existingInternalNames.indexOf('AuditID') < 0) {
+        provisioningStep = 'crear la columna AuditID';
+        const result = await list.fields.addText('AuditID');
+        provisioningStep = 'asignar el nombre visible de AuditID';
+        await result.field.update({ Title: 'ID de Auditoría' });
+      }
+
       provisioningStep = 'obtener la vista predeterminada';
       const defaultView = await list.defaultView;
       const defaultViewFields = await defaultView.fields();
@@ -1818,6 +2379,11 @@ export class SharePointService {
       if (visibleFields.indexOf('Comentarios') < 0) {
         provisioningStep = 'agregar Comentarios a la vista predeterminada';
         await defaultView.fields.add('Comentarios');
+      }
+
+      if (visibleFields.indexOf('AuditID') < 0) {
+        provisioningStep = 'agregar AuditID a la vista predeterminada';
+        await defaultView.fields.add('AuditID');
       }
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -1866,6 +2432,7 @@ export class SharePointService {
         .getByTitle(ABSENCES_LIST_TITLE)
         .items
         .add({
+          AuditID: generateAuditID(),
           Title: normalizedAgent,
           AgenteEmail: normalizeEmail(data.agenteEmail),
           AgenteObjectID: data.agenteObjectId?.trim() || '',
@@ -1919,7 +2486,8 @@ export class SharePointService {
           'TipoAusencia',
           'FechaInicio',
           'FechaFin',
-          'Comentarios'
+          'Comentarios',
+          'AuditID'
         )
         .filter(overlapFilter)
         .orderBy('FechaInicio', true)
@@ -1995,6 +2563,13 @@ export class SharePointService {
         await result.field.update({ Title: 'Comentarios' });
       }
 
+      if (existingInternalNames.indexOf('AuditID') < 0) {
+        provisioningStep = 'crear la columna AuditID';
+        const result = await list.fields.addText('AuditID');
+        provisioningStep = 'asignar el nombre visible de AuditID';
+        await result.field.update({ Title: 'ID de Auditoría' });
+      }
+
       provisioningStep = 'obtener la vista predeterminada';
       const defaultView = await list.defaultView;
       const defaultViewFields = await defaultView.fields();
@@ -2020,6 +2595,11 @@ export class SharePointService {
       if (visibleFields.indexOf('Comentarios') < 0) {
         provisioningStep = 'agregar Comentarios a la vista predeterminada';
         await defaultView.fields.add('Comentarios');
+      }
+
+      if (visibleFields.indexOf('AuditID') < 0) {
+        provisioningStep = 'agregar AuditID a la vista predeterminada';
+        await defaultView.fields.add('AuditID');
       }
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -2061,6 +2641,7 @@ export class SharePointService {
         .getByTitle(FLEET_CALLS_LIST_TITLE)
         .items
         .add({
+          AuditID: generateAuditID(),
           Title: casoContacto,
           SupervisorEmail: supervisorEmail,
           FechaHora: data.fechaHora.toISOString(),
@@ -2121,7 +2702,8 @@ export class SharePointService {
           'SupervisorEmail',
           'FechaHora',
           'DuracionMinutos',
-          'Comentarios'
+          'Comentarios',
+          'AuditID'
         )
         .filter(filterClauses.join(' and '))
         .orderBy('FechaHora', false)
@@ -2529,21 +3111,14 @@ export class SharePointService {
         await defaultView.fields.add('Valor');
       }
 
-      if (listCreated) {
-        for (
-          let itemIndex = 0;
-          itemIndex < DEFAULT_CATALOG_ITEMS.length;
-          itemIndex += 1
-        ) {
-          const defaultItem = DEFAULT_CATALOG_ITEMS[itemIndex];
-          provisioningStep =
-            `insertar el valor predeterminado ${defaultItem.valor}`;
-          await list.items.add({
-            Title: defaultItem.categoria,
-            Valor: defaultItem.valor
-          });
-        }
-      }
+      provisioningStep = listCreated
+        ? 'insertar los valores predeterminados'
+        : 'garantizar el catálogo obligatorio de Código de Ética';
+      await this.ensureCatalogItems(
+        listCreated
+          ? DEFAULT_CATALOG_ITEMS
+          : MANDATORY_ETHICS_CATEGORY_ITEM
+      );
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -2551,6 +3126,49 @@ export class SharePointService {
         `${CATALOGS_CONFIG_LIST_TITLE}: ${detail}`
       );
     }
+  }
+
+  private async ensureCatalogItems(
+    requiredItems: ReadonlyArray<{
+      categoria: CatalogCategory;
+      valor: string;
+    }>
+  ): Promise<boolean> {
+    const list = this.sp.web.lists.getByTitle(CATALOGS_CONFIG_LIST_TITLE);
+    const existingItems = await list.items
+      .select('Title', 'Valor')
+      .getAll<{ Title?: string; Valor?: string }>();
+    const existingKeys = new Set(
+      existingItems.map((item) =>
+        `${item.Title?.trim().toLocaleLowerCase() || ''}|` +
+        `${item.Valor?.trim().toLocaleLowerCase() || ''}`
+      )
+    );
+    let itemAdded = false;
+
+    for (
+      let itemIndex = 0;
+      itemIndex < requiredItems.length;
+      itemIndex += 1
+    ) {
+      const requiredItem = requiredItems[itemIndex];
+      const key =
+        `${requiredItem.categoria.toLocaleLowerCase()}|` +
+        requiredItem.valor.toLocaleLowerCase();
+
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      await list.items.add({
+        Title: requiredItem.categoria,
+        Valor: requiredItem.valor
+      });
+      existingKeys.add(key);
+      itemAdded = true;
+    }
+
+    return itemAdded;
   }
 
   private async readCatalogos(
@@ -2603,7 +3221,33 @@ export class SharePointService {
     }
 
     try {
-      return await this.readCatalogos(categoria);
+      const items = await this.readCatalogos(categoria);
+      const requiresEthicsCatalog =
+        categoria === undefined ||
+        categoria === 'Falta' ||
+        categoria === 'CodigoEtica';
+
+      if (!requiresEthicsCatalog) {
+        return items;
+      }
+
+      const hasEthicsSubcategories = items.some(
+        (item) => item.Title === 'CodigoEtica'
+      );
+      const requiredItems = [
+        ...MANDATORY_ETHICS_CATEGORY_ITEM,
+        ...(
+          (categoria === 'CodigoEtica' || categoria === undefined) &&
+          !hasEthicsSubcategories
+            ? DEFAULT_ETHICS_SUBCATEGORY_ITEMS
+            : []
+        )
+      ];
+      const catalogUpdated = await this.ensureCatalogItems(requiredItems);
+
+      return catalogUpdated
+        ? await this.readCatalogos(categoria)
+        : items;
     } catch (readError: unknown) {
       if (!isSharePointNotFoundError(readError)) {
         const detail =
@@ -2718,35 +3362,148 @@ export class SharePointService {
         existingInternalNames = existingFields.map((field) => field.InternalName);
       }
 
+      const v4WeightFields = [
+        'PesoCasos',
+        'PesoEmisionesTx',
+        'PesoEmisionesPg',
+        'PesoMovimientosTx',
+        'PesoMovimientosPg',
+        'PesoEscaneoTx',
+        'PesoEscaneoPg'
+      ];
+      const hadCompleteV4WeightSchema = v4WeightFields.every(
+        (internalName) => existingInternalNames.indexOf(internalName) >= 0
+      );
+
       if (existingInternalNames.indexOf('PesoCasos') < 0) {
         provisioningStep = 'crear la columna PesoCasos';
-        await listEnsure.list.fields.addNumber('PesoCasos', {
-          MinimumValue: 0,
-          Required: true
-        });
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoCasos',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoCasos';
+        await result.field.update({ Title: 'Peso Casos (%)' });
       }
 
+      if (existingInternalNames.indexOf('PesoEmisionesTx') < 0) {
+        provisioningStep = 'crear la columna PesoEmisionesTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoEmisionesTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoEmisionesTx';
+        await result.field.update({ Title: 'Peso Emisiones Tx (%)' });
+      }
+
+      if (existingInternalNames.indexOf('PesoEmisionesPg') < 0) {
+        provisioningStep = 'crear la columna PesoEmisionesPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoEmisionesPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoEmisionesPg';
+        await result.field.update({ Title: 'Peso Emisiones Pg (%)' });
+      }
+
+      if (existingInternalNames.indexOf('PesoMovimientosTx') < 0) {
+        provisioningStep = 'crear la columna PesoMovimientosTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoMovimientosTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoMovimientosTx';
+        await result.field.update({ Title: 'Peso Movimientos Tx (%)' });
+      }
+
+      if (existingInternalNames.indexOf('PesoMovimientosPg') < 0) {
+        provisioningStep = 'crear la columna PesoMovimientosPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoMovimientosPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoMovimientosPg';
+        await result.field.update({ Title: 'Peso Movimientos Pg (%)' });
+      }
+
+      if (existingInternalNames.indexOf('PesoEscaneoTx') < 0) {
+        provisioningStep = 'crear la columna PesoEscaneoTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoEscaneoTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoEscaneoTx';
+        await result.field.update({ Title: 'Peso Escaneo Tx (%)' });
+      }
+
+      if (existingInternalNames.indexOf('PesoEscaneoPg') < 0) {
+        provisioningStep = 'crear la columna PesoEscaneoPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'PesoEscaneoPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de PesoEscaneoPg';
+        await result.field.update({ Title: 'Peso Escaneo Pg (%)' });
+      }
+
+      if (existingInternalNames.indexOf('MetaSlaCasos') < 0) {
+        provisioningStep = 'crear la columna MetaSlaCasos';
+        const result = await listEnsure.list.fields.addNumber(
+          'MetaSlaCasos',
+          { MinimumValue: 1, MaximumValue: 100 }
+        );
+        provisioningStep = 'asignar el nombre visible de MetaSlaCasos';
+        await result.field.update({ Title: 'Meta de SLA de Casos (%)' });
+      }
+
+      if (existingInternalNames.indexOf('MetaEmisionesTx') < 0) {
+        provisioningStep = 'crear la columna MetaEmisionesTx';
+        const result = await listEnsure.list.fields.addNumber(
+          'MetaEmisionesTx',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de MetaEmisionesTx';
+        await result.field.update({ Title: 'Meta Diaria Emisiones Tx' });
+      }
+
+      if (existingInternalNames.indexOf('MetaMovimientosPg') < 0) {
+        provisioningStep = 'crear la columna MetaMovimientosPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'MetaMovimientosPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de MetaMovimientosPg';
+        await result.field.update({ Title: 'Meta Diaria Movimientos Pg' });
+      }
+
+      if (existingInternalNames.indexOf('MetaEscaneoPg') < 0) {
+        provisioningStep = 'crear la columna MetaEscaneoPg';
+        const result = await listEnsure.list.fields.addNumber(
+          'MetaEscaneoPg',
+          { MinimumValue: 0 }
+        );
+        provisioningStep = 'asignar el nombre visible de MetaEscaneoPg';
+        await result.field.update({ Title: 'Meta Diaria Escaneo Pg' });
+      }
+
+      // Esquema v3 conservado para compatibilidad con reportes existentes.
       if (existingInternalNames.indexOf('PesoEmisiones') < 0) {
         provisioningStep = 'crear la columna PesoEmisiones';
         await listEnsure.list.fields.addNumber('PesoEmisiones', {
-          MinimumValue: 0,
-          Required: true
+          MinimumValue: 0
         });
       }
 
       if (existingInternalNames.indexOf('PesoMovimientos') < 0) {
         provisioningStep = 'crear la columna PesoMovimientos';
         await listEnsure.list.fields.addNumber('PesoMovimientos', {
-          MinimumValue: 0,
-          Required: true
+          MinimumValue: 0
         });
       }
 
       if (existingInternalNames.indexOf('MetaDiaria') < 0) {
         provisioningStep = 'crear la columna MetaDiaria';
         await listEnsure.list.fields.addNumber('MetaDiaria', {
-          MinimumValue: 0,
-          Required: true
+          MinimumValue: 0
         });
       }
 
@@ -2791,8 +3548,10 @@ export class SharePointService {
       }
 
       const defaultConfiguration: Omit<IConfiguracionMetricas, 'Id'> = {
-        Title: 'Config_Global',
-        PesoCasos: 1,
+        Title: GLOBAL_CONFIG_TITLE,
+        ...PRODUCTIVITY_V4_DEFAULTS,
+        // Valores v3 conservados para que Dashboard y Evaluación puedan
+        // convivir con la migración del motor de cálculo.
         PesoEmisiones: 1.5,
         PesoMovimientos: 1.2,
         MetaDiaria: 100,
@@ -2809,6 +3568,20 @@ export class SharePointService {
         provisioningStep = 'verificar la fila de configuración';
         const existingConfiguration: Array<{
           Id: number;
+          PesoCasos?: number;
+          PesoEmisionesTx?: number;
+          PesoEmisionesPg?: number;
+          PesoMovimientosTx?: number;
+          PesoMovimientosPg?: number;
+          PesoEscaneoTx?: number;
+          PesoEscaneoPg?: number;
+          MetaSlaCasos?: number;
+          MetaEmisionesTx?: number;
+          MetaMovimientosPg?: number;
+          MetaEscaneoPg?: number;
+          PesoEmisiones?: number;
+          PesoMovimientos?: number;
+          MetaDiaria?: number;
           PuntosPorKudo?: number;
           PenalidadBaja?: number;
           PenalidadMedia?: number;
@@ -2816,11 +3589,29 @@ export class SharePointService {
         }> = await listEnsure.list.items
           .select(
             'Id',
+            'PesoCasos',
+            'PesoEmisionesTx',
+            'PesoEmisionesPg',
+            'PesoMovimientosTx',
+            'PesoMovimientosPg',
+            'PesoEscaneoTx',
+            'PesoEscaneoPg',
+            'MetaSlaCasos',
+            'MetaEmisionesTx',
+            'MetaMovimientosPg',
+            'MetaEscaneoPg',
+            'PesoEmisiones',
+            'PesoMovimientos',
+            'MetaDiaria',
             'PuntosPorKudo',
             'PenalidadBaja',
             'PenalidadMedia',
             'PenalidadCritica'
           )
+          .filter(
+            `Title eq '${escapeODataString(GLOBAL_CONFIG_TITLE)}'`
+          )
+          .orderBy('Id', true)
           .top(1)();
 
         if (existingConfiguration.length === 0) {
@@ -2829,7 +3620,94 @@ export class SharePointService {
         } else {
           const currentConfiguration = existingConfiguration[0];
           const missingDefaults: Partial<IConfiguracionMetricasUpdate> = {};
+          const currentWeightValues = [
+            currentConfiguration.PesoCasos,
+            currentConfiguration.PesoEmisionesTx,
+            currentConfiguration.PesoEmisionesPg,
+            currentConfiguration.PesoMovimientosTx,
+            currentConfiguration.PesoMovimientosPg,
+            currentConfiguration.PesoEscaneoTx,
+            currentConfiguration.PesoEscaneoPg
+          ];
+          const hasValidV4WeightConfiguration =
+            hadCompleteV4WeightSchema &&
+            currentWeightValues.every(
+              (value) =>
+                typeof value === 'number' &&
+                Number.isFinite(value) &&
+                value >= 0
+            ) &&
+            Math.abs(
+              currentWeightValues.reduce<number>(
+                (total, value) => total + (value ?? 0),
+                0
+              ) - 100
+            ) <= 0.001;
 
+          if (!hasValidV4WeightConfiguration) {
+            // PesoCasos ya existía en v3 con otra escala. Al incorporar las
+            // seis columnas restantes se inicializa el conjunto indivisible
+            // para garantizar una distribución porcentual total de 100%.
+            // La misma recuperación cubre aprovisionamientos interrumpidos
+            // después de crear campos pero antes de actualizar Config_Global.
+            missingDefaults.PesoCasos = PRODUCTIVITY_V4_DEFAULTS.PesoCasos;
+            missingDefaults.PesoEmisionesTx =
+              PRODUCTIVITY_V4_DEFAULTS.PesoEmisionesTx;
+            missingDefaults.PesoEmisionesPg =
+              PRODUCTIVITY_V4_DEFAULTS.PesoEmisionesPg;
+            missingDefaults.PesoMovimientosTx =
+              PRODUCTIVITY_V4_DEFAULTS.PesoMovimientosTx;
+            missingDefaults.PesoMovimientosPg =
+              PRODUCTIVITY_V4_DEFAULTS.PesoMovimientosPg;
+            missingDefaults.PesoEscaneoTx =
+              PRODUCTIVITY_V4_DEFAULTS.PesoEscaneoTx;
+            missingDefaults.PesoEscaneoPg =
+              PRODUCTIVITY_V4_DEFAULTS.PesoEscaneoPg;
+          }
+
+          if (
+            typeof currentConfiguration.MetaSlaCasos !== 'number' ||
+            !Number.isFinite(currentConfiguration.MetaSlaCasos) ||
+            currentConfiguration.MetaSlaCasos <= 0 ||
+            currentConfiguration.MetaSlaCasos > 100
+          ) {
+            missingDefaults.MetaSlaCasos =
+              PRODUCTIVITY_V4_DEFAULTS.MetaSlaCasos;
+          }
+
+          if (
+            typeof currentConfiguration.MetaEmisionesTx !== 'number' ||
+            !Number.isFinite(currentConfiguration.MetaEmisionesTx) ||
+            currentConfiguration.MetaEmisionesTx <= 0
+          ) {
+            missingDefaults.MetaEmisionesTx =
+              PRODUCTIVITY_V4_DEFAULTS.MetaEmisionesTx;
+          }
+          if (
+            typeof currentConfiguration.MetaMovimientosPg !== 'number' ||
+            !Number.isFinite(currentConfiguration.MetaMovimientosPg) ||
+            currentConfiguration.MetaMovimientosPg <= 0
+          ) {
+            missingDefaults.MetaMovimientosPg =
+              PRODUCTIVITY_V4_DEFAULTS.MetaMovimientosPg;
+          }
+          if (
+            typeof currentConfiguration.MetaEscaneoPg !== 'number' ||
+            !Number.isFinite(currentConfiguration.MetaEscaneoPg) ||
+            currentConfiguration.MetaEscaneoPg <= 0
+          ) {
+            missingDefaults.MetaEscaneoPg =
+              PRODUCTIVITY_V4_DEFAULTS.MetaEscaneoPg;
+          }
+          if (typeof currentConfiguration.PesoEmisiones !== 'number') {
+            missingDefaults.PesoEmisiones = 1.5;
+          }
+          if (typeof currentConfiguration.PesoMovimientos !== 'number') {
+            missingDefaults.PesoMovimientos = 1.2;
+          }
+          if (typeof currentConfiguration.MetaDiaria !== 'number') {
+            missingDefaults.MetaDiaria = 100;
+          }
           if (typeof currentConfiguration.PuntosPorKudo !== 'number') {
             missingDefaults.PuntosPorKudo = 10;
           }
@@ -2852,9 +3730,97 @@ export class SharePointService {
         }
       }
 
+      provisioningStep = 'consolidar la fila Config_Global';
+      const globalConfigurationItems: Array<{ Id: number }> =
+        await listEnsure.list.items
+          .select('Id')
+          .filter(
+            `Title eq '${escapeODataString(GLOBAL_CONFIG_TITLE)}'`
+          )
+          .orderBy('Id', true)
+          .getAll<{ Id: number }>();
+
+      // SharePoint REST no ofrece un upsert atómico por Title. En una carrera
+      // de aprovisionamiento se conserva siempre el Id más antiguo y se
+      // eliminan los duplicados. Un 404 es esperable si otra sesión ganó la
+      // misma limpieza concurrente.
+      for (
+        let duplicateIndex = 1;
+        duplicateIndex < globalConfigurationItems.length;
+        duplicateIndex += 1
+      ) {
+        try {
+          await listEnsure.list.items
+            .getById(globalConfigurationItems[duplicateIndex].Id)
+            .delete();
+        } catch (duplicateCleanupError: unknown) {
+          if (!isSharePointNotFoundError(duplicateCleanupError)) {
+            throw duplicateCleanupError;
+          }
+        }
+      }
+
       provisioningStep = 'obtener la vista predeterminada';
       const defaultView = await listEnsure.list.defaultView;
       const defaultViewFields = await defaultView.fields();
+
+      if (defaultViewFields.Items.indexOf('MetaSlaCasos') < 0) {
+        provisioningStep = 'agregar MetaSlaCasos a la vista predeterminada';
+        await defaultView.fields.add('MetaSlaCasos');
+      }
+
+      if (defaultViewFields.Items.indexOf('MetaEmisionesTx') < 0) {
+        provisioningStep = 'agregar MetaEmisionesTx a la vista predeterminada';
+        await defaultView.fields.add('MetaEmisionesTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('MetaMovimientosPg') < 0) {
+        provisioningStep =
+          'agregar MetaMovimientosPg a la vista predeterminada';
+        await defaultView.fields.add('MetaMovimientosPg');
+      }
+
+      if (defaultViewFields.Items.indexOf('MetaEscaneoPg') < 0) {
+        provisioningStep = 'agregar MetaEscaneoPg a la vista predeterminada';
+        await defaultView.fields.add('MetaEscaneoPg');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoCasos') < 0) {
+        provisioningStep = 'agregar PesoCasos a la vista predeterminada';
+        await defaultView.fields.add('PesoCasos');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoEmisionesTx') < 0) {
+        provisioningStep = 'agregar PesoEmisionesTx a la vista predeterminada';
+        await defaultView.fields.add('PesoEmisionesTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoEmisionesPg') < 0) {
+        provisioningStep = 'agregar PesoEmisionesPg a la vista predeterminada';
+        await defaultView.fields.add('PesoEmisionesPg');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoMovimientosTx') < 0) {
+        provisioningStep =
+          'agregar PesoMovimientosTx a la vista predeterminada';
+        await defaultView.fields.add('PesoMovimientosTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoMovimientosPg') < 0) {
+        provisioningStep =
+          'agregar PesoMovimientosPg a la vista predeterminada';
+        await defaultView.fields.add('PesoMovimientosPg');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoEscaneoTx') < 0) {
+        provisioningStep = 'agregar PesoEscaneoTx a la vista predeterminada';
+        await defaultView.fields.add('PesoEscaneoTx');
+      }
+
+      if (defaultViewFields.Items.indexOf('PesoEscaneoPg') < 0) {
+        provisioningStep = 'agregar PesoEscaneoPg a la vista predeterminada';
+        await defaultView.fields.add('PesoEscaneoPg');
+      }
 
       if (defaultViewFields.Items.indexOf('PuntosPorKudo') < 0) {
         provisioningStep = 'agregar PuntosPorKudo a la vista predeterminada';
@@ -2894,6 +3860,16 @@ export class SharePointService {
           'Id',
           'Title',
           'PesoCasos',
+          'PesoEmisionesTx',
+          'PesoEmisionesPg',
+          'PesoMovimientosTx',
+          'PesoMovimientosPg',
+          'PesoEscaneoTx',
+          'PesoEscaneoPg',
+          'MetaSlaCasos',
+          'MetaEmisionesTx',
+          'MetaMovimientosPg',
+          'MetaEscaneoPg',
           'PesoEmisiones',
           'PesoMovimientos',
           'MetaDiaria',
@@ -2902,6 +3878,10 @@ export class SharePointService {
           'PenalidadMedia',
           'PenalidadCritica'
         )
+        .filter(
+          `Title eq '${escapeODataString(GLOBAL_CONFIG_TITLE)}'`
+        )
+        .orderBy('Id', true)
         .top(1)();
 
       if (items.length === 0) {
@@ -2922,20 +3902,105 @@ export class SharePointService {
     try {
       await this.ensureConfiguracionList();
 
+      const weightValues = [
+        data.PesoCasos,
+        data.PesoEmisionesTx,
+        data.PesoEmisionesPg,
+        data.PesoMovimientosTx,
+        data.PesoMovimientosPg,
+        data.PesoEscaneoTx,
+        data.PesoEscaneoPg
+      ];
+      const dailyGoalValues = [
+        data.MetaEmisionesTx,
+        data.MetaMovimientosPg,
+        data.MetaEscaneoPg
+      ];
+      const configurationValues = [
+        ...weightValues,
+        ...dailyGoalValues,
+        data.MetaSlaCasos,
+        data.PuntosPorKudo,
+        data.PenalidadBaja,
+        data.PenalidadMedia,
+        data.PenalidadCritica
+      ];
+
+      if (
+        configurationValues.some(
+          (value) => !Number.isFinite(value) || value < 0
+        )
+      ) {
+        throw new Error(
+          'Las metas, pesos y reglas de puntuación deben ser números mayores o iguales a cero.'
+        );
+      }
+
+      if (dailyGoalValues.some((value) => value <= 0)) {
+        throw new Error(
+          'Las tres metas diarias fijas deben ser mayores que cero.'
+        );
+      }
+
+      if (data.MetaSlaCasos <= 0 || data.MetaSlaCasos > 100) {
+        throw new Error(
+          'La Meta de SLA de Casos debe ser mayor que cero y menor o igual a 100%.'
+        );
+      }
+
+      const totalWeight = weightValues.reduce(
+        (total, currentValue) => total + currentValue,
+        0
+      );
+
+      if (Math.abs(totalWeight - 100) > 0.001) {
+        throw new Error(
+          `La suma de los siete pesos debe ser exactamente 100% (actual: ${totalWeight}%).`
+        );
+      }
+
+      const updatePayload: Record<string, number> = {
+        PesoCasos: data.PesoCasos,
+        PesoEmisionesTx: data.PesoEmisionesTx,
+        PesoEmisionesPg: data.PesoEmisionesPg,
+        PesoMovimientosTx: data.PesoMovimientosTx,
+        PesoMovimientosPg: data.PesoMovimientosPg,
+        PesoEscaneoTx: data.PesoEscaneoTx,
+        PesoEscaneoPg: data.PesoEscaneoPg,
+        MetaSlaCasos: data.MetaSlaCasos,
+        MetaEmisionesTx: data.MetaEmisionesTx,
+        MetaMovimientosPg: data.MetaMovimientosPg,
+        MetaEscaneoPg: data.MetaEscaneoPg,
+        PuntosPorKudo: data.PuntosPorKudo,
+        PenalidadBaja: data.PenalidadBaja,
+        PenalidadMedia: data.PenalidadMedia,
+        PenalidadCritica: data.PenalidadCritica
+      };
+
+      if (
+        typeof data.PesoEmisiones === 'number' &&
+        Number.isFinite(data.PesoEmisiones)
+      ) {
+        updatePayload.PesoEmisiones = data.PesoEmisiones;
+      }
+      if (
+        typeof data.PesoMovimientos === 'number' &&
+        Number.isFinite(data.PesoMovimientos)
+      ) {
+        updatePayload.PesoMovimientos = data.PesoMovimientos;
+      }
+      if (
+        typeof data.MetaDiaria === 'number' &&
+        Number.isFinite(data.MetaDiaria)
+      ) {
+        updatePayload.MetaDiaria = data.MetaDiaria;
+      }
+
       await this.sp.web.lists
         .getByTitle(CONFIG_LIST_TITLE)
         .items
         .getById(id)
-        .update({
-          PesoCasos: data.PesoCasos,
-          PesoEmisiones: data.PesoEmisiones,
-          PesoMovimientos: data.PesoMovimientos,
-          MetaDiaria: data.MetaDiaria,
-          PuntosPorKudo: data.PuntosPorKudo,
-          PenalidadBaja: data.PenalidadBaja,
-          PenalidadMedia: data.PenalidadMedia,
-          PenalidadCritica: data.PenalidadCritica
-        });
+        .update(updatePayload);
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`No fue posible actualizar la configuración: ${detail}`);
@@ -3256,9 +4321,15 @@ export class SharePointService {
       const productividadFilter =
         `FechaRegistro ge datetime'${startIso}' and ` +
         `FechaRegistro le datetime'${endIso}'`;
+      const productividadRangeFilter =
+        `FechaInicio le datetime'${endIso}' and ` +
+        `FechaFin ge datetime'${startIso}'`;
       const kudosFilter =
         `FechaKudo ge datetime'${startIso}' and ` +
         `FechaKudo le datetime'${endIso}'`;
+      const faltasFilter =
+        `FechaFalta ge datetime'${startIso}' and ` +
+        `FechaFalta le datetime'${endIso}'`;
 
       const hasAgentScope = agentes !== undefined;
       const normalizedAgents = (agentes ?? [])
@@ -3312,29 +4383,58 @@ export class SharePointService {
 
       await Promise.all([
         this.ensureRegistroProductividadList(),
-        this.ensureRegistroKudosList()
+        this.ensureRegistroKudosList(),
+        this.ensureRegistroFaltasList()
       ]);
 
+      const productivityFields = [
+        'Id',
+        'Title',
+        'AgenteEmail',
+        'AgenteObjectID',
+        'FechaRegistro',
+        'FechaInicio',
+        'FechaFin',
+        'Casos',
+        'CasosAtendidos',
+        'CasosATiempo',
+        'Emisiones',
+        'Movimientos',
+        'EmisionesTx',
+        'EmisionesPg',
+        'MovimientosTx',
+        'MovimientosPg',
+        'EscaneoTx',
+        'EscaneoPg'
+      ];
       const productividadPromise: Promise<
         IEvaluacionProductividadItem[]
       > = emptyAgentScope
         ? Promise.resolve([])
-        : this.sp.web.lists
-            .getByTitle(PRODUCTIVITY_LIST_TITLE)
-            .items
-            .filter(productividadFilter)
-            .select(
-              'Title',
-              'AgenteEmail',
-              'AgenteObjectID',
-              'FechaRegistro',
-              'FechaInicio',
-              'FechaFin',
-              'Casos',
-              'Emisiones',
-              'Movimientos'
-            )
-            .getAll<IEvaluacionProductividadItem>();
+        : (async (): Promise<IEvaluacionProductividadItem[]> => {
+            const list = this.sp.web.lists
+              .getByTitle(PRODUCTIVITY_LIST_TITLE);
+            const [rangeItems, legacyItems] = await Promise.all([
+              list.items
+                .filter(productividadRangeFilter)
+                .select(...productivityFields)
+                .getAll<IEvaluacionProductividadItem>(),
+              list.items
+                .filter(productividadFilter)
+                .select(...productivityFields)
+                .getAll<IEvaluacionProductividadItem>()
+            ]);
+            const itemsById = new Map<
+              number,
+              IEvaluacionProductividadItem
+            >();
+
+            [...rangeItems, ...legacyItems].forEach((item) => {
+              itemsById.set(item.Id, item);
+            });
+
+            return Array.from(itemsById.values());
+          })();
 
       const kudosPromise: Promise<IEvaluacionKudoItem[]> = emptyAgentScope
         ? Promise.resolve([])
@@ -3352,21 +4452,52 @@ export class SharePointService {
             )
             .getAll<IEvaluacionKudoItem>();
 
-      const [rawProductividad, rawKudos, config] = await Promise.all([
+      const faltasPromise: Promise<IEvaluacionFaltaItem[]> = emptyAgentScope
+        ? Promise.resolve([])
+        : this.sp.web.lists
+            .getByTitle(LIST_TITLE)
+            .items
+            .filter(faltasFilter)
+            .select(
+              'Id',
+              'Title',
+              'AgenteEmail',
+              'AgenteObjectID',
+              'FechaFalta',
+              'Categoria',
+              'Impacto',
+              'Estado',
+              'EstadoAprobacion'
+            )
+            .getAll<IEvaluacionFaltaItem>();
+
+      const [rawProductividad, rawKudos, rawFaltas, config] =
+        await Promise.all([
         productividadPromise,
         kudosPromise,
+        faltasPromise,
         this.getConfiguracion()
       ]);
-      const productividad = hasAgentScope
+      const scopedProductividad = hasAgentScope
         ? rawProductividad.filter(isItemWithinEvaluationScope)
         : rawProductividad;
+      const productividad = scopedProductividad.map(
+        normalizeProductividadMetrics
+      );
       const kudos = hasAgentScope
         ? rawKudos.filter(isItemWithinEvaluationScope)
         : rawKudos;
+      const approvedFaltas = rawFaltas.filter((item) =>
+        isFaltaApprovedForScoring(item.EstadoAprobacion)
+      );
+      const faltas = hasAgentScope
+        ? approvedFaltas.filter(isItemWithinEvaluationScope)
+        : approvedFaltas;
 
       return {
         productividad,
         kudos,
+        faltas,
         config
       };
     } catch (error: unknown) {
@@ -3377,8 +4508,31 @@ export class SharePointService {
     }
   }
 
-  public async getDatosDashboard(): Promise<IDatosDashboard> {
+  public async getDatosDashboard(
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<IDatosDashboard> {
     try {
+      if ((startDate && !endDate) || (!startDate && endDate)) {
+        throw new Error(
+          'Debe indicar ambas fechas para calcular el período del Dashboard.'
+        );
+      }
+
+      if (startDate && endDate) {
+        const evaluationData = await this.getDatosEvaluacion(
+          startDate,
+          endDate
+        );
+
+        return {
+          config: evaluationData.config,
+          productividad: evaluationData.productividad,
+          faltas: evaluationData.faltas,
+          kudos: evaluationData.kudos
+        };
+      }
+
       await Promise.all([
         this.ensureRegistroProductividadList(),
         this.ensureRegistroFaltasList(),
@@ -3397,22 +4551,30 @@ export class SharePointService {
             'FechaInicio',
             'FechaFin',
             'Casos',
+            'CasosAtendidos',
+            'CasosATiempo',
             'Emisiones',
-            'Movimientos'
+            'Movimientos',
+            'EmisionesTx',
+            'EmisionesPg',
+            'MovimientosTx',
+            'MovimientosPg',
+            'EscaneoTx',
+            'EscaneoPg'
           )
           .getAll<IDashboardProductividadItem>();
 
       const faltasPromise: Promise<IDashboardFaltaItem[]> = this.sp.web.lists
         .getByTitle(LIST_TITLE)
         .items
-        .filter("Estado eq 'Aprobado'")
         .select(
           'Title',
           'AgenteEmail',
           'AgenteObjectID',
           'Categoria',
           'Impacto',
-          'Estado'
+          'Estado',
+          'EstadoAprobacion'
         )
         .getAll<IDashboardFaltaItem>();
 
@@ -3431,8 +4593,10 @@ export class SharePointService {
 
       return {
         config,
-        productividad,
-        faltas,
+        productividad: productividad.map(normalizeProductividadMetrics),
+        faltas: faltas.filter((item) =>
+          isFaltaApprovedForScoring(item.EstadoAprobacion)
+        ),
         kudos
       };
     } catch (error: unknown) {

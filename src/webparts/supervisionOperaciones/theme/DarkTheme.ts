@@ -4,7 +4,43 @@ import {
   type ITheme
 } from '@fluentui/react';
 
+export const techFontFamily = [
+  "'Plus Jakarta Sans'",
+  "'Inter'",
+  '-apple-system',
+  'BlinkMacSystemFont',
+  "'Segoe UI'",
+  'sans-serif'
+].join(', ');
+
+const TECH_FONT_STYLESHEET_ID = 'humano-ops-hub-tech-font';
+const TECH_FONT_STYLESHEET_URL =
+  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap';
+
+/**
+ * Carga la tipografía una sola vez sin enviar un @import remoto al
+ * sp-css-loader, que no es compatible con imports HTTP en esta versión de
+ * SPFx. El stack de fuentes del tema mantiene Inter/sistema como fallback.
+ */
+export const ensureTechFontLoaded = (): void => {
+  if (
+    typeof document === 'undefined' ||
+    document.getElementById(TECH_FONT_STYLESHEET_ID)
+  ) {
+    return;
+  }
+
+  const stylesheet = document.createElement('link');
+  stylesheet.id = TECH_FONT_STYLESHEET_ID;
+  stylesheet.rel = 'stylesheet';
+  stylesheet.href = TECH_FONT_STYLESHEET_URL;
+  document.head.appendChild(stylesheet);
+};
+
 export const darkTheme: ITheme = createTheme({
+  defaultFontStyle: {
+    fontFamily: techFontFamily
+  },
   isInverted: true,
   palette: {
     themeDarker: '#00385f',

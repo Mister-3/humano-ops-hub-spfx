@@ -111,6 +111,68 @@
   min-width: 240px;
 }
 
+.metricsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sectionHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  :global(.ms-Text:first-child) {
+    color: #ffffff;
+    font-weight: 700;
+  }
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.weightStatus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  color: #e1dfdd;
+  background: #151519;
+  border: 1px solid #34343e;
+  border-radius: 7px;
+
+  strong {
+    color: #ffffff;
+    font-size: 16px;
+  }
+
+  span {
+    text-align: right;
+  }
+}
+
+.weightStatusValid {
+  border-color: rgba(54, 211, 139, 0.48);
+  box-shadow: inset 3px 0 0 #36d38b;
+
+  strong {
+    color: #72e6ad;
+  }
+}
+
+.weightStatusInvalid {
+  border-color: rgba(244, 185, 66, 0.5);
+  box-shadow: inset 3px 0 0 #f4b942;
+
+  strong {
+    color: #ffd981;
+  }
+}
+
 .roleEmailField {
   min-width: 320px;
 }
@@ -222,5 +284,14 @@
   .catalogCategoryField,
   .catalogValueField {
     min-width: 100%;
+  }
+
+  .weightStatus {
+    align-items: flex-start;
+    flex-direction: column;
+
+    span {
+      text-align: left;
+    }
   }
 }

@@ -161,7 +161,7 @@
 
 .goalsGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
 }
 
@@ -301,11 +301,21 @@
 }
 
 .kudoAttribute {
+  display: flex;
   min-height: 34px;
+  align-items: center;
+  gap: 8px;
   color: #dceeff;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.kudoAttributeIcon {
+  flex: 0 0 auto;
+  color: #48d6e1;
+  font-size: 18px;
+  text-shadow: 0 0 12px rgba(0, 183, 195, 0.52);
 }
 
 .kudoEmpty {
@@ -332,7 +342,11 @@
 
 .alertRow {
   display: grid;
-  grid-template-columns: minmax(180px, 1.15fr) minmax(280px, 2fr) auto;
+  grid-template-columns:
+    minmax(170px, 0.9fr)
+    minmax(330px, 1.8fr)
+    minmax(240px, 1.35fr)
+    auto;
   align-items: center;
   gap: 18px;
   min-width: 0;
@@ -373,7 +387,7 @@
 
 .alertMetrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(105px, 1fr));
   gap: 12px;
   min-width: 0;
 }
@@ -399,6 +413,33 @@
   color: #f2f2f6;
   font-size: 14px;
   font-weight: 600;
+}
+
+.penaltyMetricValue {
+  color: #ff9aa3;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.alertReason {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: #e1dfdd;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+
+  strong {
+    color: #ffd981;
+    font-size: 12px;
+  }
+
+  span {
+    color: #c7c6c4;
+  }
 }
 
 .warningBadge,
@@ -438,19 +479,21 @@
   min-width: 0;
   flex-direction: column;
   gap: 12px;
+  overflow-x: auto;
 }
 
 .rankingRow,
 .rankingHeader {
   display: grid;
   grid-template-columns:
-    minmax(150px, 0.9fr)
-    minmax(180px, 1.7fr)
-    minmax(180px, 1fr)
-    minmax(84px, auto);
+    minmax(175px, 0.9fr)
+    minmax(420px, 2.5fr)
+    minmax(90px, 0.55fr)
+    minmax(110px, 0.65fr)
+    minmax(105px, 0.65fr);
   align-items: center;
   gap: 16px;
-  min-width: 0;
+  min-width: 1030px;
 }
 
 .rankingHeader {
@@ -506,9 +549,34 @@
 .complianceGroup {
   display: flex;
   min-width: 0;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 5px;
+}
+
+.rankingKudos,
+.rankingPenalty {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.rankingKudos {
+  color: #72e6ad;
+  background: rgba(36, 176, 111, 0.12);
+  border: 1px solid rgba(54, 211, 139, 0.38);
+}
+
+.rankingPenalty {
+  color: #ff8d94;
+  background: rgba(244, 91, 105, 0.12);
+  border: 1px solid rgba(244, 91, 105, 0.4);
 }
 
 .complianceMet,
@@ -533,6 +601,16 @@
   color: #ffd981;
   background: rgba(244, 185, 66, 0.12);
   border: 1px solid rgba(244, 185, 66, 0.4);
+}
+
+.slaMetricBadge {
+  display: inline-flex;
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+  align-items: center;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .barTrack {
@@ -599,6 +677,10 @@
   .warningBadge,
   .dangerBadge {
     width: fit-content;
+    grid-column: 1 / -1;
+  }
+
+  .alertReason {
     grid-column: 1 / -1;
   }
 }
@@ -675,18 +757,23 @@
   .rankingRow {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
-  }
-
-  .barTrack {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    min-width: 0;
   }
 
   .complianceGroup {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .rankingKudos,
+  .rankingPenalty {
+    grid-row: 3;
+  }
+
+  .rankingPenalty {
+    justify-self: end;
   }
 }
 

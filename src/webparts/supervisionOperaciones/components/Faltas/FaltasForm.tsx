@@ -18,7 +18,6 @@ import {
 } from '@fluentui/react';
 
 import type { IFalta, RoleType } from '../../models/AppModels';
-import type GraphService from '../../services/GraphService';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   type ICatalogoItem,
@@ -26,19 +25,20 @@ import SharePointService, {
 } from '../../services/SharePointService';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
 import HistorialView from '../Historial/HistorialView';
+import AprobacionesView from './AprobacionesView';
 import styles from './FaltasForm.module.scss';
 
 export interface IFaltasFormProps {
-  availableAgents?: ReadonlyArray<IDirectReport>;
+  availableAgents: ReadonlyArray<IDirectReport>;
   currentUserEmail: string;
   currentUserName: string;
-  graphService: GraphService;
   isLoadingAgents?: boolean;
   userRole: RoleType;
 }
 
 const ERROR_CATEGORY = 'Error en proceso';
 const TRAINING_CATEGORY = 'Capacitación';
+const ETHICS_CATEGORY = 'Código de Ética';
 const ASSISTANT_SUBCATEGORY = 'Error de Digitación';
 const NO_PENALTY_IMPACT = 'Sin penalidad';
 
@@ -68,13 +68,20 @@ const fallbackCategoryOptions: IDropdownOption[] = [
   { key: 'Ausencia Injustificada', text: 'Ausencia Injustificada' },
   { key: ERROR_CATEGORY, text: ERROR_CATEGORY },
   { key: 'Violación de Política', text: 'Violación de Política' },
-  { key: TRAINING_CATEGORY, text: TRAINING_CATEGORY }
+  { key: TRAINING_CATEGORY, text: TRAINING_CATEGORY },
+  { key: ETHICS_CATEGORY, text: ETHICS_CATEGORY }
 ];
 
 const impactOptions: IDropdownOption[] = [
   { key: 'Bajo', text: 'Bajo' },
   { key: 'Medio', text: 'Medio' },
   { key: 'Crítico', text: 'Crítico' }
+];
+
+const ethicsImpactOptions: IDropdownOption[] = [
+  { key: 'Leve', text: 'Leve' },
+  { key: 'Medio', text: 'Medio' },
+  { key: 'Grave', text: 'Grave' }
 ];
 
 const arrivalPeriodOptions: IDropdownOption[] = [
@@ -92,6 +99,22 @@ const fallbackSubcategoryOptions: IDropdownOption[] = [
   { key: 'Incumplimiento SLA', text: 'Incumplimiento SLA' },
   { key: 'Procedimiento Incompleto', text: 'Procedimiento Incompleto' },
   { key: 'Omisión de Verificación', text: 'Omisión de Verificación' }
+];
+
+const fallbackEthicsSubcategoryOptions: IDropdownOption[] = [
+  { key: 'Uso inadecuado de recursos', text: 'Uso inadecuado de recursos' },
+  {
+    key: 'Trato irrespetuoso o conducta inapropiada',
+    text: 'Trato irrespetuoso o conducta inapropiada'
+  },
+  {
+    key: 'Conflicto de interés no declarado',
+    text: 'Conflicto de interés no declarado'
+  },
+  {
+    key: 'Fraude, soborno o divulgación indebida',
+    text: 'Fraude, soborno o divulgación indebida'
+  }
 ];
 
 const toCatalogOptions = (
@@ -200,15 +223,28 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   availableAgents,
   currentUserEmail,
   currentUserName,
-  graphService,
   isLoadingAgents = false,
   userRole
 }) => {
   const isAssistant = userRole === 'Asistente';
+  const requiresApproval = isAssistant ||
+    userRole === 'Analista' ||
+    userRole === 'Oficial';
   const canRegisterOfficial = userRole === 'Supervisor' ||
     userRole === 'Gerente' ||
     userRole === 'Admin';
-  const canSubmit = isAssistant || canRegisterOfficial;
+  const canSubmit = requiresApproval || canRegisterOfficial;
+  const canReviewApprovals = userRole === 'Supervisor' || userRole === 'Admin';
+  const approvalAuthorEmails = React.useMemo<
+    ReadonlyArray<string> | undefined
+  >(
+    () => userRole === 'Admin'
+      ? undefined
+      : availableAgents
+          .map((agent) => agent.email.trim())
+          .filter(Boolean),
+    [availableAgents, userRole]
+  );
 
   const [selectedAgentKey, setSelectedAgentKey] = React.useState<string>('');
   const [teamMembers, setTeamMembers] = React.useState<IDirectReport[]>([]);
@@ -232,12 +268,13 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [isLoadingTeam, setIsLoadingTeam] = React.useState<boolean>(true);
-  const [teamErrorMessage, setTeamErrorMessage] = React.useState<string>('');
   const [categoryOptions, setCategoryOptions] =
     React.useState<IDropdownOption[]>([]);
   const [subcategoryOptions, setSubcategoryOptions] =
     React.useState<IDropdownOption[]>([]);
   const [processOptions, setProcessOptions] =
+    React.useState<IDropdownOption[]>([]);
+  const [ethicsSubcategoryOptions, setEthicsSubcategoryOptions] =
     React.useState<IDropdownOption[]>([]);
   const [isLoadingCatalogs, setIsLoadingCatalogs] =
     React.useState<boolean>(true);
@@ -263,72 +300,32 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   );
 
   React.useEffect(() => {
-    let isMounted = true;
+    const seenIdentities: { [identity: string]: boolean } = {};
+    const uniqueMembers = availableAgents
+      .map((member): IDirectReport => ({
+        ...member,
+        email: member.email.trim(),
+        id: member.id.trim(),
+        name: member.name.trim()
+      }))
+      .filter((member) => {
+        const identity = getAgentKey(member);
 
-    const loadTeam = async (): Promise<void> => {
-      setIsLoadingTeam(availableAgents !== undefined
-        ? isLoadingAgents
-        : true);
-      setTeamErrorMessage('');
-      setSelectedAgentKey('');
-      setTeamMembers([]);
-
-      try {
-        const loadedMembers = availableAgents !== undefined
-          ? availableAgents
-          : isAssistant
-            ? await graphService.getSupervisorPeers()
-            : await graphService.getDirectReports();
-
-        if (isMounted) {
-          const seenIdentities: { [identity: string]: boolean } = {};
-          const uniqueMembers = loadedMembers
-            .map((member): IDirectReport => ({
-              ...member,
-              email: member.email.trim(),
-              id: member.id.trim(),
-              name: member.name.trim()
-            }))
-            .filter((member) => {
-              const identity = getAgentKey(member);
-
-              if (!member.name || seenIdentities[identity]) {
-                return false;
-              }
-
-              seenIdentities[identity] = true;
-              return true;
-            })
-            .sort((left, right) => left.name.localeCompare(right.name, 'es'));
-
-          setTeamMembers(uniqueMembers);
+        if (!member.name || seenIdentities[identity]) {
+          return false;
         }
-      } catch (error: unknown) {
-        if (isMounted) {
-          const detail = error instanceof Error
-            ? error.message
-            : 'No fue posible cargar el equipo del supervisor.';
-          setTeamErrorMessage(detail);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingTeam(
-            availableAgents !== undefined && isLoadingAgents
-          );
-        }
-      }
-    };
 
-    loadTeam().catch(() => undefined);
+        seenIdentities[identity] = true;
+        return true;
+      })
+      .sort((left, right) => left.name.localeCompare(right.name, 'es'));
 
-    return () => {
-      isMounted = false;
-    };
+    setIsLoadingTeam(isLoadingAgents);
+    setSelectedAgentKey('');
+    setTeamMembers(uniqueMembers);
   }, [
     availableAgents,
     getAgentKey,
-    graphService,
-    isAssistant,
     isLoadingAgents
   ]);
 
@@ -340,11 +337,18 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
       setCatalogErrorMessage('');
 
       try {
-        const [categories, subcategories, processes] = await Promise.all([
-          sharePointService.getCatalogos('Falta'),
-          sharePointService.getCatalogos('ErrorProceso'),
-          sharePointService.getCatalogos('ProcesoArea')
-        ]);
+        // Las lecturas son secuenciales porque las dos categorías de ética
+        // pueden autoaprovisionar sus valores obligatorios en una lista ya
+        // existente. Así se evita que dos solicitudes intenten insertarlos a
+        // la vez durante la primera carga posterior a la actualización.
+        const categories = await sharePointService.getCatalogos('Falta');
+        const subcategories = await sharePointService.getCatalogos(
+          'ErrorProceso'
+        );
+        const processes = await sharePointService.getCatalogos('ProcesoArea');
+        const ethicsSubcategories = await sharePointService.getCatalogos(
+          'CodigoEtica'
+        );
 
         if (!isMounted) {
           return;
@@ -367,6 +371,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
             : loadedSubcategories
         );
         setProcessOptions(toCatalogOptions(processes));
+        setEthicsSubcategoryOptions(toCatalogOptions(ethicsSubcategories));
 
         if (loadedCategories.length === 0) {
           setCatalogErrorMessage(
@@ -381,6 +386,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
           setCategoryOptions(fallbackCategoryOptions);
           setSubcategoryOptions(fallbackSubcategoryOptions);
           setProcessOptions([]);
+          setEthicsSubcategoryOptions(fallbackEthicsSubcategoryOptions);
           setCatalogErrorMessage(
             `${detail} Se habilitaron temporalmente las opciones base.`
           );
@@ -414,6 +420,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
 
   const isTraining = isCatalogValue(categoria, TRAINING_CATEGORY);
   const isProcessError = isCatalogValue(categoria, ERROR_CATEGORY);
+  const isEthicsViolation = isCatalogValue(categoria, ETHICS_CATEGORY);
   const isTardanza = categoria
     .toLowerCase()
     .normalize('NFD')
@@ -432,16 +439,23 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     if (isCatalogValue(nextCategory, TRAINING_CATEGORY)) {
       setNivelImpacto(NO_PENALTY_IMPACT);
       setSubcategoria('');
-      setCasoRef('');
       setOrigenError('');
-    } else if (nivelImpacto === NO_PENALTY_IMPACT) {
+    } else {
       setNivelImpacto('');
     }
 
     if (!isCatalogValue(nextCategory, ERROR_CATEGORY)) {
       setSubcategoria('');
-      setCasoRef('');
       setOrigenError('');
+    }
+
+    if (isCatalogValue(nextCategory, ETHICS_CATEGORY)) {
+      setSubcategoria('');
+      setOrigenError('');
+      setProcesoArea('');
+      setNivelImpacto('');
+    } else if (!isCatalogValue(nextCategory, ERROR_CATEGORY)) {
+      setSubcategoria('');
     }
 
     if (!isCatalogValue(nextCategory, TRAINING_CATEGORY)) {
@@ -468,8 +482,22 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
       return;
     }
 
+    if (requiresApproval && !casoRef.trim()) {
+      setErrorMessage(
+        'El ID Caso Helpdesk / Calidad es obligatorio para registros creados por el Asistente'
+      );
+      return;
+    }
+
     if (isProcessError && !subcategoria) {
       setErrorMessage('Seleccione la subcategoría del error antes de continuar.');
+      return;
+    }
+
+    if (isEthicsViolation && !subcategoria) {
+      setErrorMessage(
+        'Seleccione la subcategoría de Código de Ética antes de continuar.'
+      );
       return;
     }
 
@@ -493,11 +521,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const estado: IFalta['estado'] = isTraining
-        ? 'Aprobado'
-        : isAssistant
-          ? 'Borrador'
-          : 'Aprobado';
+      const estado: IFalta['estado'] = requiresApproval
+        ? 'Borrador'
+        : 'Aprobado';
       const faltaData: IRegistrarFaltaData = {
         agente: selectedAgent.name,
         agenteEmail: selectedAgent.email,
@@ -507,8 +533,8 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
         impacto: isTraining ? NO_PENALTY_IMPACT : nivelImpacto,
         estado,
         rolOriginador: userRole,
-        subcategoria: isProcessError ? subcategoria : '',
-        casoRef: isProcessError ? casoRef.trim() : '',
+        subcategoria: isProcessError || isEthicsViolation ? subcategoria : '',
+        casoRef: casoRef.trim(),
         origenError: isProcessError ? origenError : '',
         procesoArea: isTraining ? procesoArea : '',
         comentarios: comentarios.trim(),
@@ -540,9 +566,11 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      setSuccessMessage(isTraining
-        ? 'Capacitación registrada correctamente'
-        : 'Falta registrada correctamente');
+      setSuccessMessage(requiresApproval
+        ? 'Registro enviado correctamente a la cola de aprobación'
+        : isTraining
+          ? 'Capacitación registrada correctamente'
+          : 'Falta registrada correctamente');
 
       if (successTimerRef.current !== undefined) {
         window.clearTimeout(successTimerRef.current);
@@ -580,10 +608,6 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
             className={styles.formCard}
             tokens={{ childrenGap: 15 }}
           >
-            <Text className={styles.title} variant="xLarge">
-              Registro de faltas y capacitaciones
-            </Text>
-
             {!canSubmit && (
               <MessageBar messageBarType={MessageBarType.warning}>
                 El rol {userRole} posee acceso de consulta, pero no puede registrar faltas.
@@ -599,12 +623,6 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
             {errorMessage && (
               <MessageBar messageBarType={MessageBarType.error}>
                 {errorMessage}
-              </MessageBar>
-            )}
-
-            {teamErrorMessage && (
-              <MessageBar messageBarType={MessageBarType.warning}>
-                {teamErrorMessage}
               </MessageBar>
             )}
 
@@ -671,6 +689,20 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
               selectedKey={categoria}
             />
 
+            <TextField
+              description={requiresApproval
+                ? 'Requerido para enviar el registro a la cola de aprobación.'
+                : 'Opcional para registros con aprobación directa.'}
+              disabled={!canSubmit || isSubmitting}
+              label="ID Caso Helpdesk / Calidad"
+              onChange={(_, value) => setCasoRef(value || '')}
+              placeholder={requiresApproval
+                ? 'Ingrese el ID del caso'
+                : 'Opcional'}
+              required={requiresApproval}
+              value={casoRef}
+            />
+
             {isTraining && (
               <Stack className={styles.conditionalSection} tokens={{ childrenGap: 15 }}>
                 <MessageBar messageBarType={MessageBarType.info}>
@@ -725,13 +757,6 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   required
                   selectedKey={subcategoria || undefined}
                 />
-                <TextField
-                  disabled={!canSubmit || isSubmitting}
-                  label="ID Caso Helpdesk / Calidad"
-                  onChange={(_, value) => setCasoRef(value || '')}
-                  placeholder="Opcional"
-                  value={casoRef}
-                />
                 <Dropdown
                   disabled={!canSubmit || isSubmitting}
                   label="Origen del Registro"
@@ -743,6 +768,33 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   required
                   selectedKey={origenError || undefined}
                 />
+              </Stack>
+            )}
+
+            {isEthicsViolation && (
+              <Stack className={styles.conditionalSection} tokens={{ childrenGap: 15 }}>
+                <Text className={styles.conditionalTitle}>
+                  Tipificación de Código de Ética
+                </Text>
+                <Dropdown
+                  disabled={!canSubmit || isSubmitting || isLoadingCatalogs}
+                  label="Subcategoría de Código de Ética"
+                  onChange={(_, option) => {
+                    setSubcategoria(String(option?.key || ''));
+                  }}
+                  options={ethicsSubcategoryOptions}
+                  placeholder={isLoadingCatalogs
+                    ? 'Cargando subcategorías...'
+                    : 'Seleccione la conducta tipificada'}
+                  required
+                  selectedKey={subcategoria || undefined}
+                />
+                {ethicsSubcategoryOptions.length === 0 && !isLoadingCatalogs && (
+                  <MessageBar messageBarType={MessageBarType.warning}>
+                    No hay subcategorías de Código de Ética configuradas.
+                    Solicite al Administrador actualizar el catálogo.
+                  </MessageBar>
+                )}
               </Stack>
             )}
 
@@ -837,7 +889,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
               onChange={(_, option) => setNivelImpacto(String(option?.key || ''))}
               options={isTraining
                 ? [{ key: NO_PENALTY_IMPACT, text: 'Sin penalidad (0 puntos)' }]
-                : impactOptions}
+                : isEthicsViolation
+                  ? ethicsImpactOptions
+                  : impactOptions}
               required={!isTraining}
               selectedKey={isTraining ? NO_PENALTY_IMPACT : nivelImpacto}
             />
@@ -875,8 +929,10 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   isLoadingTeam ||
                   isLoadingCatalogs
                 }
-                text={isAssistant
-                  ? 'Enviar para Revisión (Borrador)'
+                text={requiresApproval
+                  ? isAssistant
+                    ? 'Enviar para Revisión (Borrador)'
+                    : 'Enviar para Revisión'
                   : isTraining
                     ? 'Registrar Capacitación'
                     : 'Registrar Falta Oficial'}
@@ -898,12 +954,17 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
           currentUserEmail={currentUserEmail}
           currentUserName={currentUserName}
           availableAgents={availableAgents}
-          graphService={graphService}
           isLoadingAgents={isLoadingAgents}
           moduleType="faltas"
           userRole={userRole}
         />
       </PivotItem>
+
+      {canReviewApprovals && (
+        <PivotItem headerText="⏳ Cola de Aprobación" itemKey="aprobaciones">
+          <AprobacionesView allowedAuthorEmails={approvalAuthorEmails} />
+        </PivotItem>
+      )}
     </Pivot>
   );
 };

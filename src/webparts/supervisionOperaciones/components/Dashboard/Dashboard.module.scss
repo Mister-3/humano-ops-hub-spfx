@@ -161,7 +161,7 @@
   overflow-x: auto;
 
   :global(.ms-DetailsList) {
-    min-width: 720px;
+    min-width: 1080px;
     color: #f0f0f4;
     background: transparent;
   }
@@ -269,16 +269,24 @@
   font-weight: 700;
 }
 
-.penalty {
-  color: #ff747c;
-}
-
 .goalMet,
 .goalPending {
   display: inline-flex;
   padding: 3px 8px;
   font-size: 11px;
   font-weight: 700;
+  border-radius: 999px;
+}
+
+.kudosBadge {
+  display: inline-flex;
+  padding: 3px 8px;
+  color: #72e6ad;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(36, 176, 111, 0.12);
+  border: 1px solid rgba(54, 211, 139, 0.38);
   border-radius: 999px;
 }
 
@@ -292,6 +300,16 @@
   color: #ffd981;
   background: rgba(244, 185, 66, 0.12);
   border: 1px solid rgba(244, 185, 66, 0.4);
+}
+
+.slaComparisonBadge {
+  display: inline-flex;
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+  align-items: center;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
