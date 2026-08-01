@@ -13,32 +13,10 @@ if (!fs.existsSync(manifestPath)) {
   throw new Error(`No se encontró el manifiesto compilado: ${manifestPath}`);
 }
 
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const entryResource = manifest.loaderConfig?.scriptResources?.[manifest.loaderConfig.entryModuleId];
-
-if (!entryResource || entryResource.type !== 'path' || !entryResource.path) {
-  throw new Error('El manifiesto no contiene un bundle de entrada válido.');
-}
-
-const entryFileName = entryResource.path;
-const entrySourcePath = path.join(releaseAssetsDirectory, entryFileName);
-
-if (!fs.existsSync(entrySourcePath)) {
-  throw new Error(`No se encontró el bundle compilado: ${entrySourcePath}`);
-}
-
-fs.rmSync(outputDirectory, { recursive: true, force: true });
-fs.mkdirSync(outputDirectory, { recursive: true });
-fs.copyFileSync(entrySourcePath, path.join(outputDirectory, entryFileName));
-
-const licenseSourcePath = `${entrySourcePath}.LICENSE.txt`;
-if (fs.existsSync(licenseSourcePath)) {
-  fs.copyFileSync(licenseSourcePath, path.join(outputDirectory, `${entryFileName}.LICENSE.txt`));
-}
-
 // El Hosted Workbench ya contiene los manifiestos de la plataforma SPFx. Publicamos
 // únicamente el manifiesto del Web Part y sustituimos cualquier URL intermedia de
 // desarrollo por el CDN HTTPS absoluto configurado para Vercel.
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const writeManifestsConfig = JSON.parse(fs.readFileSync(writeManifestsPath, 'utf8'));
 const cdnBasePath = writeManifestsConfig.cdnBasePath;
 
@@ -48,7 +26,84 @@ if (typeof cdnBasePath !== 'string' || !cdnBasePath.startsWith('https://') || !c
 
 manifest.loaderConfig.internalModuleBaseUrls = [cdnBasePath];
 
+const referencedAssets = new Set();
+
+const normalizeAssetPath = (assetPath) => {
+  if (typeof assetPath !== 'string' || assetPath.trim().length === 0) {
+    throw new Error('Se encontró una ruta de script vacía o inválida en el manifiesto.');
+  }
+
+  const trimmedPath = assetPath.trim();
+  const pathname = /^https?:\/\//i.test(trimmedPath)
+    ? new URL(trimmedPath).pathname
+    : trimmedPath.split(/[?#]/, 1)[0];
+  const fileName = path.posix.basename(pathname.replace(/\\/g, '/'));
+
+  if (!fileName.toLowerCase().endsWith('.js')) {
+    throw new Error(`El recurso de script no apunta a un archivo .js válido: ${assetPath}`);
+  }
+
+  referencedAssets.add(fileName);
+  return fileName;
+};
+
+const normalizePathValue = (pathValue) => {
+  if (typeof pathValue === 'string') {
+    return normalizeAssetPath(pathValue);
+  }
+
+  if (pathValue && typeof pathValue === 'object' && typeof pathValue.path === 'string') {
+    return { ...pathValue, path: normalizeAssetPath(pathValue.path) };
+  }
+
+  throw new Error('Se encontró un recurso path/localizedPath con formato inválido.');
+};
+
+for (const resource of Object.values(manifest.loaderConfig.scriptResources)) {
+  if (resource.type === 'path') {
+    resource.path = normalizePathValue(resource.path);
+  } else if (resource.type === 'localizedPath') {
+    resource.defaultPath = normalizePathValue(resource.defaultPath);
+
+    if (resource.paths) {
+      for (const locale of Object.keys(resource.paths)) {
+        resource.paths[locale] = normalizePathValue(resource.paths[locale]);
+      }
+    }
+  }
+}
+
+const entryResource = manifest.loaderConfig.scriptResources[manifest.loaderConfig.entryModuleId];
+const entryFileName = typeof entryResource?.path === 'string' ? entryResource.path : entryResource?.path?.path;
+
+if (!entryResource || entryResource.type !== 'path' || !entryFileName) {
+  throw new Error('El manifiesto no contiene un bundle de entrada válido.');
+}
+
+fs.rmSync(outputDirectory, { recursive: true, force: true });
+fs.mkdirSync(outputDirectory, { recursive: true });
+
+for (const assetFileName of referencedAssets) {
+  const assetSourcePath = path.join(releaseAssetsDirectory, assetFileName);
+
+  if (!fs.existsSync(assetSourcePath)) {
+    throw new Error(`No se encontró el asset referenciado por el manifiesto: ${assetSourcePath}`);
+  }
+
+  fs.copyFileSync(assetSourcePath, path.join(outputDirectory, assetFileName));
+
+  const licenseSourcePath = `${assetSourcePath}.LICENSE.txt`;
+  if (fs.existsSync(licenseSourcePath)) {
+    fs.copyFileSync(licenseSourcePath, path.join(outputDirectory, `${assetFileName}.LICENSE.txt`));
+  }
+}
+
 const serializedManifest = JSON.stringify(manifest);
+
+if (/https?:\/\/localhost(?::\d+)?|(?:^|["'])\.\.?\//i.test(serializedManifest)) {
+  throw new Error('El manifiesto saneado todavía contiene localhost o rutas relativas no resueltas.');
+}
+
 const manifestsScript = `(function () {
   'use strict';
 
@@ -68,6 +123,11 @@ const manifestsScript = `(function () {
 
 fs.writeFileSync(path.join(outputDirectory, 'manifests.js'), manifestsScript, 'utf8');
 fs.writeFileSync(
+  path.join(outputDirectory, `${componentId}.manifest.json`),
+  `${JSON.stringify(manifest, null, 2)}\n`,
+  'utf8'
+);
+fs.writeFileSync(
   path.join(outputDirectory, 'index.html'),
   `<!doctype html>
 <html lang="es">
@@ -80,3 +140,5 @@ fs.writeFileSync(
 console.log(`Assets de Vercel preparados en ${outputDirectory}`);
 console.log(`Manifiesto: manifests.js`);
 console.log(`Bundle: ${entryFileName}`);
+console.log('loaderConfig publicado:');
+console.log(JSON.stringify(manifest.loaderConfig, null, 2));
