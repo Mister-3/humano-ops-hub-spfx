@@ -7,6 +7,7 @@ const releaseAssetsDirectory = path.join(projectRoot, 'release', 'assets');
 const outputDirectory = path.join(projectRoot, 'vercel-dist');
 const componentId = 'b1c501d9-6c98-4884-aa79-cf6920738444';
 const manifestPath = path.join(distDirectory, `${componentId}.manifest.json`);
+const writeManifestsPath = path.join(projectRoot, 'config', 'write-manifests.json');
 
 if (!fs.existsSync(manifestPath)) {
   throw new Error(`No se encontró el manifiesto compilado: ${manifestPath}`);
@@ -36,25 +37,27 @@ if (fs.existsSync(licenseSourcePath)) {
 }
 
 // El Hosted Workbench ya contiene los manifiestos de la plataforma SPFx. Publicamos
-// únicamente el manifiesto del Web Part y resolvemos su bundle desde la misma URL
-// HTTPS que sirve manifests.js, sin depender de localhost ni de un dominio fijo.
-manifest.loaderConfig.internalModuleBaseUrls = [];
+// únicamente el manifiesto del Web Part y sustituimos cualquier URL intermedia de
+// desarrollo por el CDN HTTPS absoluto configurado para Vercel.
+const writeManifestsConfig = JSON.parse(fs.readFileSync(writeManifestsPath, 'utf8'));
+const cdnBasePath = writeManifestsConfig.cdnBasePath;
+
+if (typeof cdnBasePath !== 'string' || !cdnBasePath.startsWith('https://') || !cdnBasePath.endsWith('/')) {
+  throw new Error('cdnBasePath debe ser una URL HTTPS absoluta terminada en barra.');
+}
+
+manifest.loaderConfig.internalModuleBaseUrls = [cdnBasePath];
 
 const serializedManifest = JSON.stringify(manifest);
 const manifestsScript = `(function () {
   'use strict';
 
-  var currentScript = document.currentScript;
-  var scriptUrl = currentScript && currentScript.src ? currentScript.src.split('?')[0] : '';
-  var baseUrl = scriptUrl ? scriptUrl.substring(0, scriptUrl.lastIndexOf('/') + 1) : window.location.origin + '/';
   var sourceManifest = ${serializedManifest};
 
   var debugManifests = {
     _metadata: undefined,
     getManifests: function () {
-      var runtimeManifest = JSON.parse(JSON.stringify(sourceManifest));
-      runtimeManifest.loaderConfig.internalModuleBaseUrls = [baseUrl];
-      return [runtimeManifest];
+      return [JSON.parse(JSON.stringify(sourceManifest))];
     }
   };
 

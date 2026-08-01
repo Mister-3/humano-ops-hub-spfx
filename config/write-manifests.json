@@ -1,4 +1,4 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/write-manifests.schema.json",
-  "cdnBasePath": "./"
+  "cdnBasePath": "https://supervision-app-new.vercel.app/"
 }
