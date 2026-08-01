@@ -141,7 +141,7 @@ if (/https?:\/\/localhost(?::\d+)?|(?:^|["'])\.\.?\//i.test(serializedManifest))
 const manifestsScript = `(function () {
   'use strict';
 
-  var globalObject = typeof self !== 'undefined' ? self : window;
+  var globalObject = typeof window !== 'undefined' ? window : global;
   var sourceManifest = ${serializedManifest};
 
   var debugManifests = {
@@ -150,16 +150,12 @@ const manifestsScript = `(function () {
       return [JSON.parse(JSON.stringify(sourceManifest))];
     }
   };
+  var manifests = debugManifests.getManifests();
 
-  globalObject.debugManifests = debugManifests;
-
-  if (typeof define === 'function') {
-    define([], function () { return debugManifests; });
-  } else if (typeof globalObject.$spfxRegisterManifests === 'function') {
-    globalObject.$spfxRegisterManifests(debugManifests.getManifests());
-  } else {
-    throw new Error('No se encontró un registrador compatible de manifiestos SPFx.');
+  if (typeof globalObject.$spfxRegisterManifests === 'function') {
+    globalObject.$spfxRegisterManifests(manifests);
   }
+  globalObject.debugManifests = debugManifests;
 }());
 `;
 
