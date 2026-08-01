@@ -4,9 +4,13 @@ const path = require('node:path');
 const projectRoot = path.resolve(__dirname, '..');
 const distDirectory = path.join(projectRoot, 'dist');
 const releaseAssetsDirectory = path.join(projectRoot, 'release', 'assets');
+const releaseManifestsDirectory = path.join(projectRoot, 'release', 'manifests');
+const tempDeployDirectory = path.join(projectRoot, 'temp', 'deploy');
 const outputDirectory = path.join(projectRoot, 'vercel-dist');
 const componentId = 'b1c501d9-6c98-4884-aa79-cf6920738444';
-const manifestPath = path.join(distDirectory, `${componentId}.manifest.json`);
+const productionManifestPath = path.join(releaseManifestsDirectory, `${componentId}.manifest.json`);
+const developmentManifestPath = path.join(distDirectory, `${componentId}.manifest.json`);
+const manifestPath = fs.existsSync(productionManifestPath) ? productionManifestPath : developmentManifestPath;
 const writeManifestsPath = path.join(projectRoot, 'config', 'write-manifests.json');
 
 if (!fs.existsSync(manifestPath)) {
@@ -83,18 +87,48 @@ if (!entryResource || entryResource.type !== 'path' || !entryFileName) {
 fs.rmSync(outputDirectory, { recursive: true, force: true });
 fs.mkdirSync(outputDirectory, { recursive: true });
 
-for (const assetFileName of referencedAssets) {
-  const assetSourcePath = path.join(releaseAssetsDirectory, assetFileName);
+const copiedAssets = new Map();
+const deployableAssetPattern = /(?:\.js|\.js\.map|\.js\.LICENSE\.txt)$/i;
 
-  if (!fs.existsSync(assetSourcePath)) {
-    throw new Error(`No se encontró el asset referenciado por el manifiesto: ${assetSourcePath}`);
+const getFilesRecursively = (directory) => {
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    return entry.isDirectory() ? getFilesRecursively(entryPath) : [entryPath];
+  });
+};
+
+const copyAssetToRoot = (assetSourcePath) => {
+  const assetFileName = path.basename(assetSourcePath);
+  const existingSourcePath = copiedAssets.get(assetFileName);
+
+  if (existingSourcePath) {
+    const existingContent = fs.readFileSync(existingSourcePath);
+    const candidateContent = fs.readFileSync(assetSourcePath);
+    if (!existingContent.equals(candidateContent)) {
+      throw new Error(`Se encontraron dos assets diferentes con el mismo nombre: ${assetFileName}`);
+    }
+    return;
   }
 
   fs.copyFileSync(assetSourcePath, path.join(outputDirectory, assetFileName));
+  copiedAssets.set(assetFileName, assetSourcePath);
+};
 
-  const licenseSourcePath = `${assetSourcePath}.LICENSE.txt`;
-  if (fs.existsSync(licenseSourcePath)) {
-    fs.copyFileSync(licenseSourcePath, path.join(outputDirectory, `${assetFileName}.LICENSE.txt`));
+for (const assetDirectory of [releaseAssetsDirectory, distDirectory, tempDeployDirectory]) {
+  for (const assetSourcePath of getFilesRecursively(assetDirectory)) {
+    if (deployableAssetPattern.test(path.basename(assetSourcePath))) {
+      copyAssetToRoot(assetSourcePath);
+    }
+  }
+}
+
+for (const referencedAsset of referencedAssets) {
+  if (!copiedAssets.has(referencedAsset)) {
+    throw new Error(`No se copió el asset referenciado por el manifiesto: ${referencedAsset}`);
   }
 }
 
@@ -107,6 +141,7 @@ if (/https?:\/\/localhost(?::\d+)?|(?:^|["'])\.\.?\//i.test(serializedManifest))
 const manifestsScript = `(function () {
   'use strict';
 
+  var globalObject = typeof self !== 'undefined' ? self : window;
   var sourceManifest = ${serializedManifest};
 
   var debugManifests = {
@@ -116,12 +151,22 @@ const manifestsScript = `(function () {
     }
   };
 
-  self.debugManifests = debugManifests;
-  define([], function () { return debugManifests; });
+  globalObject.debugManifests = debugManifests;
+
+  if (typeof define === 'function') {
+    define([], function () { return debugManifests; });
+  } else if (typeof globalObject.$spfxRegisterManifests === 'function') {
+    globalObject.$spfxRegisterManifests(debugManifests.getManifests());
+  } else {
+    throw new Error('No se encontró un registrador compatible de manifiestos SPFx.');
+  }
 }());
 `;
 
 fs.writeFileSync(path.join(outputDirectory, 'manifests.js'), manifestsScript, 'utf8');
+const hostedWorkbenchManifestDirectory = path.join(outputDirectory, 'temp', 'build');
+fs.mkdirSync(hostedWorkbenchManifestDirectory, { recursive: true });
+fs.writeFileSync(path.join(hostedWorkbenchManifestDirectory, 'manifests.js'), manifestsScript, 'utf8');
 fs.writeFileSync(
   path.join(outputDirectory, `${componentId}.manifest.json`),
   `${JSON.stringify(manifest, null, 2)}\n`,
@@ -140,5 +185,6 @@ fs.writeFileSync(
 console.log(`Assets de Vercel preparados en ${outputDirectory}`);
 console.log(`Manifiesto: manifests.js`);
 console.log(`Bundle: ${entryFileName}`);
+console.log(`Assets JavaScript copiados: ${[...copiedAssets.keys()].sort().join(', ')}`);
 console.log('loaderConfig publicado:');
 console.log(JSON.stringify(manifest.loaderConfig, null, 2));
