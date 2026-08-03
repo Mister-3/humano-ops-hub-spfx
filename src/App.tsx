@@ -61,7 +61,7 @@ const App: React.FC = () => {
     setMessage(null);
 
     try {
-      await syncService.importPackage(await file.text());
+      await syncService.importFile(file);
       await refreshCurrentUser();
       setMessage({
         type: MessageBarType.success,
@@ -111,7 +111,7 @@ const App: React.FC = () => {
           />
           <input
             ref={fileInputRef}
-            accept="application/json,.json"
+            accept=".xlsx,.xls,.json"
             aria-label="Seleccionar paquete AppDB"
             className="syncFileInput"
             onChange={(event) => void handleImport(event)}
