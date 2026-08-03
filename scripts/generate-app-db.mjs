@@ -81,11 +81,24 @@ const tableDefinitions = [
       "RequiereAmonestacion",
       "Sincronizado",
       "FechaCreacion",
+      "IdCasoHelpdesk",
+      "ProcesoArea",
+      "HorasPerdidas",
+      "MinutosTardanza",
+      "HoraLlegada",
+      "OrigenError",
+      "SubcategoriaError",
+      "ComentariosCapacitacion",
+      "IdAuditoria",
     ],
-    widths: [16, 30, 30, 30, 20, 24, 42, 20, 24, 18, 22],
+    widths: [
+      16, 30, 30, 30, 20, 24, 42, 20, 24, 18, 22,
+      24, 26, 22, 22, 18, 24, 30, 42, 24,
+    ],
     rows: [],
     dateColumns: [4, 10],
     booleanColumns: [8, 9],
+    numberColumns: [13, 14],
   },
   {
     sheetName: "Kudos",
@@ -121,6 +134,22 @@ const tableDefinitions = [
     rows: [],
     dateColumns: [2],
     booleanColumns: [6],
+  },
+  {
+    sheetName: "Notificaciones",
+    tableName: "Tabla_Notificaciones",
+    columns: [
+      "ID",
+      "Tipo",
+      "Destinatario",
+      "Mensaje",
+      "Fecha",
+      "Sincronizado",
+    ],
+    widths: [24, 28, 34, 64, 22, 18],
+    rows: [],
+    dateColumns: [4],
+    booleanColumns: [5],
   },
 ];
 
@@ -170,6 +199,12 @@ async function loadArtifactTool() {
 
 function configureSheet(sheet, definition) {
   const lastColumn = columnLetter(definition.columns.length - 1);
+  // Excel/Power Automate recognizes an empty structured table reliably when
+  // its reference includes one reserved data row. A header-only ref (A1:G1)
+  // is valid XML but can be ignored by the Excel Online connector.
+  const tableRows = definition.rows.length > 0
+    ? definition.rows
+    : [definition.columns.map(() => null)];
   const headerRange = sheet.getRange(`A1:${lastColumn}1`);
   headerRange.values = [definition.columns];
   headerRange.format = {
@@ -182,17 +217,15 @@ function configureSheet(sheet, definition) {
     rowHeight: 30,
   };
 
-  if (definition.rows.length > 0) {
-    const lastDataRow = definition.rows.length + 1;
-    const dataRange = sheet.getRange(`A2:${lastColumn}${lastDataRow}`);
-    dataRange.values = definition.rows;
-    dataRange.format = {
-      font: { color: BODY_TEXT, size: 10 },
-      verticalAlignment: "center",
-      wrapText: false,
-      rowHeight: 24,
-    };
-  }
+  const lastDataRow = tableRows.length + 1;
+  const dataRange = sheet.getRange(`A2:${lastColumn}${lastDataRow}`);
+  dataRange.values = tableRows;
+  dataRange.format = {
+    font: { color: BODY_TEXT, size: 10 },
+    verticalAlignment: "center",
+    wrapText: false,
+    rowHeight: 24,
+  };
 
   for (let index = 0; index < definition.columns.length; index += 1) {
     const letter = columnLetter(index);
@@ -212,7 +245,12 @@ function configureSheet(sheet, definition) {
     }
   }
 
-  const lastTableRow = Math.max(1, definition.rows.length + 1);
+  for (const columnIndex of definition.numberColumns || []) {
+    const letter = columnLetter(columnIndex);
+    sheet.getRange(`${letter}2:${letter}${lastDataRow}`).format.numberFormat = "0.00";
+  }
+
+  const lastTableRow = tableRows.length + 1;
   const table = sheet.tables.add(`A1:${lastColumn}${lastTableRow}`, true, definition.tableName);
   table.style = TABLE_STYLE;
   table.showHeaders = true;
@@ -223,6 +261,25 @@ function configureSheet(sheet, definition) {
   sheet.showGridLines = false;
 }
 
+function validateTableObjects(workbook, sourceLabel) {
+  const discoveredNames = [];
+
+  for (const definition of tableDefinitions) {
+    const sheet = workbook.worksheets.getItem(definition.sheetName);
+    const tableNames = sheet.tables.items.map((table) => table.name);
+    if (!tableNames.includes(definition.tableName)) {
+      throw new Error(
+        `${sourceLabel}: no se encontró ${definition.tableName} en la hoja ${definition.sheetName}.`,
+      );
+    }
+    discoveredNames.push(definition.tableName);
+  }
+
+  if (new Set(discoveredNames).size !== tableDefinitions.length) {
+    throw new Error(`${sourceLabel}: existen nombres de tabla duplicados.`);
+  }
+}
+
 async function validateWorkbook(workbook) {
   const inspection = await workbook.inspect({
     kind: "workbook,sheet",
@@ -230,13 +287,7 @@ async function validateWorkbook(workbook) {
   });
 
   const inspectionText = inspection?.ndjson || JSON.stringify(inspection);
-  for (const definition of tableDefinitions) {
-    const sheet = workbook.worksheets.getItem(definition.sheetName);
-    const tableNames = sheet.tables.items.map((table) => table.name);
-    if (!tableNames.includes(definition.tableName)) {
-      throw new Error(`La validación no encontró ${definition.tableName} en la hoja ${definition.sheetName}.`);
-    }
-  }
+  validateTableObjects(workbook, "Modelo en memoria");
 
   await fs.rm(PREVIEW_DIR, { recursive: true, force: true });
   await fs.mkdir(PREVIEW_DIR, { recursive: true });
@@ -257,7 +308,7 @@ async function validateWorkbook(workbook) {
 
 async function main() {
   await fs.rm(INSPECTION_ARTIFACT_PATH, { force: true });
-  const { SpreadsheetFile, Workbook } = await loadArtifactTool();
+  const { FileBlob, SpreadsheetFile, Workbook } = await loadArtifactTool();
   const workbook = Workbook.create();
 
   for (const definition of tableDefinitions) {
@@ -270,6 +321,13 @@ async function main() {
   await output.save(OUTPUT_PATH);
   await fs.rm(INSPECTION_ARTIFACT_PATH, { force: true });
 
+  // Reopen the serialized package so validation covers the emitted OpenXML,
+  // relationships and table definitions rather than only the live JS model.
+  const serializedWorkbook = await SpreadsheetFile.importXlsx(
+    await FileBlob.load(OUTPUT_PATH),
+  );
+  validateTableObjects(serializedWorkbook, "Paquete OpenXML reimportado");
+
   const outputStats = await fs.stat(OUTPUT_PATH);
   if (outputStats.size === 0) {
     throw new Error("AppDB.xlsx fue generado con tamaño cero.");
@@ -278,6 +336,7 @@ async function main() {
   console.log(`AppDB.xlsx generado: ${OUTPUT_PATH}`);
   console.log(`Tamaño: ${outputStats.size} bytes`);
   console.log(`Tablas: ${tableDefinitions.map((item) => item.tableName).join(", ")}`);
+  console.log(`Validación OpenXML: OK (${tableDefinitions.length} Excel Tables reimportadas)`);
   console.log(`Previsualizaciones QA: ${PREVIEW_DIR}`);
   console.log(inspectionText);
 }

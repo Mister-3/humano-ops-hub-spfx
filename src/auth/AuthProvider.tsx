@@ -5,6 +5,7 @@ import type {
   AppUserRole,
   IAppUserRecord,
   IAuthenticatedUser,
+  IMasterAdminRecoveryResult,
   IRegistrationInput,
   IUserAuthorizationResult
 } from './AuthModels';
@@ -18,6 +19,9 @@ interface IAuthContextValue {
     currentPassword: string,
     newPassword: string
   ) => Promise<void>;
+  requestMasterAdminRecovery: (
+    recoveryEmail: string
+  ) => Promise<IMasterAdminRecoveryResult>;
   signOut: () => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
   listUsers: () => Promise<Array<IAppUserRecord & { Id: number }>>;
@@ -74,6 +78,8 @@ export const AuthProvider: React.FC<IAuthProviderProps> = ({
     },
     changePassword: (currentPassword, newPassword) =>
       service.changePassword(currentPassword, newPassword),
+    requestMasterAdminRecovery: (recoveryEmail) =>
+      service.requestMasterAdminRecovery(recoveryEmail),
     signOut: async () => {
       await service.signOut();
       setCurrentUser(null);

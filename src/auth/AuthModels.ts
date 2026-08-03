@@ -49,6 +49,21 @@ export interface IUserAuthorizationResult {
   provisionalPassword: string;
 }
 
+export interface IMasterAdminRecoveryResult {
+  provisionalPassword: string;
+  auditId: string;
+  notificationRecipient: string;
+}
+
+export interface IAdminNotificationRecord extends ILocalEntity {
+  ID: string;
+  Tipo: 'MasterAdminRecovery';
+  Destinatario: string;
+  Mensaje: string;
+  Fecha: string;
+  Sincronizado: boolean;
+}
+
 export interface IAuthSessionEntity extends ILocalEntity {
   Id: number;
   Email: string;

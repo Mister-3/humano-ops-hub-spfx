@@ -21,11 +21,21 @@ import {
 import styles from './AuthView.module.scss';
 
 const LoginForm: React.FC = () => {
-  const { signIn } = useAuth();
+  const { requestMasterAdminRecovery, signIn } = useAuth();
   const [email, setEmail] = React.useState<string>('');
   const [password, setPassword] = React.useState<string>('');
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string>('');
+  const [isRecoveryVisible, setIsRecoveryVisible] =
+    React.useState<boolean>(false);
+  const [recoveryEmail, setRecoveryEmail] = React.useState<string>('');
+  const [isRecovering, setIsRecovering] = React.useState<boolean>(false);
+  const [recoveryError, setRecoveryError] = React.useState<string>('');
+  const [recoveryResult, setRecoveryResult] = React.useState<{
+    password: string;
+    auditId: string;
+    recipient: string;
+  }>();
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -37,6 +47,43 @@ const LoginForm: React.FC = () => {
       setError(submitError instanceof Error ? submitError.message : String(submitError));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const recoverMasterAdmin = async (): Promise<void> => {
+    setRecoveryError('');
+    setRecoveryResult(undefined);
+    setIsRecovering(true);
+
+    try {
+      const result = await requestMasterAdminRecovery(recoveryEmail);
+      setRecoveryResult({
+        password: result.provisionalPassword,
+        auditId: result.auditId,
+        recipient: result.notificationRecipient
+      });
+    } catch (recoveryFailure: unknown) {
+      setRecoveryError(
+        recoveryFailure instanceof Error
+          ? recoveryFailure.message
+          : String(recoveryFailure)
+      );
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
+  const copyRecoveryPassword = async (): Promise<void> => {
+    if (!recoveryResult?.password) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(recoveryResult.password);
+    } catch {
+      setRecoveryError(
+        'El navegador bloqueó el portapapeles. Selecciona y copia la clave manualmente.'
+      );
     }
   };
 
@@ -65,6 +112,71 @@ const LoginForm: React.FC = () => {
         type="submit"
         text={isSubmitting ? 'Validando...' : 'Ingresar a Humano Ops Hub'}
       />
+
+      <button
+        aria-expanded={isRecoveryVisible}
+        className={styles.emergencyTrigger}
+        onClick={() => {
+          setIsRecoveryVisible((current) => !current);
+          setRecoveryError('');
+        }}
+        type="button"
+      >
+        Acceso de emergencia Master Admin
+      </button>
+
+      {isRecoveryVisible && (
+        <section
+          aria-label="Recuperación de emergencia Master Admin"
+          className={styles.emergencyPanel}
+        >
+          <MessageBar messageBarType={MessageBarType.severeWarning}>
+            Esta recuperación modifica únicamente la credencial local de este
+            dispositivo y genera una alerta auditable para Power Automate.
+          </MessageBar>
+          {recoveryError && (
+            <MessageBar messageBarType={MessageBarType.error}>
+              {recoveryError}
+            </MessageBar>
+          )}
+          <TextField
+            autoComplete="email"
+            disabled={isRecovering}
+            label="Correo autorizado de recuperación"
+            onChange={(_, value) => setRecoveryEmail(value || '')}
+            placeholder="Correo Master Admin"
+            type="email"
+            value={recoveryEmail}
+          />
+          <PrimaryButton
+            disabled={isRecovering || !recoveryEmail.trim()}
+            onClick={() => void recoverMasterAdmin()}
+            text={isRecovering ? 'Generando clave...' : 'Generar clave temporal'}
+            type="button"
+          />
+
+          {recoveryResult && (
+            <div aria-live="polite" className={styles.recoveryResult}>
+              <strong>
+                Contraseña provisional generada y notificación preparada.
+              </strong>
+              <span>
+                Sincroniza el paquete para despachar la alerta a{' '}
+                {recoveryResult.recipient}. Puedes utilizar ahora la clave
+                temporal mostrada para acceder.
+              </span>
+              <code>{recoveryResult.password}</code>
+              <span>AuditID: {recoveryResult.auditId}</span>
+              <DefaultButton
+                iconProps={{ iconName: 'Copy' }}
+                onClick={() => void copyRecoveryPassword()}
+                text="Copiar clave temporal"
+                type="button"
+              />
+            </div>
+          )}
+        </section>
+      )}
     </form>
   );
 };

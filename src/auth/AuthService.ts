@@ -3,12 +3,15 @@ import IndexedDbAdapter, {
 } from '../services/IndexedDbAdapter';
 import type {
   AppUserRole,
+  IAdminNotificationRecord,
   IAppUserRecord,
   IAuthenticatedUser,
   IAuthSessionEntity,
+  IMasterAdminRecoveryResult,
   IRegistrationInput,
   IUserAuthorizationResult
 } from './AuthModels';
+import { generateAuditID } from '../webparts/supervisionOperaciones/utils/auditUtils';
 
 export const CORPORATE_EMAIL_DOMAIN = '@humano.com.do';
 export const MASTER_ADMIN_EMAIL = 'admin@humano.com.do';
@@ -20,6 +23,8 @@ export const SECURITY_PASSWORD_NOTICE =
 const SESSION_STORAGE_KEY = 'humanoOps.authSession';
 const DIRECTORY_IDENTITY_STORAGE_KEY = 'humanoOps.currentUser';
 const SESSION_DURATION_MS = 12 * 60 * 60 * 1000;
+const RECOVERY_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RECOVERY_RATE_LIMIT_MAX = 3;
 const PBKDF2_ITERATIONS = 120000;
 const MASTER_ADMIN_BOOTSTRAP_HASH =
   'pbkdf2-sha256$120000$u+gIK22785m+/SeyoOtm5A==$BJmhlkqzy01jpom5/cu6fzd3HUXkliEFqkqmp+54Fcw=';
@@ -52,6 +57,18 @@ const generateProvisionalPassword = (): string => {
   // This suffix guarantees the required character classes. The random body
   // remains the source of entropy and is never persisted as plain text.
   return `H0H-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}-${body.slice(12)}!9a`;
+};
+
+const generateRecoveryPassword = (): string => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const randomBytes = new Uint8Array(12);
+  crypto.getRandomValues(randomBytes);
+  const body = Array.from(
+    randomBytes,
+    (value) => alphabet[value % alphabet.length]
+  ).join('');
+
+  return `HOH-TEMP-${body}`;
 };
 
 const digestText = async (value: string): Promise<string> => {
@@ -309,6 +326,76 @@ export class AuthService {
       PasswordHash: await hashPassword(newPassword),
       SyncStatus: 'Pendiente'
     });
+  }
+
+  public async requestMasterAdminRecovery(
+    recoveryEmail: string
+  ): Promise<IMasterAdminRecoveryResult> {
+    const normalizedRecoveryEmail = normalizeEmail(recoveryEmail);
+    const isAuthorizedRecoveryIdentity =
+      normalizedRecoveryEmail === normalizeEmail(ADMIN_NOTIFICATION_EMAIL) ||
+      normalizedRecoveryEmail === MASTER_ADMIN_EMAIL;
+
+    if (!isAuthorizedRecoveryIdentity) {
+      throw new Error('El correo no está autorizado para recuperación de emergencia.');
+    }
+
+    const recentNotifications = await this.database.getAll<IAdminNotificationRecord>(
+      LOCAL_STORES.notifications
+    );
+    const threshold = Date.now() - RECOVERY_RATE_LIMIT_WINDOW_MS;
+    const recentAttempts = recentNotifications.filter(
+      (notification) =>
+        notification.Tipo === 'MasterAdminRecovery' &&
+        new Date(notification.Fecha).getTime() >= threshold
+    ).length;
+
+    if (recentAttempts >= RECOVERY_RATE_LIMIT_MAX) {
+      throw new Error(
+        'Se alcanzó el límite de recuperación. Espera 15 minutos antes de intentarlo nuevamente.'
+      );
+    }
+
+    await this.ensureMasterAdmin();
+    const masterAdmin = await this.findUserByEmail(MASTER_ADMIN_EMAIL);
+    if (!masterAdmin?.Id) {
+      throw new Error('No fue posible localizar la cuenta Master Admin local.');
+    }
+
+    const provisionalPassword = generateRecoveryPassword();
+    const auditId = generateAuditID('AUTH');
+    const now = new Date().toISOString();
+
+    await this.database.put<IAppUserRecord>(LOCAL_STORES.users, {
+      ...masterAdmin,
+      Id: masterAdmin.Id,
+      PasswordHash: await hashPassword(provisionalPassword),
+      Rol: 'Master_Admin',
+      Estado: 'Active',
+      IsProfileValidatedByPA: true,
+      SyncStatus: 'Pendiente'
+    });
+
+    await this.database.add<IAdminNotificationRecord>(
+      LOCAL_STORES.notifications,
+      {
+        ID: auditId,
+        AuditID: auditId,
+        Tipo: 'MasterAdminRecovery',
+        Destinatario: ADMIN_NOTIFICATION_EMAIL,
+        Mensaje: `Recuperación local Master Admin solicitada para ${MASTER_ADMIN_EMAIL}. AuditID: ${auditId}.`,
+        Fecha: now,
+        Sincronizado: false,
+        SyncStatus: 'Pendiente',
+        UpdatedAt: now
+      }
+    );
+
+    return {
+      provisionalPassword,
+      auditId,
+      notificationRecipient: ADMIN_NOTIFICATION_EMAIL
+    };
   }
 
   public async listUsers(): Promise<Array<IAppUserRecord & { Id: number }>> {

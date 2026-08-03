@@ -1,6 +1,7 @@
 import type {
   AppUserRole,
   AppUserStatus,
+  IAdminNotificationRecord,
   IAppUserRecord
 } from '../auth/AuthModels';
 import {
@@ -64,6 +65,15 @@ export interface IFaltaExcelRow {
   RequiereAmonestacion: boolean;
   Sincronizado: boolean;
   FechaCreacion: string;
+  IdCasoHelpdesk?: string;
+  ProcesoArea?: string;
+  HorasPerdidas?: number;
+  MinutosTardanza?: number;
+  HoraLlegada?: string;
+  OrigenError?: string;
+  SubcategoriaError?: string;
+  ComentariosCapacitacion?: string;
+  IdAuditoria?: string;
 }
 
 export interface IKudoExcelRow {
@@ -87,12 +97,22 @@ export interface IOcupacionExcelRow {
   Sincronizado: boolean;
 }
 
+export interface INotificacionExcelRow {
+  ID: string;
+  Tipo: string;
+  Destinatario: string;
+  Mensaje: string;
+  Fecha: string;
+  Sincronizado: boolean;
+}
+
 export interface IPowerAutomateTables {
   Tabla_Usuarios: IUsuarioExcelRow[];
   Tabla_Headcount: IHeadcountExcelRow[];
   Tabla_Faltas: IFaltaExcelRow[];
   Tabla_Kudos: IKudoExcelRow[];
   Tabla_Ocupacion: IOcupacionExcelRow[];
+  Tabla_Notificaciones: INotificacionExcelRow[];
 }
 
 export interface IPowerAutomateExportPackage {
@@ -117,6 +137,11 @@ const toText = (value: unknown): string =>
 
 const toBoolean = (value: unknown): boolean =>
   value === true || value === 1 || String(value).toLocaleLowerCase() === 'true';
+
+const toNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const isPending = (item: ILocalEntity): boolean =>
   item.SyncStatus !== 'Sincronizado';
@@ -171,9 +196,29 @@ const toFaltaExcel = (item: ILocalEntity): IFaltaExcelRow => {
     EstadoEscalado: toText(record.EstadoEscalado || record.EstadoAprobacion || record.Estado),
     RequiereAmonestacion: toBoolean(record.RequiereAmonestacion),
     Sincronizado: item.SyncStatus === 'Sincronizado',
-    FechaCreacion: toText(record.UpdatedAt || record.FechaFalta)
+    FechaCreacion: toText(record.UpdatedAt || record.FechaFalta),
+    IdCasoHelpdesk: toText(record.IdCasoHelpdesk || record.CasoRef),
+    ProcesoArea: toText(record.ProcesoArea),
+    HorasPerdidas: toNumber(record.HorasPerdidas),
+    MinutosTardanza: toNumber(record.MinutosTardanza),
+    HoraLlegada: toText(record.HoraLlegada),
+    OrigenError: toText(record.OrigenError),
+    SubcategoriaError: toText(record.SubcategoriaError || record.Subcategoria),
+    ComentariosCapacitacion: toText(record.ComentariosCapacitacion),
+    IdAuditoria: toText(record.IdAuditoria || record.AuditID || record.ID)
   };
 };
+
+const toNotificacionExcel = (
+  item: IAdminNotificationRecord
+): INotificacionExcelRow => ({
+  ID: item.ID,
+  Tipo: item.Tipo,
+  Destinatario: item.Destinatario,
+  Mensaje: item.Mensaje,
+  Fecha: item.Fecha,
+  Sincronizado: item.SyncStatus === 'Sincronizado' || item.Sincronizado
+});
 
 const toKudoExcel = (item: ILocalEntity): IKudoExcelRow => {
   const record = asRecord(item);
@@ -212,12 +257,13 @@ export class PowerAutomateSyncService {
   ) {}
 
   public async exportPackage(): Promise<IPowerAutomateExportPackage> {
-    const [users, headcount, faltas, kudos, ausencias] = await Promise.all([
+    const [users, headcount, faltas, kudos, ausencias, notifications] = await Promise.all([
       this.database.getAll<IAppUserRecord>(LOCAL_STORES.users),
       this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount),
       this.database.getAll(LOCAL_STORES.faltas),
       this.database.getAll(LOCAL_STORES.kudos),
-      this.database.getAll(LOCAL_STORES.ausencias)
+      this.database.getAll(LOCAL_STORES.ausencias),
+      this.database.getAll<IAdminNotificationRecord>(LOCAL_STORES.notifications)
     ]);
 
     return {
@@ -231,7 +277,10 @@ export class PowerAutomateSyncService {
         Tabla_Headcount: headcount.filter(isPending).map(toHeadcountExcel),
         Tabla_Faltas: faltas.filter(isPending).map(toFaltaExcel),
         Tabla_Kudos: kudos.filter(isPending).map(toKudoExcel),
-        Tabla_Ocupacion: ausencias.filter(isPending).map(toOcupacionExcel)
+        Tabla_Ocupacion: ausencias.filter(isPending).map(toOcupacionExcel),
+        Tabla_Notificaciones: notifications
+          .filter(isPending)
+          .map(toNotificacionExcel)
       }
     };
   }
@@ -285,6 +334,17 @@ export class PowerAutomateSyncService {
         FechaFalta: toText(row.FechaFalta),
         Categoria: toText(row.TipoFalta),
         Comentarios: toText(row.Motivo),
+        CasoRef: toText(row.IdCasoHelpdesk),
+        IdCasoHelpdesk: toText(row.IdCasoHelpdesk),
+        ProcesoArea: toText(row.ProcesoArea),
+        HorasPerdidas: toNumber(row.HorasPerdidas),
+        MinutosTardanza: toNumber(row.MinutosTardanza),
+        HoraLlegada: toText(row.HoraLlegada),
+        OrigenError: toText(row.OrigenError),
+        Subcategoria: toText(row.SubcategoriaError),
+        SubcategoriaError: toText(row.SubcategoriaError),
+        ComentariosCapacitacion: toText(row.ComentariosCapacitacion),
+        IdAuditoria: toText(row.IdAuditoria || row.ID),
         EstadoEscalado: row.EstadoEscalado,
         RequiereAmonestacion: toBoolean(row.RequiereAmonestacion),
         Impacto: '',
@@ -328,6 +388,22 @@ export class PowerAutomateSyncService {
         UpdatedAt: new Date().toISOString()
       })),
       (item) => toText(item.AuditID)
+    );
+
+    await this.mergeStore(
+      LOCAL_STORES.notifications,
+      (tables.Tabla_Notificaciones || []).map((row) => ({
+        ID: toText(row.ID),
+        AuditID: toText(row.ID),
+        Tipo: 'MasterAdminRecovery' as const,
+        Destinatario: normalizeEmail(row.Destinatario),
+        Mensaje: toText(row.Mensaje),
+        Fecha: toText(row.Fecha),
+        Sincronizado: toBoolean(row.Sincronizado),
+        SyncStatus: 'Sincronizado' as const,
+        UpdatedAt: new Date().toISOString()
+      })),
+      (item) => toText(item.ID)
     );
   }
 

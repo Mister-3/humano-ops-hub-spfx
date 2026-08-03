@@ -1,5 +1,5 @@
 export const LOCAL_DATABASE_NAME = 'HumanoOpsHubDB';
-export const LOCAL_DATABASE_VERSION = 2;
+export const LOCAL_DATABASE_VERSION = 3;
 
 export const LOCAL_STORES = {
   faltas: 'faltas',
@@ -14,7 +14,8 @@ export const LOCAL_STORES = {
   roles: 'roles',
   publicaciones: 'publicaciones',
   users: 'users',
-  sessions: 'sessions'
+  sessions: 'sessions',
+  notifications: 'notifications'
 } as const;
 
 export type LocalStoreName =
@@ -25,6 +26,19 @@ export interface ILocalEntity {
   AuditID?: string;
   SyncStatus?: 'Pendiente' | 'Sincronizado';
   UpdatedAt?: string;
+}
+
+/** Campos operativos 1:1 compartidos por IndexedDB y Tabla_Faltas. */
+export interface IOperationalFaltaFields {
+  IdCasoHelpdesk?: string;
+  ProcesoArea?: string;
+  HorasPerdidas?: number;
+  MinutosTardanza?: number;
+  HoraLlegada?: string;
+  OrigenError?: string;
+  SubcategoriaError?: string;
+  ComentariosCapacitacion?: string;
+  IdAuditoria?: string;
 }
 
 const STORE_NAMES = Object.values(LOCAL_STORES) as LocalStoreName[];

@@ -11,7 +11,8 @@ export type {
 import { generateAuditID } from '../utils/auditUtils';
 import IndexedDbAdapter, {
   LOCAL_STORES,
-  type ILocalEntity
+  type ILocalEntity,
+  type IOperationalFaltaFields
 } from '../../../services/IndexedDbAdapter';
 
 export const PRODUCTIVITY_OVERLAP_ERROR_MESSAGE =
@@ -125,7 +126,8 @@ interface ILocalAttachment {
   content: Blob;
 }
 
-type ILocalFaltaRecord = IFaltaHistorialItem & ILocalEntity & {
+type ILocalFaltaRecord = IFaltaHistorialItem &
+IOperationalFaltaFields & ILocalEntity & {
   AttachmentData?: ILocalAttachment[];
 };
 
@@ -463,6 +465,7 @@ export interface IFaltaHistorialItem {
   Categoria: string;
   Subcategoria?: string;
   CasoRef?: string;
+  IdCasoHelpdesk?: string;
   ProcesoArea?: string;
   ComentariosCapacitacion?: string;
   Comentarios?: string;
@@ -470,11 +473,13 @@ export interface IFaltaHistorialItem {
   MinutosTardanza?: number;
   HorasPerdidas?: number;
   OrigenError?: string;
+  SubcategoriaError?: string;
   Impacto: string;
   Estado: IFalta['estado'];
   EstadoAprobacion?: FaltaApprovalStatus;
   RolOriginador: RoleType;
   AuditID?: string;
+  IdAuditoria?: string;
   Author?: { EMail?: string; Title?: string };
 }
 
@@ -682,6 +687,7 @@ export class SharePointService {
     }
 
     const author = getLocalAuthor();
+    const auditId = generateAuditID();
     const record: Omit<ILocalFaltaRecord, 'Id'> = {
       Title: faltaData.agente.trim(),
       AgenteEmail: normalizeEmail(faltaData.agenteEmail),
@@ -690,7 +696,9 @@ export class SharePointService {
       FechaFalta: faltaData.fecha.toISOString(),
       Categoria: faltaData.categoria.trim(),
       Subcategoria: faltaData.subcategoria?.trim() || '',
+      SubcategoriaError: faltaData.subcategoria?.trim() || '',
       CasoRef: faltaData.casoRef?.trim() || '',
+      IdCasoHelpdesk: faltaData.casoRef?.trim() || '',
       ProcesoArea: faltaData.procesoArea?.trim() || '',
       ComentariosCapacitacion: faltaData.comentariosCapacitacion?.trim() || '',
       Comentarios: faltaData.comentarios?.trim() || '',
@@ -702,7 +710,8 @@ export class SharePointService {
       Estado: faltaData.estado,
       EstadoAprobacion: getApprovalStatusForRole(faltaData.rolOriginador),
       RolOriginador: faltaData.rolOriginador,
-      AuditID: generateAuditID(),
+      AuditID: auditId,
+      IdAuditoria: auditId,
       Author: author,
       AttachmentData: file ? [toAttachment(file)] : [],
       SyncStatus: 'Pendiente',

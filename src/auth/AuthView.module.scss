@@ -50,6 +50,57 @@
   padding-top: 18px;
 }
 
+.emergencyTrigger {
+  align-self: center;
+  padding: 4px;
+  color: #7f8794;
+  font: inherit;
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+
+.emergencyTrigger:hover,
+.emergencyTrigger:focus-visible {
+  color: #c8d1dc;
+  text-decoration-color: currentColor;
+}
+
+.emergencyPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(18, 18, 20, 0.84);
+  border: 1px solid rgba(0, 120, 212, 0.38);
+  border-radius: 9px;
+}
+
+.recoveryResult {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  color: #e1dfdd;
+  background: rgba(0, 120, 212, 0.11);
+  border: 1px solid rgba(0, 183, 195, 0.4);
+  border-radius: 8px;
+}
+
+.recoveryResult code {
+  padding: 8px 10px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: #0f0f12;
+  border-radius: 6px;
+  user-select: all;
+}
+
 .securityNotice {
   color: #fff7df;
   background: rgba(202, 80, 16, 0.2);

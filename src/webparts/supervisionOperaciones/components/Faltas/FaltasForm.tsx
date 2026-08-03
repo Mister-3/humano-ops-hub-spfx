@@ -259,6 +259,8 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   const [origenError, setOrigenError] = React.useState<string>('');
   const [procesoArea, setProcesoArea] = React.useState<string>('');
   const [comentarios, setComentarios] = React.useState<string>('');
+  const [comentariosCapacitacion, setComentariosCapacitacion] =
+    React.useState<string>('');
   const [horaLlegada, setHoraLlegada] = React.useState<string>('');
   const [arrivalPeriod, setArrivalPeriod] =
     React.useState<ArrivalPeriod>('AM');
@@ -435,6 +437,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
 
   const handleCategoryChange = (nextCategory: string): void => {
     setCategoria(nextCategory);
+    setProcesoArea('');
 
     if (isCatalogValue(nextCategory, TRAINING_CATEGORY)) {
       setNivelImpacto(NO_PENALTY_IMPACT);
@@ -459,7 +462,10 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     }
 
     if (!isCatalogValue(nextCategory, TRAINING_CATEGORY)) {
-      setProcesoArea('');
+      setComentariosCapacitacion('');
+      if (!isCatalogValue(nextCategory, ERROR_CATEGORY)) {
+        setProcesoArea('');
+      }
     }
 
     if (!normalizeCatalogValue(nextCategory).includes('tardanza')) {
@@ -506,6 +512,11 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
       return;
     }
 
+    if (isProcessError && !procesoArea) {
+      setErrorMessage('Seleccione el proceso del área donde se originó el error.');
+      return;
+    }
+
     if (isTraining && !procesoArea) {
       setErrorMessage('Seleccione el proceso del área asociado a la capacitación.');
       return;
@@ -537,7 +548,10 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
         subcategoria: isProcessError || isEthicsViolation ? subcategoria : '',
         casoRef: casoRef.trim(),
         origenError: isProcessError ? origenError : '',
-        procesoArea: isTraining ? procesoArea : '',
+        procesoArea: isTraining || isProcessError ? procesoArea : '',
+        comentariosCapacitacion: isTraining
+          ? comentariosCapacitacion.trim()
+          : '',
         comentarios: comentarios.trim(),
         horaLlegada: isTardanza
           ? tardinessCalculation?.formattedArrivalTime || ''
@@ -560,6 +574,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
       setOrigenError('');
       setProcesoArea('');
       setComentarios('');
+      setComentariosCapacitacion('');
       setHoraLlegada('');
       setArrivalPeriod('AM');
       setNivelImpacto('');
@@ -725,6 +740,18 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   required
                   selectedKey={procesoArea || undefined}
                 />
+                <TextField
+                  disabled={!canSubmit || isSubmitting}
+                  label="Comentarios de la Capacitación"
+                  multiline
+                  onChange={(_, value) => {
+                    setComentariosCapacitacion(value || '');
+                  }}
+                  placeholder="Detalle de certificación, resultado o seguimiento (opcional)"
+                  resizable={false}
+                  rows={3}
+                  value={comentariosCapacitacion}
+                />
               </Stack>
             )}
 
@@ -768,6 +795,19 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   placeholder="Seleccione el origen del error"
                   required
                   selectedKey={origenError || undefined}
+                />
+                <Dropdown
+                  disabled={!canSubmit || isSubmitting || isLoadingCatalogs}
+                  label="Proceso del Área"
+                  onChange={(_, option) => {
+                    setProcesoArea(String(option?.key || ''));
+                  }}
+                  options={processOptions}
+                  placeholder={isLoadingCatalogs
+                    ? 'Cargando procesos...'
+                    : 'Seleccione el proceso donde ocurrió el error'}
+                  required
+                  selectedKey={procesoArea || undefined}
                 />
               </Stack>
             )}

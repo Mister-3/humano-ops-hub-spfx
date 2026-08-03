@@ -43,6 +43,15 @@ export interface IFaltaAprobacionItem {
   Categoria: string;
   Subcategoria?: string;
   CasoRef?: string;
+  IdCasoHelpdesk?: string;
+  ProcesoArea?: string;
+  HorasPerdidas?: number;
+  MinutosTardanza?: number;
+  HoraLlegada?: string;
+  OrigenError?: string;
+  SubcategoriaError?: string;
+  ComentariosCapacitacion?: string;
+  IdAuditoria?: string;
   Comentarios?: string;
   Impacto: string;
   Estado: IFalta['estado'];
