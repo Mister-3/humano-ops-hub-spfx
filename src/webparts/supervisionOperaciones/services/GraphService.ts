@@ -24,53 +24,15 @@ export const LOCAL_USER_STORAGE_KEY = 'humanoOps.currentUser';
 
 const DEFAULT_HEADCOUNT: ReadonlyArray<Omit<IHeadcountRow, 'Id'>> = [
   {
-    AgenteObjectID: 'local-admin-001',
-    Nombre: 'Administrador Local',
-    Email: 'admin@demo.invalid',
-    Rol: 'Admin',
+    ID: 'HC-000001',
+    EmailEmpleado: 'admin@humano.com.do',
+    NombreEmpleado: 'Administrador Maestro',
+    Cargo: 'Master Admin',
     Departamento: 'Operaciones',
-    SupervisorEmail: '',
-    Activo: true,
-    SyncStatus: 'Sincronizado'
-  },
-  {
-    AgenteObjectID: 'local-supervisor-001',
-    Nombre: 'Supervisor Local',
-    Email: 'supervisor@demo.invalid',
-    Rol: 'Supervisor',
-    Departamento: 'Operaciones',
-    SupervisorEmail: 'admin@demo.invalid',
-    Activo: true,
-    SyncStatus: 'Sincronizado'
-  },
-  {
-    AgenteObjectID: 'local-carlos-perez',
-    Nombre: 'Colaborador Demo 01',
-    Email: 'colaborador01@demo.invalid',
-    Rol: 'Oficial',
-    Departamento: 'Operaciones',
-    SupervisorEmail: 'supervisor@demo.invalid',
-    Activo: true,
-    SyncStatus: 'Sincronizado'
-  },
-  {
-    AgenteObjectID: 'local-maria-martinez',
-    Nombre: 'Colaborador Demo 02',
-    Email: 'colaborador02@demo.invalid',
-    Rol: 'Asistente',
-    Departamento: 'Operaciones',
-    SupervisorEmail: 'supervisor@demo.invalid',
-    Activo: true,
-    SyncStatus: 'Sincronizado'
-  },
-  {
-    AgenteObjectID: 'local-juan-rodriguez',
-    Nombre: 'Colaborador Demo 03',
-    Email: 'colaborador03@demo.invalid',
-    Rol: 'Analista',
-    Departamento: 'Operaciones',
-    SupervisorEmail: 'supervisor@demo.invalid',
-    Activo: true,
+    EmailSupervisor: '',
+    EstadoActivo: true,
+    AgenteObjectID: 'local-master-admin-001',
+    Rol: 'Master_Admin',
     SyncStatus: 'Sincronizado'
   }
 ];
@@ -78,10 +40,26 @@ const DEFAULT_HEADCOUNT: ReadonlyArray<Omit<IHeadcountRow, 'Id'>> = [
 const normalizeEmail = (value?: string): string =>
   value?.trim().toLocaleLowerCase() || '';
 
+const getRowEmail = (row: IHeadcountRow): string =>
+  normalizeEmail(row.EmailEmpleado || row.Email);
+
+const getRowName = (row: IHeadcountRow): string =>
+  row.NombreEmpleado || row.Nombre || getRowEmail(row);
+
+const getSupervisorEmail = (row: IHeadcountRow): string =>
+  normalizeEmail(row.EmailSupervisor || row.SupervisorEmail);
+
+const getRowRole = (row: IHeadcountRow): IHeadcountRow['Rol'] =>
+  row.Rol || (
+    row.Cargo.toLocaleLowerCase().includes('supervisor')
+      ? 'Supervisor'
+      : 'Oficial'
+  );
+
 const toDirectReport = (row: IHeadcountRow): IDirectReport => ({
   id: row.AgenteObjectID || `headcount-${row.Id}`,
-  name: row.Nombre,
-  email: row.Email,
+  name: getRowName(row),
+  email: getRowEmail(row),
   department: row.Departamento
 });
 
@@ -101,7 +79,7 @@ const getConfiguredEmail = (): string => {
   }
 
   return normalizeEmail(import.meta.env.VITE_DEFAULT_USER_EMAIL) ||
-    'admin@demo.invalid';
+    'admin@humano.com.do';
 };
 
 /**
@@ -133,9 +111,27 @@ export default class GraphService {
   public async getCurrentUser(): Promise<IGraphCurrentUser> {
     const rows = await this.getHeadcount();
     const configuredEmail = getConfiguredEmail();
-    const row = rows.find((item) => normalizeEmail(item.Email) === configuredEmail) ||
-      rows.find((item) => item.Rol === 'Admin') ||
-      rows[0];
+    const row = rows.find((item) => getRowEmail(item) === configuredEmail);
+
+    if (!row && typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(
+          localStorage.getItem(LOCAL_USER_STORAGE_KEY) || '{}'
+        ) as Partial<IGraphCurrentUser>;
+        if (normalizeEmail(stored.email) === configuredEmail) {
+          return {
+            id: stored.id || `local-${configuredEmail}`,
+            displayName: stored.displayName || configuredEmail,
+            email: configuredEmail,
+            jobTitle: stored.jobTitle || stored.role || 'Oficial',
+            department: stored.department || '',
+            role: stored.role
+          };
+        }
+      } catch {
+        // La sesión inválida será resuelta por AuthService.
+      }
+    }
 
     if (!row) {
       throw new Error(
@@ -145,11 +141,11 @@ export default class GraphService {
 
     const identity: IGraphCurrentUser = {
       id: row.AgenteObjectID || `headcount-${row.Id}`,
-      displayName: row.Nombre,
-      email: normalizeEmail(row.Email),
-      jobTitle: row.Rol,
+      displayName: getRowName(row),
+      email: getRowEmail(row),
+      jobTitle: getRowRole(row) || 'Oficial',
       department: row.Departamento,
-      role: row.Rol
+      role: getRowRole(row)
     };
 
     if (typeof localStorage !== 'undefined') {
@@ -166,7 +162,7 @@ export default class GraphService {
     ]);
 
     return rows
-      .filter((row) => normalizeEmail(row.SupervisorEmail) === currentUser.email)
+      .filter((row) => getSupervisorEmail(row) === currentUser.email)
       .map(toDirectReport)
       .sort((left, right) => left.name.localeCompare(right.name));
   }
@@ -177,16 +173,16 @@ export default class GraphService {
       this.getHeadcount()
     ]);
     const currentRow = rows.find(
-      (row) => normalizeEmail(row.Email) === currentUser.email
+      (row) => getRowEmail(row) === currentUser.email
     );
-    const supervisorEmail = normalizeEmail(currentRow?.SupervisorEmail);
+    const supervisorEmail = currentRow ? getSupervisorEmail(currentRow) : '';
 
     if (!supervisorEmail) {
-      return [toDirectReport(currentRow || rows[0])];
+      return currentRow ? [toDirectReport(currentRow)] : [];
     }
 
     return rows
-      .filter((row) => normalizeEmail(row.SupervisorEmail) === supervisorEmail)
+      .filter((row) => getSupervisorEmail(row) === supervisorEmail)
       .map(toDirectReport)
       .sort((left, right) => left.name.localeCompare(right.name));
   }
@@ -221,6 +217,6 @@ export default class GraphService {
       rows = await this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
     }
 
-    return rows.filter((row) => row.Activo !== false);
+    return rows.filter((row) => row.EstadoActivo !== false && row.Activo !== false);
   }
 }

@@ -570,10 +570,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
     [currentDate]
   );
   const canAccessPublication =
-    userRole === 'Supervisor' || userRole === 'Admin';
+    userRole === 'Supervisor' || userRole === 'Admin' || userRole === 'Master_Admin';
   const currentDay = currentDate.getDate();
   const isPublicationWindowOpen =
-    userRole === 'Admin' || (currentDay >= 1 && currentDay <= 5);
+    userRole === 'Admin' || userRole === 'Master_Admin' || (currentDay >= 1 && currentDay <= 5);
   const scopedAgents = availableAgents;
   const isLoadingTeam = isLoadingAgents;
 
@@ -656,7 +656,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
       ? isLoadingAgents
       : isLoadingTeam;
 
-    if (userRole !== 'Admin' && isScopeLoading) {
+    if (userRole !== 'Admin' && userRole !== 'Master_Admin' && isScopeLoading) {
       setIsLoadingPublication(true);
       return undefined;
     }
@@ -686,7 +686,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           faltas,
           evaluationData.config,
           scopedAgents,
-          userRole === 'Admin',
+          userRole === 'Admin' || userRole === 'Master_Admin',
           previousMonthPeriod.startDate,
           previousMonthPeriod.endDate,
           getWorkingDaysCount(
@@ -771,7 +771,8 @@ const KudosForm: React.FC<IKudosFormProps> = ({
         mensaje: mensaje.trim(),
         puntos: puntosPorKudo,
         fecha: fechaReconocimiento,
-        remitente
+        remitente,
+        remitenteEmail: currentUserEmail
       };
 
       await sharePointService.registrarKudo(kudoData, evidenciaFiles);

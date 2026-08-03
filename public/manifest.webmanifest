@@ -1,0 +1,10 @@
+{
+  "name": "Humano Ops Hub",
+  "short_name": "Ops Hub",
+  "description": "Portal operativo local-first de Humano Seguros",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f12",
+  "theme_color": "#0078d4",
+  "lang": "es-DO"
+}

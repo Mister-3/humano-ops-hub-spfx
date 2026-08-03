@@ -9,10 +9,13 @@ import {
 } from '@fluentui/react';
 
 import PowerAutomateSyncService from './services/PowerAutomateSyncService';
+import { useAuth } from './auth/AuthProvider';
+import AuthView from './auth/AuthView';
 import SupervisionOperaciones from './webparts/supervisionOperaciones/components/SupervisionOperaciones';
 import GraphService from './webparts/supervisionOperaciones/services/GraphService';
 
 const App: React.FC = () => {
+  const { currentUser, refreshCurrentUser, signOut } = useAuth();
   const graphService = React.useMemo(() => new GraphService(), []);
   const syncService = React.useMemo(() => new PowerAutomateSyncService(), []);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -30,7 +33,7 @@ const App: React.FC = () => {
       await syncService.downloadExport();
       setMessage({
         type: MessageBarType.success,
-        text: 'Paquete AppDB.xlsx / Power Automate exportado correctamente.'
+        text: 'Diferencias exportadas para sincronizar AppDB.xlsx mediante Power Automate.'
       });
     } catch (error: unknown) {
       setMessage({
@@ -56,11 +59,11 @@ const App: React.FC = () => {
 
     try {
       await syncService.importPackage(await file.text());
+      await refreshCurrentUser();
       setMessage({
         type: MessageBarType.success,
-        text: 'Datos importados. La aplicación se actualizará automáticamente.'
+        text: 'Respuesta de OneDrive / Excel importada y fusionada correctamente.'
       });
-      window.setTimeout(() => window.location.reload(), 700);
     } catch (error: unknown) {
       setMessage({
         type: MessageBarType.error,
@@ -78,7 +81,7 @@ const App: React.FC = () => {
         <div className="syncStatus">
           <span className="syncStatusDot" aria-hidden="true" />
           <span>
-            Backend local activo · AppDB.xlsx / Power Automate
+            Local-first activo · Sincronización manual AppDB.xlsx
           </span>
         </div>
 
@@ -90,13 +93,13 @@ const App: React.FC = () => {
             disabled={isSyncing}
             iconProps={{ iconName: 'Upload' }}
             onClick={() => fileInputRef.current?.click()}
-            text="Importar AppDB"
+            text="Importar respuesta"
           />
           <PrimaryButton
             disabled={isSyncing}
             iconProps={{ iconName: 'Download' }}
             onClick={() => void handleExport()}
-            text="Exportar para Power Automate"
+            text="🔄 Sincronizar a OneDrive / Excel"
           />
           <input
             ref={fileInputRef}
@@ -121,7 +124,20 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <SupervisionOperaciones graphService={graphService} />
+      <AuthView>
+        {currentUser && currentUser.status === 'Active' ? (
+          <SupervisionOperaciones
+            currentUser={{
+              id: currentUser.id,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              rol: currentUser.role
+            }}
+            graphService={graphService}
+            onSignOut={() => void signOut()}
+          />
+        ) : null}
+      </AuthView>
     </div>
   );
 };

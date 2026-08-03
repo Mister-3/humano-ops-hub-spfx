@@ -1,0 +1,109 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.headerCard,
+.tableCard {
+  padding: 20px;
+  background: #1a1a1e;
+  border: 1px solid #2d2d35;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26);
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  margin: 0 0 6px;
+  color: #fff;
+  font-size: 24px;
+}
+
+.description {
+  margin: 0;
+  color: #c8c6c4;
+  line-height: 1.5;
+}
+
+.identityCell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.identityCell strong {
+  overflow: hidden;
+  color: #fff;
+  text-overflow: ellipsis;
+}
+
+.identityCell span {
+  overflow: hidden;
+  color: #a7a7b2;
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.statusBadge,
+.validationBadge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.statusActive,
+.validationReady {
+  color: #9ff59b;
+  background: rgba(19, 161, 14, 0.14);
+  border: 1px solid rgba(19, 161, 14, 0.45);
+}
+
+.statusPending,
+.validationWaiting {
+  color: #ffd76a;
+  background: rgba(255, 185, 0, 0.12);
+  border: 1px solid rgba(255, 185, 0, 0.4);
+}
+
+.statusDisabled {
+  color: #ff9b96;
+  background: rgba(209, 52, 56, 0.14);
+  border: 1px solid rgba(209, 52, 56, 0.45);
+}
+
+.roleEditor {
+  display: grid;
+  min-width: 230px;
+  grid-template-columns: minmax(118px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.emptyState {
+  padding: 28px;
+  color: #c8c6c4;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .headerRow {
+    flex-direction: column;
+  }
+
+  .tableCard {
+    overflow-x: auto;
+    padding: 12px;
+  }
+}

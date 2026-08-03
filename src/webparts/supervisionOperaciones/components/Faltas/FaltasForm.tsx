@@ -232,13 +232,13 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     userRole === 'Oficial';
   const canRegisterOfficial = userRole === 'Supervisor' ||
     userRole === 'Gerente' ||
-    userRole === 'Admin';
+    userRole === 'Admin' || userRole === 'Master_Admin';
   const canSubmit = requiresApproval || canRegisterOfficial;
-  const canReviewApprovals = userRole === 'Supervisor' || userRole === 'Admin';
+  const canReviewApprovals = userRole === 'Supervisor' || userRole === 'Admin' || userRole === 'Master_Admin';
   const approvalAuthorEmails = React.useMemo<
     ReadonlyArray<string> | undefined
   >(
-    () => userRole === 'Admin'
+    () => userRole === 'Admin' || userRole === 'Master_Admin'
       ? undefined
       : availableAgents
           .map((agent) => agent.email.trim())
@@ -528,6 +528,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
         agente: selectedAgent.name,
         agenteEmail: selectedAgent.email,
         agenteObjectId: selectedAgent.id,
+        emailSupervisor: currentUserEmail,
         fecha,
         categoria,
         impacto: isTraining ? NO_PENALTY_IMPACT : nivelImpacto,

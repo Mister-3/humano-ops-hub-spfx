@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && vite build",
     "build:vercel": "npm run build",
+    "generate:appdb": "node scripts/generate-app-db.mjs",
     "start": "vite",
     "preview": "vite preview"
   },

@@ -1,5 +1,5 @@
 export const LOCAL_DATABASE_NAME = 'HumanoOpsHubDB';
-export const LOCAL_DATABASE_VERSION = 1;
+export const LOCAL_DATABASE_VERSION = 2;
 
 export const LOCAL_STORES = {
   faltas: 'faltas',
@@ -12,7 +12,9 @@ export const LOCAL_STORES = {
   configuracion: 'configuracion',
   catalogos: 'catalogos',
   roles: 'roles',
-  publicaciones: 'publicaciones'
+  publicaciones: 'publicaciones',
+  users: 'users',
+  sessions: 'sessions'
 } as const;
 
 export type LocalStoreName =

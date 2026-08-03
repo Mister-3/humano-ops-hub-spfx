@@ -823,7 +823,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     React.useState<string>('');
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
-  const isAdministrator = userRole === 'Admin';
+  const isAdministrator = userRole === 'Admin' || userRole === 'Master_Admin';
   const hasTeamScope = userRole === 'Supervisor' ||
     userRole === 'Gerente' ||
     userRole === 'Asistente' ||

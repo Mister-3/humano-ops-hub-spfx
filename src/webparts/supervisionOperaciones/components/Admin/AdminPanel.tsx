@@ -334,7 +334,7 @@ const AdminConfiguration: React.FC = () => {
     setRoleErrorMessage('');
 
     const normalizedEmail = overrideEmail.trim().toLocaleLowerCase();
-    const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+    const hasValidEmail = /^[^\s@]+@humano\.com\.do$/i.test(normalizedEmail);
 
     if (!hasValidEmail) {
       setRoleErrorMessage('Ingrese un correo corporativo válido.');
@@ -708,7 +708,7 @@ const AdminConfiguration: React.FC = () => {
               disabled={isRoleSubmitting}
               label="Correo del colaborador"
               onChange={(_, value) => setOverrideEmail(value || '')}
-              placeholder="nombre.apellido@demo.invalid"
+              placeholder="nombre.apellido@humano.com.do"
               value={overrideEmail}
             />
           </Stack.Item>
@@ -880,7 +880,7 @@ const AdminConfiguration: React.FC = () => {
 };
 
 const AdminPanel: React.FC<IAdminPanelProps> = ({ userRole }) => {
-  if (userRole !== 'Admin') {
+  if (userRole !== 'Admin' && userRole !== 'Master_Admin') {
     return (
       <Stack className={styles.panel}>
         <MessageBar messageBarType={MessageBarType.blocked}>

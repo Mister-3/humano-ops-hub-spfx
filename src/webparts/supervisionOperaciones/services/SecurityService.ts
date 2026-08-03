@@ -6,6 +6,7 @@ import GraphService, {
 import { SharePointService } from './SharePointService';
 
 const ROLES: ReadonlyArray<RoleType> = [
+  'Master_Admin',
   'Admin',
   'Gerente',
   'Supervisor',
@@ -77,6 +78,7 @@ export default class SecurityService {
 
     const jobTitle = currentUser.jobTitle.trim().toLocaleLowerCase();
 
+    if (jobTitle.includes('master_admin') || jobTitle.includes('master admin')) return 'Master_Admin';
     if (jobTitle.includes('admin')) return 'Admin';
     if (jobTitle.includes('gerente')) return 'Gerente';
     if (jobTitle.includes('supervisor')) return 'Supervisor';
@@ -90,6 +92,7 @@ export default class SecurityService {
     const currentUserAsAgent = this.toVisibleAgent(currentUser);
 
     switch (userRole) {
+      case 'Master_Admin':
       case 'Admin':
         return this.deduplicateAgents(await this.graphService.getAllUsers());
 

@@ -1,4 +1,5 @@
 export type RoleType =
+  | 'Master_Admin'
   | 'Admin'
   | 'Gerente'
   | 'Supervisor'

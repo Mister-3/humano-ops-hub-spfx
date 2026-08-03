@@ -365,6 +365,19 @@
   border-radius: 999px;
 }
 
+.signOutButton {
+  width: 30px;
+  height: 30px;
+  margin-left: 2px;
+  color: #b8b8c2;
+  border-radius: 50%;
+
+  &:hover {
+    color: #ffffff;
+    background: rgba(0, 120, 212, 0.2);
+  }
+}
+
 .workspaceLayout {
   position: relative;
   display: flex;

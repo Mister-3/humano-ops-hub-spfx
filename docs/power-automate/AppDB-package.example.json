@@ -1,57 +1,36 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
+  "syncMode": "delta",
   "source": "Humano Ops Hub IndexedDB",
   "targetWorkbook": "AppDB.xlsx",
   "exportedAt": "2026-08-02T12:00:00.000Z",
   "tables": {
-    "Tabla_Faltas": [
+    "Tabla_Usuarios": [
       {
-        "Id": 1,
-        "AuditID": "OPS-20260802-A1B2",
-        "Title": "Colaborador Demo 01",
-        "AgenteEmail": "colaborador01@demo.invalid",
-        "FechaFalta": "2026-08-02T08:30:00.000Z",
-        "Categoria": "Tardanza",
-        "Impacto": "Bajo",
-        "EstadoAprobacion": "Aprobado",
-        "Evidencias": "correo-supervisor.pdf"
-      }
-    ],
-    "Tabla_Kudos": [
-      {
-        "Id": 1,
-        "AuditID": "OPS-20260802-C3D4",
-        "Title": "Colaborador Demo 02",
-        "AgenteEmail": "colaborador02@demo.invalid",
-        "Atributo": "Empatía",
-        "Mensaje": "Excelente acompañamiento al cliente.",
-        "Puntos": 10,
-        "FechaKudo": "2026-08-02T12:00:00.000Z"
+        "ID": "USR-000002",
+        "Email": "usuario@humano.com.do",
+        "PasswordHash": "pbkdf2-sha256$120000$...",
+        "Nombre": "Usuario Corporativo",
+        "Rol": "Asistente",
+        "Estado": "Pending_Validation",
+        "IsProfileValidatedByPA": false,
+        "FechaRegistro": "2026-08-02T12:00:00.000Z",
+        "FechaAprobacion": ""
       }
     ],
     "Tabla_Headcount": [
       {
-        "Id": 1,
-        "AgenteObjectID": "local-supervisor-001",
-        "Nombre": "Supervisor Local",
-        "Email": "supervisor@demo.invalid",
-        "Rol": "Supervisor",
+        "ID": "HC-000002",
+        "EmailEmpleado": "usuario@humano.com.do",
+        "NombreEmpleado": "Usuario Corporativo",
+        "Cargo": "Asistente",
         "Departamento": "Operaciones",
-        "SupervisorEmail": "admin@demo.invalid",
-        "Activo": true
+        "EmailSupervisor": "supervisor@humano.com.do",
+        "EstadoActivo": true
       }
     ],
-    "Tabla_Ocupacion": [
-      {
-        "Id": 1,
-        "AuditID": "OPS-20260802-E5F6",
-        "TipoRegistro": "LlamadaFlota",
-        "Title": "Caso 123456",
-        "SupervisorEmail": "supervisor@demo.invalid",
-        "FechaHora": "2026-08-02T14:00:00.000Z",
-        "DuracionMinutos": 20,
-        "Comentarios": "Seguimiento operativo"
-      }
-    ]
+    "Tabla_Faltas": [],
+    "Tabla_Kudos": [],
+    "Tabla_Ocupacion": []
   }
 }

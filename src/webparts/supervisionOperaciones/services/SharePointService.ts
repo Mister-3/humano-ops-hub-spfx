@@ -31,6 +31,7 @@ export type AusenciaType =
   | 'Licencia / Incapacidad';
 
 const ROLE_VALUES: ReadonlyArray<RoleType> = [
+  'Master_Admin',
   'Admin',
   'Gerente',
   'Supervisor',
@@ -343,6 +344,7 @@ export interface IRegistrarFaltaData {
   agente: string;
   agenteEmail?: string;
   agenteObjectId?: string;
+  emailSupervisor?: string;
   fecha: Date;
   categoria: string;
   subcategoria?: string;
@@ -368,6 +370,7 @@ export interface IRegistrarKudoData {
   puntos: number;
   fecha: Date;
   remitente: string;
+  remitenteEmail?: string;
 }
 
 export interface IKudoListItem {
@@ -455,6 +458,7 @@ export interface IFaltaHistorialItem {
   Title: string;
   AgenteEmail?: string;
   AgenteObjectID?: string;
+  EmailSupervisor?: string;
   FechaFalta: string;
   Categoria: string;
   Subcategoria?: string;
@@ -485,6 +489,7 @@ export interface IKudoHistorialItem {
   Title: string;
   AgenteEmail?: string;
   AgenteObjectID?: string;
+  EmailEmisor?: string;
   Atributo: string;
   Mensaje: string;
   Puntos: number;
@@ -681,6 +686,7 @@ export class SharePointService {
       Title: faltaData.agente.trim(),
       AgenteEmail: normalizeEmail(faltaData.agenteEmail),
       AgenteObjectID: faltaData.agenteObjectId?.trim() || '',
+      EmailSupervisor: normalizeEmail(faltaData.emailSupervisor),
       FechaFalta: faltaData.fecha.toISOString(),
       Categoria: faltaData.categoria.trim(),
       Subcategoria: faltaData.subcategoria?.trim() || '',
@@ -828,6 +834,7 @@ export class SharePointService {
       Puntos: kudoData.puntos,
       FechaKudo: kudoData.fecha.toISOString(),
       Remitente: kudoData.remitente.trim(),
+      EmailEmisor: normalizeEmail(kudoData.remitenteEmail),
       AuditID: generateAuditID(),
       AttachmentData: files.map(toAttachment),
       SyncStatus: 'Pendiente',

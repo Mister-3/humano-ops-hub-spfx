@@ -1,39 +1,37 @@
-# Contrato AppDB.xlsx / Power Automate
+# Contrato AppDB.xlsx / Power Automate v2
 
-La SPA no llama SharePoint REST ni Microsoft Graph. Cada operación se guarda primero en IndexedDB (`HumanoOpsHubDB`) y la barra superior permite descargar/importar un paquete JSON para el flujo de Power Automate.
+Humano Ops Hub trabaja en modo local-first. Cada operación se guarda en IndexedDB (`HumanoOpsHubDB`) y la barra superior genera o importa un paquete diferencial JSON para que Power Automate actualice `AppDB.xlsx` en OneDrive.
 
-## Tablas Excel requeridas
+## Tablas oficiales
 
-El libro de OneDrive debe llamarse `AppDB.xlsx` y contener estas tablas con encabezados equivalentes a las propiedades del paquete:
-
+- `Tabla_Usuarios`
+- `Tabla_Headcount`
 - `Tabla_Faltas`
 - `Tabla_Kudos`
-- `Tabla_Headcount`
 - `Tabla_Ocupacion`
 
-`Tabla_Ocupacion` discrimina sus filas con `TipoRegistro`: `LlamadaFlota` o `Correo`.
+Los nombres y encabezados del paquete coinciden con el libro generado mediante `npm run generate:appdb`.
 
 ## Flujo recomendado
 
-1. Disparador manual o **Cuando se crea un archivo** en la carpeta de intercambio de OneDrive.
-2. Acción **Obtener contenido del archivo**.
-3. Acción **Analizar JSON** usando `AppDB-package.example.json` como muestra.
-4. Para cada arreglo bajo `tables`, use **Aplicar a cada uno**.
-5. Inserte o actualice la fila en la tabla homónima usando `AuditID` como clave funcional; `Id` queda como identificador local.
-6. Para devolver datos maestros a la SPA, genere el mismo sobre JSON y use **Importar AppDB**.
+1. El usuario pulsa **Sincronizar a OneDrive / Excel** y descarga `AppDB-Delta-YYYYMMDD.json`.
+2. Power Automate analiza el JSON con `AppDB-package.example.json` como muestra.
+3. Para cada arreglo de `tables`, Power Automate inserta o actualiza la fila en la tabla homónima usando `ID` como clave funcional.
+4. Power Automate valida los correos de `Tabla_Usuarios`. Cuando la identidad exista en el directorio corporativo, establece `IsProfileValidatedByPA=true` y `Estado=Pending_Admin_Approval`.
+5. Power Automate devuelve un paquete con el mismo contrato. La opción **Importar respuesta** fusiona las filas en IndexedDB; no elimina datos creados desde otro dispositivo.
+6. El Master Admin autoriza al usuario y asigna `Supervisor`, `Asistente` o `Admin`.
 
-Los adjuntos binarios permanecen en IndexedDB. El paquete solo exporta sus nombres en la propiedad `Evidencias`, porque una celda de Excel no puede almacenar el contenido binario.
+## Identidad y alcance
 
-## Headcount e identidad local
+`Tabla_Headcount` usa los encabezados `ID`, `EmailEmpleado`, `NombreEmpleado`, `Cargo`, `Departamento`, `EmailSupervisor` y `EstadoActivo`.
 
-`Tabla_Headcount` controla la identidad y el alcance RBAC sin Entra ID:
+Para un Supervisor, la SPA incluye únicamente filas activas cuyo `EmailSupervisor` coincide con el correo autenticado. Ese alcance se propaga a Faltas, Kudos, Ocupación, Dashboard e historiales.
 
-- `AgenteObjectID`
-- `Nombre`
-- `Email`
-- `Rol`
-- `Departamento`
-- `SupervisorEmail`
-- `Activo`
+## Cuenta maestra
 
-Puede definir el usuario inicial con `VITE_DEFAULT_USER_EMAIL`. Si no existe, la aplicación utiliza el primer Admin activo o la primera fila disponible.
+- Correo: `admin@humano.com.do`
+- Rol: `Master_Admin`
+- Estado: `Active`
+- Credencial de arranque: entregada fuera del repositorio.
+
+El bundle contiene únicamente un hash PBKDF2 con salt. Power Automate puede reemplazar `PasswordHash` mediante el paquete de retorno para rotar la credencial.

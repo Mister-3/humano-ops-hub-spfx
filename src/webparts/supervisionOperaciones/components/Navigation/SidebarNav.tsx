@@ -12,6 +12,7 @@ export type AppModuleKey =
   | 'kudos'
   | 'productividad'
   | 'Ocupacion'
+  | 'userAdmin'
   | 'admin';
 
 export interface ISidebarNavItem {
@@ -56,6 +57,11 @@ export const defaultSidebarItems: ReadonlyArray<ISidebarNavItem> = [
     key: 'Ocupacion',
     label: 'Ocupación del Supervisor',
     iconName: 'Clock'
+  },
+  {
+    key: 'userAdmin',
+    label: 'Administración de Usuarios',
+    iconName: 'People'
   },
   {
     key: 'admin',

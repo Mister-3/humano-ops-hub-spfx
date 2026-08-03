@@ -26,6 +26,7 @@ import {
   glowCardStyles
 } from '../theme/DarkTheme';
 import AdminPanel from './Admin/AdminPanel';
+import UserAdminPanel from './Admin/UserAdminPanel';
 import AusenciasForm from './Ausencias/AusenciasForm';
 import PlanificacionSemanal from './Ausencias/PlanificacionSemanal';
 import { HumanoOpsLogo } from './Brand/HumanoOpsLogo';
@@ -48,19 +49,26 @@ initializeIcons(undefined, { disableWarnings: true });
 ensureTechFontLoaded();
 
 export interface ISupervisionOperacionesProps {
+  currentUser: IUsuario;
   graphService: GraphService;
+  onSignOut: () => void;
 }
 
 const canAccessModule = (
   moduleKey: AppModuleKey,
   userRole: RoleType
 ): boolean => {
+  if (moduleKey === 'userAdmin') {
+    return userRole === 'Master_Admin';
+  }
+
   if (moduleKey === 'admin') {
-    return userRole === 'Admin';
+    return userRole === 'Master_Admin' || userRole === 'Admin';
   }
 
   if (moduleKey === 'productividad' || moduleKey === 'Ocupacion') {
-    return userRole === 'Admin' ||
+    return userRole === 'Master_Admin' ||
+      userRole === 'Admin' ||
       userRole === 'Gerente' ||
       userRole === 'Supervisor';
   }
@@ -141,11 +149,13 @@ const absenceMatchesAgent = (
 };
 
 const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
-  graphService
+  currentUser,
+  graphService,
+  onSignOut
 }) => {
-  const [usuario, setUsuario] = React.useState<IUsuario | null>(null);
-  const [isLoading, setIsLoading] = React.useState<boolean>(true);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [usuario, setUsuario] = React.useState<IUsuario | null>(currentUser);
+  const [isLoading] = React.useState<boolean>(false);
+  const [errorMessage] = React.useState<string | null>(null);
   const [activeModule, setActiveModule] = React.useState<AppModuleKey>('dashboard');
   const [visibleAgents, setVisibleAgents] = React.useState<IDirectReport[]>([]);
   const [
@@ -167,36 +177,8 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   const shouldFocusModuleHeadingRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
-    let isMounted = true;
-
-    const loadCurrentUser = async (): Promise<void> => {
-      try {
-        const securityService = new SecurityService(undefined, graphService);
-        const currentUser = await securityService.getCurrentUser();
-
-        if (isMounted) {
-          setUsuario(currentUser);
-        }
-      } catch (error: unknown) {
-        if (isMounted) {
-          const detail = error instanceof Error
-            ? error.message
-            : 'Ocurrió un error inesperado.';
-          setErrorMessage(detail);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadCurrentUser().catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, [graphService]);
+    setUsuario(currentUser);
+  }, [currentUser]);
 
   React.useEffect(() => {
     if (usuario && !canAccessModule(activeModule, usuario.rol)) {
@@ -342,7 +324,9 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
         return (
           <Dashboard
             availableAgents={visibleAgents}
-            hasGlobalScope={currentUser.rol === 'Admin'}
+            hasGlobalScope={
+              currentUser.rol === 'Master_Admin' || currentUser.rol === 'Admin'
+            }
           />
         );
 
@@ -462,6 +446,9 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
 
       case 'admin':
         return <AdminPanel userRole={currentUser.rol} />;
+
+      case 'userAdmin':
+        return <UserAdminPanel />;
     }
   };
 
@@ -559,6 +546,13 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             <span className={styles.userDivider} aria-hidden="true">|</span>
             <span className={styles.rolePrefix}>Rol:</span>
             <span className={styles.roleBadge}>{usuario.rol}</span>
+            <IconButton
+              ariaLabel="Cerrar sesión"
+              className={styles.signOutButton}
+              iconProps={{ iconName: 'SignOut' }}
+              onClick={onSignOut}
+              title="Cerrar sesión"
+            />
           </div>
         </header>
 
