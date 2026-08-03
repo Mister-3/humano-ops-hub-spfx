@@ -318,113 +318,12 @@ export default class SupervisorTimeService {
   }
 
   private async getTeamsMeetings(
-    range: INormalizedDateRange
+    _range: INormalizedDateRange
   ): Promise<ITeamsMeetingTime[]> {
-    const startIso = encodeURIComponent(range.start.toISOString());
-    const endIso = encodeURIComponent(range.end.toISOString());
-    const endpoint =
-      `/me/calendarView?startDateTime=${startIso}` +
-      `&endDateTime=${endIso}` +
-      '&$select=id,subject,start,end,isCancelled,isAllDay,' +
-      'isOnlineMeeting,onlineMeetingProvider,onlineMeeting&$top=100';
-    const events = await this.getGraphCollection<IGraphCalendarEvent>(
-      endpoint,
-      { Prefer: 'outlook.timezone="UTC"' }
-    );
-
-    return events
-      .filter(
-        (event) =>
-          event.isCancelled !== true &&
-          event.isAllDay !== true &&
-          isTeamsMeeting(event)
-      )
-      .map((event) => this.mapMeeting(event, range))
-      .filter(
-        (meeting): meeting is ITeamsMeetingTime => Boolean(meeting)
-      );
-  }
-
-  private mapMeeting(
-    event: IGraphCalendarEvent,
-    range: INormalizedDateRange
-  ): ITeamsMeetingTime | undefined {
-    const eventStart = parseGraphDateTime(
-      event.start?.dateTime,
-      event.start?.timeZone
-    );
-    const eventEnd = parseGraphDateTime(
-      event.end?.dateTime,
-      event.end?.timeZone
-    );
-
-    if (!eventStart || !eventEnd) {
-      return undefined;
-    }
-
-    const boundedStart = Math.max(
-      eventStart.getTime(),
-      range.start.getTime()
-    );
-    const boundedEnd = Math.min(
-      eventEnd.getTime(),
-      range.end.getTime()
-    );
-    const durationMinutes = Math.round(
-      (boundedEnd - boundedStart) / 60000
-    );
-
-    if (durationMinutes <= 0) {
-      return undefined;
-    }
-
-    return {
-      id:
-        event.id ||
-        `${eventStart.toISOString()}-${eventEnd.toISOString()}`,
-      subject: event.subject?.trim() || 'Reunión de Teams',
-      startDateTime: new Date(boundedStart).toISOString(),
-      endDateTime: new Date(boundedEnd).toISOString(),
-      durationMinutes
-    };
-  }
-
-  private async getGraphCollection<TItem>(
-    initialPath: string,
-    headers?: Readonly<Record<string, string>>
-  ): Promise<TItem[]> {
-    const items: TItem[] = [];
-    const visitedPaths: Record<string, boolean> = {};
-    let nextPath: string | undefined = initialPath;
-    let pageCount = 0;
-
-    while (nextPath) {
-      if (visitedPaths[nextPath]) {
-        throw new Error(
-          'Microsoft Graph devolvió un enlace de paginación repetido.'
-        );
-      }
-
-      if (pageCount >= MAX_GRAPH_PAGES) {
-        throw new Error(
-          'La consulta de Microsoft Graph superó el límite de paginación.'
-        );
-      }
-
-      visitedPaths[nextPath] = true;
-      pageCount += 1;
-
-      const response: IGraphCollectionResponse<TItem> =
-        await this.graphService.request<IGraphCollectionResponse<TItem>>(
-          nextPath,
-          headers
-        );
-
-      items.push(...(response.value || []));
-      nextPath = response['@odata.nextLink'];
-    }
-
-    return items;
+    // Teams/Graph is disabled in standalone mode. Future meeting data can be
+    // imported into Tabla_Ocupacion by Power Automate without browser tokens.
+    await Promise.resolve();
+    return [];
   }
 
   private async captureSource<TValue>(

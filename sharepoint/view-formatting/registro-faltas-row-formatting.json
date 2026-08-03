@@ -1,0 +1,355 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/sp/v2/row-formatting.schema.json",
+  "hideSelection": true,
+  "hideColumnHeader": true,
+  "rowFormatter": {
+    "elmType": "div",
+    "style": {
+      "box-sizing": "border-box",
+      "display": "flex",
+      "flex-direction": "column",
+      "width": "100%",
+      "margin": "8px 0",
+      "padding": "18px 20px",
+      "overflow": "hidden",
+      "color": "#e1dfdd",
+      "background-color": "#1a1a1e",
+      "border": "1px solid #2d2d35",
+      "border-left": "=if([$Estado_Escalado] == 3 || [$Estado_Escalado] == '3' || [$Estado_Escalado] == '3ra falta / Amonestación' || [$Estado_Escalado] == 'Amonestación', '4px solid #ff3347', if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', '4px solid #f8d22a', '4px solid #00b7c3'))",
+      "border-radius": "10px",
+      "box-shadow": "=if([$Estado_Escalado] == 3 || [$Estado_Escalado] == '3' || [$Estado_Escalado] == '3ra falta / Amonestación' || [$Estado_Escalado] == 'Amonestación', '0 5px 18px rgba(255,51,71,0.20)', if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', '0 5px 18px rgba(248,210,42,0.14)', '0 5px 18px rgba(0,183,195,0.14)'))"
+    },
+    "children": [
+      {
+        "elmType": "div",
+        "style": {
+          "display": "flex",
+          "align-items": "flex-start",
+          "justify-content": "space-between",
+          "gap": "16px",
+          "width": "100%"
+        },
+        "children": [
+          {
+            "elmType": "div",
+            "style": {
+              "display": "flex",
+              "align-items": "center",
+              "min-width": "0"
+            },
+            "children": [
+              {
+                "elmType": "span",
+                "attributes": {
+                  "iconName": "Contact"
+                },
+                "style": {
+                  "flex-shrink": "0",
+                  "margin-right": "10px",
+                  "font-size": "22px",
+                  "color": "#0078d4"
+                }
+              },
+              {
+                "elmType": "div",
+                "style": {
+                  "display": "flex",
+                  "flex-direction": "column",
+                  "min-width": "0"
+                },
+                "children": [
+                  {
+                    "elmType": "span",
+                    "txtContent": "=if([$Title] == '', 'Colaborador sin nombre', [$Title])",
+                    "style": {
+                      "overflow": "hidden",
+                      "font-size": "18px",
+                      "font-weight": "700",
+                      "line-height": "24px",
+                      "text-overflow": "ellipsis",
+                      "white-space": "nowrap",
+                      "color": "#ffffff"
+                    }
+                  },
+                  {
+                    "elmType": "span",
+                    "txtContent": "=if([$AuditID] == '', 'Registro #' + [$ID], [$AuditID])",
+                    "style": {
+                      "margin-top": "2px",
+                      "font-size": "11px",
+                      "font-weight": "600",
+                      "letter-spacing": "0.6px",
+                      "color": "#a19f9d"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "elmType": "div",
+            "style": {
+              "display": "inline-flex",
+              "align-items": "center",
+              "flex-shrink": "0",
+              "padding": "6px 10px",
+              "font-size": "12px",
+              "font-weight": "700",
+              "color": "=if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', '#171717', '#ffffff')",
+              "background-color": "=if([$Estado_Escalado] == 3 || [$Estado_Escalado] == '3' || [$Estado_Escalado] == '3ra falta / Amonestación' || [$Estado_Escalado] == 'Amonestación', '#d13438', if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', '#f8d22a', '#0078d4'))",
+              "border": "1px solid",
+              "border-color": "=if([$Estado_Escalado] == 3 || [$Estado_Escalado] == '3' || [$Estado_Escalado] == '3ra falta / Amonestación' || [$Estado_Escalado] == 'Amonestación', '#ff6678', if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', '#fff18a', '#00b7c3'))",
+              "border-radius": "999px",
+              "white-space": "nowrap"
+            },
+            "children": [
+              {
+                "elmType": "span",
+                "attributes": {
+                  "iconName": "=if([$Estado_Escalado] == 3 || [$Estado_Escalado] == '3' || [$Estado_Escalado] == '3ra falta / Amonestación' || [$Estado_Escalado] == 'Amonestación', 'ErrorBadge', if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', 'WarningSolid', 'StatusCircleCheckmark'))"
+                },
+                "style": {
+                  "margin-right": "6px"
+                }
+              },
+              {
+                "elmType": "span",
+                "txtContent": "=if([$Estado_Escalado] == 3 || [$Estado_Escalado] == '3' || [$Estado_Escalado] == '3ra falta / Amonestación' || [$Estado_Escalado] == 'Amonestación', '3ra falta · Amonestación', if([$Estado_Escalado] == 2 || [$Estado_Escalado] == '2' || [$Estado_Escalado] == '2da falta (Alerta)' || [$Estado_Escalado] == 'Alerta', '2da falta · Alerta', '1era falta'))"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "elmType": "div",
+        "style": {
+          "display": "flex",
+          "flex-wrap": "wrap",
+          "gap": "8px",
+          "margin-top": "16px"
+        },
+        "children": [
+          {
+            "elmType": "span",
+            "txtContent": "=if([$Categoria] == '', 'Sin categoría', [$Categoria])",
+            "style": {
+              "padding": "5px 9px",
+              "font-size": "12px",
+              "font-weight": "600",
+              "color": "#9cdcfe",
+              "background-color": "#102a43",
+              "border": "1px solid #164e7a",
+              "border-radius": "6px"
+            }
+          },
+          {
+            "elmType": "span",
+            "txtContent": "=if([$Impacto] == '', 'Impacto no definido', 'Impacto: ' + [$Impacto])",
+            "style": {
+              "padding": "5px 9px",
+              "font-size": "12px",
+              "font-weight": "600",
+              "color": "=if([$Impacto] == 'Grave' || [$Impacto] == 'Crítico', '#ff9ca6', if([$Impacto] == 'Medio', '#ffe58a', '#9be9a8'))",
+              "background-color": "=if([$Impacto] == 'Grave' || [$Impacto] == 'Crítico', '#3b1419', if([$Impacto] == 'Medio', '#3b3212', '#15331f'))",
+              "border": "1px solid",
+              "border-color": "=if([$Impacto] == 'Grave' || [$Impacto] == 'Crítico', '#8b2530', if([$Impacto] == 'Medio', '#7a661c', '#266b3a'))",
+              "border-radius": "6px"
+            }
+          },
+          {
+            "elmType": "span",
+            "txtContent": "=if([$FechaFalta] == '', 'Fecha no registrada', toLocaleDateString([$FechaFalta]))",
+            "style": {
+              "padding": "5px 9px",
+              "font-size": "12px",
+              "color": "#c8c6c4",
+              "background-color": "#252529",
+              "border": "1px solid #383842",
+              "border-radius": "6px"
+            }
+          },
+          {
+            "elmType": "span",
+            "txtContent": "=if([$EstadoAprobacion] == '', 'Aprobado (histórico)', [$EstadoAprobacion])",
+            "style": {
+              "padding": "5px 9px",
+              "font-size": "12px",
+              "font-weight": "600",
+              "color": "=if([$EstadoAprobacion] == 'Pendiente', '#ffe58a', if([$EstadoAprobacion] == 'Rechazado', '#ff9ca6', '#9be9a8'))",
+              "background-color": "#252529",
+              "border": "1px solid #383842",
+              "border-radius": "6px"
+            }
+          }
+        ]
+      },
+      {
+        "elmType": "div",
+        "style": {
+          "display": "=if([$Subcategoria] == '' && [$CasoRef] == '', 'none', 'flex')",
+          "flex-wrap": "wrap",
+          "gap": "18px",
+          "margin-top": "13px",
+          "padding": "10px 12px",
+          "font-size": "12px",
+          "color": "#c8c6c4",
+          "background-color": "#121214",
+          "border-radius": "6px"
+        },
+        "children": [
+          {
+            "elmType": "span",
+            "style": {
+              "display": "=if([$Subcategoria] == '', 'none', 'inline')"
+            },
+            "children": [
+              {
+                "elmType": "span",
+                "txtContent": "Subcategoría: ",
+                "style": {
+                  "font-weight": "700",
+                  "color": "#8a8886"
+                }
+              },
+              {
+                "elmType": "span",
+                "txtContent": "[$Subcategoria]"
+              }
+            ]
+          },
+          {
+            "elmType": "span",
+            "style": {
+              "display": "=if([$CasoRef] == '', 'none', 'inline')"
+            },
+            "children": [
+              {
+                "elmType": "span",
+                "txtContent": "Helpdesk / Calidad: ",
+                "style": {
+                  "font-weight": "700",
+                  "color": "#8a8886"
+                }
+              },
+              {
+                "elmType": "span",
+                "txtContent": "='#' + [$CasoRef]",
+                "style": {
+                  "color": "#00b7c3"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "elmType": "div",
+        "style": {
+          "display": "=if([$Comentarios] == '', 'none', 'block')",
+          "margin-top": "13px",
+          "padding": "12px 14px",
+          "font-size": "13px",
+          "line-height": "20px",
+          "white-space": "normal",
+          "word-break": "break-word",
+          "color": "#e1dfdd",
+          "background-color": "#202024",
+          "border-left": "2px solid #5d5d6c",
+          "border-radius": "0 6px 6px 0"
+        },
+        "children": [
+          {
+            "elmType": "span",
+            "txtContent": "Observaciones: ",
+            "style": {
+              "font-weight": "700",
+              "color": "#a19f9d"
+            }
+          },
+          {
+            "elmType": "span",
+            "txtContent": "[$Comentarios]"
+          }
+        ]
+      },
+      {
+        "elmType": "div",
+        "style": {
+          "display": "flex",
+          "align-items": "center",
+          "justify-content": "space-between",
+          "flex-wrap": "wrap",
+          "gap": "10px",
+          "margin-top": "16px",
+          "padding-top": "13px",
+          "border-top": "1px solid #2d2d35"
+        },
+        "children": [
+          {
+            "elmType": "span",
+            "txtContent": "=if([$RolOriginador] == '', 'Registro operativo', 'Originado por: ' + [$RolOriginador])",
+            "style": {
+              "font-size": "11px",
+              "color": "#8a8886"
+            }
+          },
+          {
+            "elmType": "div",
+            "style": {
+              "display": "flex",
+              "align-items": "center"
+            },
+            "children": [
+              {
+                "elmType": "button",
+                "customRowAction": {
+                  "action": "defaultClick"
+                },
+                "attributes": {
+                  "title": "Abrir el registro y consultar las evidencias adjuntas",
+                  "aria-label": "Abrir evidencias adjuntas"
+                },
+                "style": {
+                  "display": "=if([$Attachments] == 1, 'inline-flex', 'none')",
+                  "align-items": "center",
+                  "padding": "7px 12px",
+                  "cursor": "pointer",
+                  "font-size": "12px",
+                  "font-weight": "700",
+                  "color": "#ffffff",
+                  "background-color": "#0078d4",
+                  "border": "1px solid #2b9cff",
+                  "border-radius": "6px"
+                },
+                "children": [
+                  {
+                    "elmType": "span",
+                    "attributes": {
+                      "iconName": "Attach"
+                    },
+                    "style": {
+                      "margin-right": "6px"
+                    }
+                  },
+                  {
+                    "elmType": "span",
+                    "txtContent": "Ver evidencias"
+                  }
+                ]
+              },
+              {
+                "elmType": "span",
+                "txtContent": "Sin evidencias adjuntas",
+                "style": {
+                  "display": "=if([$Attachments] == 1, 'none', 'inline')",
+                  "font-size": "11px",
+                  "color": "#8a8886"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

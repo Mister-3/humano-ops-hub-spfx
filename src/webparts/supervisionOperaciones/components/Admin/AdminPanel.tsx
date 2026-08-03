@@ -708,7 +708,7 @@ const AdminConfiguration: React.FC = () => {
               disabled={isRoleSubmitting}
               label="Correo del colaborador"
               onChange={(_, value) => setOverrideEmail(value || '')}
-              placeholder="nombre.apellido@humanoseguros.com"
+              placeholder="nombre.apellido@demo.invalid"
               value={overrideEmail}
             />
           </Stack.Item>

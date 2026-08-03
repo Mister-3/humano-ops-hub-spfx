@@ -1,4 +1,7 @@
-import type { WebPartContext } from '@microsoft/sp-webpart-base';
+import IndexedDbAdapter, {
+  LOCAL_STORES
+} from '../../../services/IndexedDbAdapter';
+import type { IHeadcountRow } from '../../../services/PowerAutomateSyncService';
 
 export interface IDirectReport {
   id: string;
@@ -14,335 +17,210 @@ export interface IGraphCurrentUser {
   email: string;
   jobTitle: string;
   department: string;
+  role?: IHeadcountRow['Rol'];
 }
 
-interface IGraphDirectoryUser {
-  id?: string;
-  displayName?: string;
-  mail?: string;
-  department?: string;
-}
+export const LOCAL_USER_STORAGE_KEY = 'humanoOps.currentUser';
 
-interface IGraphDirectReportsResponse {
-  value?: IGraphDirectoryUser[];
-  '@odata.nextLink'?: string;
-}
-
-interface IGraphUsersResponse {
-  value?: IGraphDirectoryUser[];
-  '@odata.nextLink'?: string;
-}
-
-interface IGraphCurrentUserResponse {
-  id?: string;
-  displayName?: string;
-  mail?: string;
-  jobTitle?: string;
-  department?: string;
-}
-
-interface IGraphManagerResponse {
-  id?: string;
-}
-
-const fallbackDirectReports: IDirectReport[] = [
+const DEFAULT_HEADCOUNT: ReadonlyArray<Omit<IHeadcountRow, 'Id'>> = [
   {
-    id: 'fallback-carlos-perez',
-    name: 'Carlos Pérez',
-    email: 'carlos.perez@humanoseguros.com',
-    isFallback: true
+    AgenteObjectID: 'local-admin-001',
+    Nombre: 'Administrador Local',
+    Email: 'admin@demo.invalid',
+    Rol: 'Admin',
+    Departamento: 'Operaciones',
+    SupervisorEmail: '',
+    Activo: true,
+    SyncStatus: 'Sincronizado'
   },
   {
-    id: 'fallback-maria-martinez',
-    name: 'María Martínez',
-    email: 'maria.martinez@humanoseguros.com',
-    isFallback: true
+    AgenteObjectID: 'local-supervisor-001',
+    Nombre: 'Supervisor Local',
+    Email: 'supervisor@demo.invalid',
+    Rol: 'Supervisor',
+    Departamento: 'Operaciones',
+    SupervisorEmail: 'admin@demo.invalid',
+    Activo: true,
+    SyncStatus: 'Sincronizado'
   },
   {
-    id: 'fallback-juan-rodriguez',
-    name: 'Juan Rodríguez',
-    email: 'juan.rodriguez@humanoseguros.com',
-    isFallback: true
+    AgenteObjectID: 'local-carlos-perez',
+    Nombre: 'Colaborador Demo 01',
+    Email: 'colaborador01@demo.invalid',
+    Rol: 'Oficial',
+    Departamento: 'Operaciones',
+    SupervisorEmail: 'supervisor@demo.invalid',
+    Activo: true,
+    SyncStatus: 'Sincronizado'
+  },
+  {
+    AgenteObjectID: 'local-maria-martinez',
+    Nombre: 'Colaborador Demo 02',
+    Email: 'colaborador02@demo.invalid',
+    Rol: 'Asistente',
+    Departamento: 'Operaciones',
+    SupervisorEmail: 'supervisor@demo.invalid',
+    Activo: true,
+    SyncStatus: 'Sincronizado'
+  },
+  {
+    AgenteObjectID: 'local-juan-rodriguez',
+    Nombre: 'Colaborador Demo 03',
+    Email: 'colaborador03@demo.invalid',
+    Rol: 'Analista',
+    Departamento: 'Operaciones',
+    SupervisorEmail: 'supervisor@demo.invalid',
+    Activo: true,
+    SyncStatus: 'Sincronizado'
   }
 ];
 
+const normalizeEmail = (value?: string): string =>
+  value?.trim().toLocaleLowerCase() || '';
+
+const toDirectReport = (row: IHeadcountRow): IDirectReport => ({
+  id: row.AgenteObjectID || `headcount-${row.Id}`,
+  name: row.Nombre,
+  email: row.Email,
+  department: row.Departamento
+});
+
+const getConfiguredEmail = (): string => {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem(LOCAL_USER_STORAGE_KEY) || '{}'
+      ) as { email?: string };
+
+      if (stored.email) {
+        return normalizeEmail(stored.email);
+      }
+    } catch {
+      // A malformed local preference is ignored in favor of the safe default.
+    }
+  }
+
+  return normalizeEmail(import.meta.env.VITE_DEFAULT_USER_EMAIL) ||
+    'admin@demo.invalid';
+};
+
+/**
+ * Local directory facade. It deliberately performs no HTTP calls to Entra ID
+ * or Microsoft Graph; organization scope comes from Tabla_Headcount imported
+ * from AppDB.xlsx through the Power Automate exchange package.
+ */
 export default class GraphService {
   private static activeInstance: GraphService | undefined;
+  private readonly database: IndexedDbAdapter;
 
-  private currentUserCache: IGraphCurrentUser | undefined;
-  private directReportsCache: IDirectReport[] | undefined;
-  private supervisorPeersCache: IDirectReport[] | undefined;
-  private allUsersCache: IDirectReport[] | undefined;
-  private readonly departmentMembersCache: {
-    [normalizedDepartment: string]: IDirectReport[];
-  } = {};
-
-  public constructor(private readonly context: WebPartContext) {
+  public constructor(_legacyContext?: unknown) {
+    this.database = new IndexedDbAdapter();
     GraphService.activeInstance = this;
   }
 
-  /**
-   * Returns the Graph service initialized by the Web Part, if available.
-   * SecurityService uses this accessor to preserve its parameterless
-   * construction contract while still resolving the Microsoft 365 profile.
-   */
   public static getActiveInstance(): GraphService | undefined {
     return GraphService.activeInstance;
   }
 
-  /**
-   * Executes a typed GET against Microsoft Graph using the SPFx v3 client.
-   * The endpoint may be a relative Graph path or an opaque @odata.nextLink.
-   */
   public async request<TResponse>(
-    resourcePath: string,
-    headers?: Readonly<Record<string, string>>
+    _resourcePath: string,
+    _headers?: Readonly<Record<string, string>>
   ): Promise<TResponse> {
-    const normalizedResourcePath = resourcePath.trim();
-
-    if (!normalizedResourcePath) {
-      throw new Error('La ruta de Microsoft Graph es obligatoria.');
-    }
-
-    try {
-      const graphClient = await this.context.msGraphClientFactory.getClient('3');
-      let request = graphClient.api(normalizedResourcePath);
-
-      Object.keys(headers || {}).forEach((headerName) => {
-        const headerValue = headers?.[headerName];
-
-        if (headerValue) {
-          request = request.header(headerName, headerValue);
-        }
-      });
-
-      return await request.get() as TResponse;
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `No fue posible consultar Microsoft Graph: ${detail}`
-      );
-    }
+    // Calendar/Graph integration is intentionally disabled in standalone mode.
+    return { value: [] } as TResponse;
   }
 
   public async getCurrentUser(): Promise<IGraphCurrentUser> {
-    if (this.currentUserCache) {
-      return { ...this.currentUserCache };
-    }
+    const rows = await this.getHeadcount();
+    const configuredEmail = getConfiguredEmail();
+    const row = rows.find((item) => normalizeEmail(item.Email) === configuredEmail) ||
+      rows.find((item) => item.Rol === 'Admin') ||
+      rows[0];
 
-    try {
-      const graphClient = await this.context.msGraphClientFactory.getClient('3');
-      const response = await graphClient
-        .api('/me?$select=id,displayName,mail,jobTitle,department')
-        .get() as IGraphCurrentUserResponse;
-
-      if (!response.id || !response.displayName) {
-        throw new Error(
-          'Microsoft Graph no devolvió una identidad válida para el usuario actual.'
-        );
-      }
-
-      this.currentUserCache = {
-        id: response.id,
-        displayName: response.displayName,
-        email: response.mail || '',
-        jobTitle: response.jobTitle || '',
-        department: response.department || ''
-      };
-
-      return { ...this.currentUserCache };
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
+    if (!row) {
       throw new Error(
-        `No fue posible consultar el perfil actual en Microsoft Graph: ${detail}`
+        'Tabla_Headcount no contiene una identidad activa para iniciar la aplicación.'
       );
     }
+
+    const identity: IGraphCurrentUser = {
+      id: row.AgenteObjectID || `headcount-${row.Id}`,
+      displayName: row.Nombre,
+      email: normalizeEmail(row.Email),
+      jobTitle: row.Rol,
+      department: row.Departamento,
+      role: row.Rol
+    };
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(LOCAL_USER_STORAGE_KEY, JSON.stringify(identity));
+    }
+
+    return identity;
   }
 
   public async getDirectReports(): Promise<IDirectReport[]> {
-    if (this.directReportsCache) {
-      return [...this.directReportsCache];
-    }
+    const [currentUser, rows] = await Promise.all([
+      this.getCurrentUser(),
+      this.getHeadcount()
+    ]);
 
-    try {
-      const graphClient = await this.context.msGraphClientFactory.getClient('3');
-      const response = await graphClient
-        .api('/me/directReports?$select=id,displayName,mail,department')
-        .get() as IGraphDirectReportsResponse;
-
-      const directReports = (response.value || [])
-        .filter((item) => Boolean(item.id && item.displayName))
-        .map((item): IDirectReport => ({
-          id: item.id || '',
-          name: item.displayName || '',
-          email: item.mail || '',
-          department: item.department || ''
-        }));
-
-      this.directReportsCache = directReports.length > 0
-        ? directReports
-        : fallbackDirectReports;
-
-      return [...this.directReportsCache];
-    } catch {
-      this.directReportsCache = fallbackDirectReports;
-      return [...this.directReportsCache];
-    }
+    return rows
+      .filter((row) => normalizeEmail(row.SupervisorEmail) === currentUser.email)
+      .map(toDirectReport)
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   public async getSupervisorPeers(): Promise<IDirectReport[]> {
-    if (this.supervisorPeersCache) {
-      return [...this.supervisorPeersCache];
+    const [currentUser, rows] = await Promise.all([
+      this.getCurrentUser(),
+      this.getHeadcount()
+    ]);
+    const currentRow = rows.find(
+      (row) => normalizeEmail(row.Email) === currentUser.email
+    );
+    const supervisorEmail = normalizeEmail(currentRow?.SupervisorEmail);
+
+    if (!supervisorEmail) {
+      return [toDirectReport(currentRow || rows[0])];
     }
 
-    try {
-      const graphClient = await this.context.msGraphClientFactory.getClient('3');
-      const manager = await graphClient
-        .api('/me/manager?$select=id')
-        .get() as IGraphManagerResponse;
-
-      if (!manager.id) {
-        this.supervisorPeersCache = [];
-        return [...this.supervisorPeersCache];
-      }
-
-      const response = await graphClient
-        .api(
-          `/users/${encodeURIComponent(manager.id)}` +
-          '/directReports?$select=id,displayName,mail,department'
-        )
-        .get() as IGraphDirectReportsResponse;
-
-      const peers = (response.value || [])
-        .filter((item) => Boolean(item.id && item.displayName))
-        .map((item): IDirectReport => ({
-          id: item.id || '',
-          name: item.displayName || '',
-          email: item.mail || '',
-          department: item.department || ''
-        }));
-
-      this.supervisorPeersCache = peers;
-
-      return [...this.supervisorPeersCache];
-    } catch {
-      this.supervisorPeersCache = [];
-      return [...this.supervisorPeersCache];
-    }
+    return rows
+      .filter((row) => normalizeEmail(row.SupervisorEmail) === supervisorEmail)
+      .map(toDirectReport)
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  /**
-   * Returns only directory users whose department matches the supplied value.
-   * This method intentionally has no simulated or global fallback because it is
-   * used as an authorization boundary for the Gerente role.
-   */
   public async getDepartmentMembers(
     departmentName: string
   ): Promise<IDirectReport[]> {
-    const trimmedDepartment = departmentName.trim();
-    const normalizedDepartment = trimmedDepartment.toLocaleLowerCase();
+    const department = departmentName.trim().toLocaleLowerCase();
+    const rows = await this.getHeadcount();
 
-    if (!normalizedDepartment) {
-      return [];
-    }
-
-    const cachedMembers = this.departmentMembersCache[normalizedDepartment];
-
-    if (cachedMembers) {
-      return cachedMembers.map((member) => ({ ...member }));
-    }
-
-    try {
-      const graphClient = await this.context.msGraphClientFactory.getClient('3');
-      const escapedDepartment = trimmedDepartment.replace(/'/g, "''");
-      const departmentFilter = encodeURIComponent(
-        `department eq '${escapedDepartment}'`
-      );
-      const usersById: { [id: string]: IDirectReport } = {};
-      let nextLink: string | undefined =
-        `/users?$filter=${departmentFilter}` +
-        '&$select=id,displayName,mail,department&$top=999';
-
-      while (nextLink) {
-        const response = await graphClient
-          .api(nextLink)
-          .get() as IGraphUsersResponse;
-
-        (response.value || [])
-          .filter((item) => Boolean(item.id && item.displayName))
-          .forEach((item) => {
-            const id = item.id || '';
-
-            usersById[id] = {
-              id,
-              name: item.displayName || '',
-              email: item.mail || '',
-              department: item.department || trimmedDepartment
-            };
-          });
-
-        nextLink = response['@odata.nextLink'];
-      }
-
-      const members = Object.keys(usersById)
-        .map((id) => usersById[id])
-        .sort((left, right) => left.name.localeCompare(right.name));
-
-      this.departmentMembersCache[normalizedDepartment] = members;
-      return members.map((member) => ({ ...member }));
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `No fue posible consultar los miembros del departamento ` +
-        `"${trimmedDepartment}" en Microsoft Graph: ${detail}`
-      );
-    }
+    return rows
+      .filter((row) => row.Departamento.trim().toLocaleLowerCase() === department)
+      .map(toDirectReport)
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   public async getAllUsers(): Promise<IDirectReport[]> {
-    if (this.allUsersCache) {
-      return [...this.allUsersCache];
-    }
+    const rows = await this.getHeadcount();
+    return rows.map(toDirectReport).sort((left, right) =>
+      left.name.localeCompare(right.name)
+    );
+  }
 
-    try {
-      const graphClient = await this.context.msGraphClientFactory.getClient('3');
-      const usersById: { [id: string]: IDirectReport } = {};
-      let nextLink: string | undefined =
-        '/users?$select=id,displayName,mail,department&$top=999';
+  private async getHeadcount(): Promise<IHeadcountRow[]> {
+    let rows = await this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
 
-      while (nextLink) {
-        const response = await graphClient
-          .api(nextLink)
-          .get() as IGraphUsersResponse;
-
-        (response.value || [])
-          .filter((item) => Boolean(item.id && item.displayName))
-          .forEach((item) => {
-            const id = item.id || '';
-
-            usersById[id] = {
-              id,
-              name: item.displayName || '',
-              email: item.mail || '',
-              department: item.department || ''
-            };
-          });
-
-        nextLink = response['@odata.nextLink'];
+    if (rows.length === 0) {
+      for (const seed of DEFAULT_HEADCOUNT) {
+        await this.database.add(LOCAL_STORES.headcount, seed);
       }
 
-      const users = Object.keys(usersById)
-        .map((id) => usersById[id])
-        .sort((left, right) => left.name.localeCompare(right.name));
-
-      this.allUsersCache = users.length > 0
-        ? users
-        : fallbackDirectReports;
-
-      return [...this.allUsersCache];
-    } catch {
-      this.allUsersCache = fallbackDirectReports;
-      return [...this.allUsersCache];
+      rows = await this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
     }
+
+    return rows.filter((row) => row.Activo !== false);
   }
 }

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0",
+  "source": "Humano Ops Hub IndexedDB",
+  "targetWorkbook": "AppDB.xlsx",
+  "exportedAt": "2026-08-02T12:00:00.000Z",
+  "tables": {
+    "Tabla_Faltas": [
+      {
+        "Id": 1,
+        "AuditID": "OPS-20260802-A1B2",
+        "Title": "Colaborador Demo 01",
+        "AgenteEmail": "colaborador01@demo.invalid",
+        "FechaFalta": "2026-08-02T08:30:00.000Z",
+        "Categoria": "Tardanza",
+        "Impacto": "Bajo",
+        "EstadoAprobacion": "Aprobado",
+        "Evidencias": "correo-supervisor.pdf"
+      }
+    ],
+    "Tabla_Kudos": [
+      {
+        "Id": 1,
+        "AuditID": "OPS-20260802-C3D4",
+        "Title": "Colaborador Demo 02",
+        "AgenteEmail": "colaborador02@demo.invalid",
+        "Atributo": "Empatía",
+        "Mensaje": "Excelente acompañamiento al cliente.",
+        "Puntos": 10,
+        "FechaKudo": "2026-08-02T12:00:00.000Z"
+      }
+    ],
+    "Tabla_Headcount": [
+      {
+        "Id": 1,
+        "AgenteObjectID": "local-supervisor-001",
+        "Nombre": "Supervisor Local",
+        "Email": "supervisor@demo.invalid",
+        "Rol": "Supervisor",
+        "Departamento": "Operaciones",
+        "SupervisorEmail": "admin@demo.invalid",
+        "Activo": true
+      }
+    ],
+    "Tabla_Ocupacion": [
+      {
+        "Id": 1,
+        "AuditID": "OPS-20260802-E5F6",
+        "TipoRegistro": "LlamadaFlota",
+        "Title": "Caso 123456",
+        "SupervisorEmail": "supervisor@demo.invalid",
+        "FechaHora": "2026-08-02T14:00:00.000Z",
+        "DuracionMinutos": 20,
+        "Comentarios": "Seguimiento operativo"
+      }
+    ]
+  }
+}

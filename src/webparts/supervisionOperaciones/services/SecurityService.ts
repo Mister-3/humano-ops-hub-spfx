@@ -1,171 +1,125 @@
-import type { SPFI } from '@pnp/sp';
-import '@pnp/sp/webs';
-import '@pnp/sp/site-users/web';
-
 import type { IUsuario, RoleType } from '../models/AppModels';
 import GraphService, {
   type IDirectReport,
   type IGraphCurrentUser
 } from './GraphService';
-import { getSP } from './pnpjsConfig';
 import { SharePointService } from './SharePointService';
 
+const ROLES: ReadonlyArray<RoleType> = [
+  'Admin',
+  'Gerente',
+  'Supervisor',
+  'Analista',
+  'Asistente',
+  'Oficial'
+];
+
+const stableNumericId = (value: string): number => {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+
+  return Math.abs(hash) || 1;
+};
+
+/**
+ * Local RBAC resolver. Identity and hierarchy come from Tabla_Headcount in
+ * IndexedDB, never from SharePoint REST or Entra ID.
+ */
 export default class SecurityService {
   private readonly sharePointService: SharePointService;
+  private readonly graphService: GraphService;
 
   public constructor(
-    private readonly sp: SPFI = getSP(),
-    private readonly graphService?: GraphService
+    _legacyDataContext?: unknown,
+    graphService?: GraphService
   ) {
-    this.sharePointService = new SharePointService(sp);
+    this.graphService = graphService ||
+      GraphService.getActiveInstance() ||
+      new GraphService();
+    this.sharePointService = new SharePointService();
   }
 
   public async getCurrentUser(): Promise<IUsuario> {
-    try {
-      const currentUser = await this.sp.web.currentUser();
-      const email = currentUser.Email || '';
-      const rol = await this.getUserRole(email);
+    const currentUser = await this.graphService.getCurrentUser();
+    const role = await this.getUserRole(currentUser.email);
 
-      return {
-        id: currentUser.Id,
-        email,
-        displayName: currentUser.Title,
-        rol
-      };
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new Error(`No fue posible obtener el usuario actual: ${detail}`);
-    }
+    return {
+      id: stableNumericId(currentUser.id || currentUser.email),
+      email: currentUser.email,
+      displayName: currentUser.displayName,
+      rol: role
+    };
   }
 
   public async getUserRole(email: string): Promise<RoleType> {
     const normalizedEmail = email.trim().toLocaleLowerCase();
+    const overrides = await this.sharePointService.getRoleOverrides();
+    const matchingOverride = overrides.find(
+      (item) => item.Title.trim().toLocaleLowerCase() === normalizedEmail
+    );
 
-    if (normalizedEmail) {
-      try {
-        const overrides = await this.sharePointService.getRoleOverrides();
-        const matchingOverride = overrides.find(
-          (item) => item.Title.trim().toLocaleLowerCase() === normalizedEmail
-        );
-
-        if (
-          matchingOverride &&
-          this.isRoleType(matchingOverride.RolAsignado)
-        ) {
-          return matchingOverride.RolAsignado;
-        }
-      } catch {
-        // Un fallo de aprovisionamiento o lectura no debe bloquear el acceso:
-        // se continúa con la asignación automática de mínimo privilegio.
-      }
+    if (matchingOverride && this.isRoleType(matchingOverride.RolAsignado)) {
+      return matchingOverride.RolAsignado;
     }
 
-    try {
-      const graphService =
-        this.graphService || GraphService.getActiveInstance();
+    const currentUser = await this.graphService.getCurrentUser();
 
-      if (!graphService) {
-        return 'Oficial';
-      }
-
-      const currentUser = await graphService.getCurrentUser();
-      const normalizedJobTitle = currentUser.jobTitle
-        .trim()
-        .toLocaleLowerCase();
-
-      if (normalizedJobTitle.indexOf('gerente') >= 0) {
-        return 'Gerente';
-      }
-
-      if (normalizedJobTitle.indexOf('supervisor') >= 0) {
-        return 'Supervisor';
-      }
-
-      if (normalizedJobTitle.indexOf('analista') >= 0) {
-        return 'Analista';
-      }
-    } catch {
-      return 'Oficial';
+    if (
+      currentUser.email.trim().toLocaleLowerCase() === normalizedEmail &&
+      currentUser.role &&
+      this.isRoleType(currentUser.role)
+    ) {
+      return currentUser.role;
     }
 
+    const jobTitle = currentUser.jobTitle.trim().toLocaleLowerCase();
+
+    if (jobTitle.includes('admin')) return 'Admin';
+    if (jobTitle.includes('gerente')) return 'Gerente';
+    if (jobTitle.includes('supervisor')) return 'Supervisor';
+    if (jobTitle.includes('analista')) return 'Analista';
+    if (jobTitle.includes('asistente')) return 'Asistente';
     return 'Oficial';
   }
 
-  /**
-   * Resolves the directory identities the current user is authorized to see.
-   * The result is intentionally role-scoped here so callers do not need to
-   * duplicate Graph hierarchy or department authorization rules.
-   */
-  public async getVisibleAgents(
-    userRole: RoleType
-  ): Promise<IDirectReport[]> {
-    const graphService =
-      this.graphService || GraphService.getActiveInstance();
-
-    if (!graphService) {
-      return [];
-    }
-
-    let currentUser: IGraphCurrentUser;
-
-    try {
-      currentUser = await graphService.getCurrentUser();
-    } catch {
-      return [];
-    }
-
+  public async getVisibleAgents(userRole: RoleType): Promise<IDirectReport[]> {
+    const currentUser = await this.graphService.getCurrentUser();
     const currentUserAsAgent = this.toVisibleAgent(currentUser);
 
-    try {
-      switch (userRole) {
-        case 'Admin':
-          return this.deduplicateAgents(
-            await graphService.getAllUsers()
-          );
+    switch (userRole) {
+      case 'Admin':
+        return this.deduplicateAgents(await this.graphService.getAllUsers());
 
-        case 'Gerente': {
-          const department = currentUser.department.trim();
+      case 'Gerente':
+        return currentUser.department.trim()
+          ? this.deduplicateAgents(
+              await this.graphService.getDepartmentMembers(currentUser.department)
+            )
+          : [];
 
-          if (!department) {
-            // Fail closed: without a verified department there is no safe
-            // organization-wide scope to return.
-            return [];
-          }
+      case 'Supervisor':
+        return this.deduplicateAgents(
+          await this.graphService.getDirectReports()
+        );
 
-          return this.deduplicateAgents(
-            await graphService.getDepartmentMembers(department)
-          );
-        }
+      case 'Analista':
+      case 'Asistente':
+        return this.deduplicateAgents([
+          ...(await this.graphService.getSupervisorPeers()),
+          currentUserAsAgent
+        ]);
 
-        case 'Supervisor':
-          return this.deduplicateAgents(
-            await graphService.getDirectReports()
-          );
-
-        case 'Analista':
-        case 'Asistente': {
-          const peers = await graphService.getSupervisorPeers();
-          return this.deduplicateAgents([
-            ...peers,
-            currentUserAsAgent
-          ]);
-        }
-
-        case 'Oficial':
-          return [currentUserAsAgent];
-
-        default:
-          return [currentUserAsAgent];
-      }
-    } catch {
-      // Least-privilege degradation. A directory outage must never expand the
-      // Gerente/Admin/Supervisor scope; individual roles retain only self.
-      return userRole === 'Analista' ||
-        userRole === 'Asistente' ||
-        userRole === 'Oficial'
-        ? [currentUserAsAgent]
-        : [];
+      case 'Oficial':
+      default:
+        return [currentUserAsAgent];
     }
+  }
+
+  private isRoleType(value: string): value is RoleType {
+    return ROLES.indexOf(value as RoleType) >= 0;
   }
 
   private toVisibleAgent(user: IGraphCurrentUser): IDirectReport {
@@ -180,29 +134,19 @@ export default class SecurityService {
   private deduplicateAgents(
     agents: ReadonlyArray<IDirectReport>
   ): IDirectReport[] {
-    const uniqueAgents: { [key: string]: IDirectReport } = {};
+    const seen = new Set<string>();
 
-    agents
-      .filter((agent) => Boolean(agent.id || agent.email))
-      .forEach((agent) => {
-        const key = agent.id
-          ? `id:${agent.id.toLocaleLowerCase()}`
-          : `email:${agent.email.trim().toLocaleLowerCase()}`;
+    return agents.filter((agent) => {
+      const key = agent.email.trim().toLocaleLowerCase() ||
+        agent.id.trim().toLocaleLowerCase() ||
+        agent.name.trim().toLocaleLowerCase();
 
-        uniqueAgents[key] = { ...agent };
-      });
+      if (!key || seen.has(key)) {
+        return false;
+      }
 
-    return Object.keys(uniqueAgents)
-      .map((key) => uniqueAgents[key])
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  private isRoleType(value: string): value is RoleType {
-    return value === 'Admin' ||
-      value === 'Gerente' ||
-      value === 'Supervisor' ||
-      value === 'Analista' ||
-      value === 'Asistente' ||
-      value === 'Oficial';
+      seen.add(key);
+      return true;
+    });
   }
 }
