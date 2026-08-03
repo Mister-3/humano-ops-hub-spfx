@@ -5,7 +5,8 @@ import type {
   AppUserRole,
   IAppUserRecord,
   IAuthenticatedUser,
-  IRegistrationInput
+  IRegistrationInput,
+  IUserAuthorizationResult
 } from './AuthModels';
 
 interface IAuthContextValue {
@@ -13,13 +14,17 @@ interface IAuthContextValue {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   register: (input: IRegistrationInput) => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
   listUsers: () => Promise<Array<IAppUserRecord & { Id: number }>>;
   authorizeUser: (
     userId: number,
     role: Extract<AppUserRole, 'Admin' | 'Supervisor' | 'Asistente'>
-  ) => Promise<void>;
+  ) => Promise<IUserAuthorizationResult>;
 }
 
 const AuthContext = React.createContext<IAuthContextValue | undefined>(
@@ -67,6 +72,8 @@ export const AuthProvider: React.FC<IAuthProviderProps> = ({
     register: async (input) => {
       setCurrentUser(await service.register(input));
     },
+    changePassword: (currentPassword, newPassword) =>
+      service.changePassword(currentPassword, newPassword),
     signOut: async () => {
       await service.signOut();
       setCurrentUser(null);
@@ -75,9 +82,7 @@ export const AuthProvider: React.FC<IAuthProviderProps> = ({
       setCurrentUser(await service.restoreSession());
     },
     listUsers: () => service.listUsers(),
-    authorizeUser: async (userId, role) => {
-      await service.authorizeUser(userId, role);
-    }
+    authorizeUser: (userId, role) => service.authorizeUser(userId, role)
   }), [currentUser, isLoading, service]);
 
   return (

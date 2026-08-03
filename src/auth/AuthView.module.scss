@@ -50,6 +50,94 @@
   padding-top: 18px;
 }
 
+.securityNotice {
+  color: #fff7df;
+  background: rgba(202, 80, 16, 0.2);
+  border: 1px solid rgba(255, 185, 0, 0.62);
+  border-radius: 7px;
+}
+
+.adminContact {
+  display: inline-flex;
+  margin-top: 14px;
+  color: #70c1ff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.adminContact:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.card {
+  :global(.ms-Pivot-link) {
+    color: #9ca3af;
+    font-weight: 600;
+  }
+
+  :global(.ms-Pivot-link:hover),
+  :global(.ms-Pivot-link:focus) {
+    color: #f3f4f6;
+  }
+
+  :global(.ms-Pivot-link[aria-selected='true']) {
+    color: #ffffff;
+  }
+
+  :global(.ms-Pivot-link::before) {
+    background-color: #0078d4;
+  }
+
+  :global(.ms-Label),
+  :global(.ms-TextField-description) {
+    color: #f3f4f6;
+  }
+
+  :global(.ms-TextField-fieldGroup) {
+    color: #ffffff;
+    background: #18181b;
+    border-color: #4b5563;
+  }
+
+  :global(.ms-TextField-fieldGroup:hover),
+  :global(.ms-TextField-fieldGroup:focus-within) {
+    border-color: #3b82f6;
+  }
+
+  :global(.ms-TextField-field) {
+    color: #ffffff;
+    background: transparent;
+  }
+
+  :global(.ms-TextField-field::placeholder) {
+    color: #9ca3af;
+  }
+
+  :global(.ms-TextField-reveal) {
+    color: #e5e7eb;
+    background: #18181b;
+  }
+
+  :global(.ms-TextField-reveal:hover) {
+    color: #ffffff;
+    background: #27272a;
+  }
+
+  :global(.ms-Button--primary) {
+    color: #ffffff;
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+
+  :global(.ms-Button--primary:hover) {
+    color: #ffffff;
+    background: #3b82f6;
+    border-color: #3b82f6;
+  }
+}
+
 .actions {
   display: flex;
   align-items: center;

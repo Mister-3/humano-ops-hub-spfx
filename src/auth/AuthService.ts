@@ -6,12 +6,16 @@ import type {
   IAppUserRecord,
   IAuthenticatedUser,
   IAuthSessionEntity,
-  IRegistrationInput
+  IRegistrationInput,
+  IUserAuthorizationResult
 } from './AuthModels';
 
 export const CORPORATE_EMAIL_DOMAIN = '@humano.com.do';
 export const MASTER_ADMIN_EMAIL = 'admin@humano.com.do';
 export const MASTER_ADMIN_NAME = 'Administrador Maestro';
+export const ADMIN_NOTIFICATION_EMAIL = '3urek4.ventalm@gmail.com';
+export const SECURITY_PASSWORD_NOTICE =
+  '⚠️ AVISO DE SEGURIDAD: Por políticas de ciberseguridad, NO utilices tu contraseña corporativa de Microsoft / Office 365. Esta plataforma utiliza una clave local independiente.';
 
 const SESSION_STORAGE_KEY = 'humanoOps.authSession';
 const DIRECTORY_IDENTITY_STORAGE_KEY = 'humanoOps.currentUser';
@@ -33,6 +37,21 @@ const randomToken = (length = 32): string => {
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   return bytesToBase64(bytes);
+};
+
+const generateProvisionalPassword = (): string => {
+  const alphabet =
+    'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const randomBytes = new Uint8Array(16);
+  crypto.getRandomValues(randomBytes);
+  const body = Array.from(
+    randomBytes,
+    (value) => alphabet[value % alphabet.length]
+  ).join('');
+
+  // This suffix guarantees the required character classes. The random body
+  // remains the source of entropy and is never persisted as plain text.
+  return `H0H-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}-${body.slice(12)}!9a`;
 };
 
 const digestText = async (value: string): Promise<string> => {
@@ -253,6 +272,45 @@ export class AuthService {
     await this.clearSession();
   }
 
+  public async changePassword(
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    const currentUser = await this.restoreSession();
+
+    if (!currentUser) {
+      throw new Error('La sesión expiró. Inicia sesión nuevamente.');
+    }
+
+    const user = await this.database.getById<IAppUserRecord>(
+      LOCAL_STORES.users,
+      currentUser.id
+    );
+
+    if (!user?.Id) {
+      throw new Error('No se encontró el perfil local autenticado.');
+    }
+
+    if (!await verifyPassword(currentPassword, user.PasswordHash)) {
+      throw new Error('La contraseña actual no es correcta.');
+    }
+
+    if (newPassword.length < 10) {
+      throw new Error('La nueva contraseña debe contener al menos 10 caracteres.');
+    }
+
+    if (await verifyPassword(newPassword, user.PasswordHash)) {
+      throw new Error('La nueva contraseña debe ser diferente de la actual.');
+    }
+
+    await this.database.put(LOCAL_STORES.users, {
+      ...user,
+      Id: user.Id,
+      PasswordHash: await hashPassword(newPassword),
+      SyncStatus: 'Pendiente'
+    });
+  }
+
   public async listUsers(): Promise<Array<IAppUserRecord & { Id: number }>> {
     const users = await this.database.getAll<IAppUserRecord>(LOCAL_STORES.users);
     return users
@@ -265,7 +323,7 @@ export class AuthService {
   public async authorizeUser(
     userId: number,
     role: Extract<AppUserRole, 'Admin' | 'Supervisor' | 'Asistente'>
-  ): Promise<IAppUserRecord & { Id: number }> {
+  ): Promise<IUserAuthorizationResult> {
     const currentUser = await this.restoreSession();
     if (currentUser?.role !== 'Master_Admin' || currentUser.status !== 'Active') {
       throw new Error('Solo el Master Admin puede autorizar usuarios.');
@@ -286,14 +344,18 @@ export class AuthService {
       );
     }
 
-    return this.database.put(LOCAL_STORES.users, {
+    const provisionalPassword = generateProvisionalPassword();
+    const user = await this.database.put<IAppUserRecord>(LOCAL_STORES.users, {
       ...target,
       Id: target.Id,
+      PasswordHash: await hashPassword(provisionalPassword),
       Rol: role,
       Estado: 'Active',
       FechaAprobacion: new Date().toISOString(),
       SyncStatus: 'Pendiente'
     });
+
+    return { user, provisionalPassword };
   }
 
   private async ensureMasterAdmin(): Promise<void> {

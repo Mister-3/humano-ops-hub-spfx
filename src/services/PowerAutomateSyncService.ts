@@ -256,7 +256,10 @@ export class PowerAutomateSyncService {
       );
     }
 
-    await this.mergeUsers(tables.Tabla_Usuarios || []);
+    await this.mergeUsers(
+      tables.Tabla_Usuarios || [],
+      tables.Tabla_Headcount
+    );
     await this.mergeStore(
       LOCAL_STORES.headcount,
       tables.Tabla_Headcount.map((row) => ({
@@ -344,10 +347,21 @@ export class PowerAutomateSyncService {
     URL.revokeObjectURL(url);
   }
 
-  private async mergeUsers(rows: ReadonlyArray<IUsuarioExcelRow>): Promise<void> {
+  private async mergeUsers(
+    rows: ReadonlyArray<IUsuarioExcelRow>,
+    headcountRows: ReadonlyArray<IHeadcountExcelRow>
+  ): Promise<void> {
     const existing = await this.database.getAll<IAppUserRecord>(LOCAL_STORES.users);
     const byEmail = new Map(
       existing.map((item) => [normalizeEmail(item.Email), item])
+    );
+    const directoryNamesByEmail = new Map(
+      headcountRows
+        .map((item) => [
+          normalizeEmail(item.EmailEmpleado),
+          toText(item.NombreEmpleado)
+        ] as const)
+        .filter(([email, name]) => Boolean(email && name))
     );
 
     for (const row of rows) {
@@ -361,11 +375,14 @@ export class PowerAutomateSyncService {
       const status = validated && importedStatus === 'Pending_Validation'
         ? 'Pending_Admin_Approval'
         : importedStatus;
+      const validatedDirectoryName = validated
+        ? directoryNamesByEmail.get(email) || toText(row.Nombre)
+        : '';
       const imported: IAppUserRecord = {
         ID: toText(row.ID),
         Email: email,
         PasswordHash: toText(row.PasswordHash) || current?.PasswordHash || '',
-        Nombre: toText(row.Nombre),
+        Nombre: validatedDirectoryName || toText(row.Nombre) || current?.Nombre || email,
         Rol: isAppUserRole(row.Rol) ? row.Rol : current?.Rol || 'Asistente',
         Estado: status,
         IsProfileValidatedByPA: validated,

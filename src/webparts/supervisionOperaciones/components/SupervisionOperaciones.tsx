@@ -51,6 +51,7 @@ ensureTechFontLoaded();
 export interface ISupervisionOperacionesProps {
   currentUser: IUsuario;
   graphService: GraphService;
+  onChangePassword: () => void;
   onSignOut: () => void;
 }
 
@@ -151,6 +152,7 @@ const absenceMatchesAgent = (
 const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   currentUser,
   graphService,
+  onChangePassword,
   onSignOut
 }) => {
   const [usuario, setUsuario] = React.useState<IUsuario | null>(currentUser);
@@ -547,11 +549,26 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             <span className={styles.rolePrefix}>Rol:</span>
             <span className={styles.roleBadge}>{usuario.rol}</span>
             <IconButton
-              ariaLabel="Cerrar sesión"
+              ariaLabel="Abrir menú de perfil"
               className={styles.signOutButton}
-              iconProps={{ iconName: 'SignOut' }}
-              onClick={onSignOut}
-              title="Cerrar sesión"
+              iconProps={{ iconName: 'Contact' }}
+              menuProps={{
+                items: [
+                  {
+                    key: 'changePassword',
+                    text: 'Cambiar contraseña',
+                    iconProps: { iconName: 'Permissions' },
+                    onClick: onChangePassword
+                  },
+                  {
+                    key: 'signOut',
+                    text: 'Cerrar sesión',
+                    iconProps: { iconName: 'SignOut' },
+                    onClick: onSignOut
+                  }
+                ]
+              }}
+              title="Menú de perfil"
             />
           </div>
         </header>

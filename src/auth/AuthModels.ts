@@ -44,6 +44,11 @@ export interface IRegistrationInput {
   password: string;
 }
 
+export interface IUserAuthorizationResult {
+  user: IAppUserRecord & { Id: number };
+  provisionalPassword: string;
+}
+
 export interface IAuthSessionEntity extends ILocalEntity {
   Id: number;
   Email: string;

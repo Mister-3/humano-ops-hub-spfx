@@ -14,6 +14,10 @@ import {
 
 import { HumanoOpsLogo } from '../webparts/supervisionOperaciones/components/Brand/HumanoOpsLogo';
 import { useAuth } from './AuthProvider';
+import {
+  ADMIN_NOTIFICATION_EMAIL,
+  SECURITY_PASSWORD_NOTICE
+} from './AuthService';
 import styles from './AuthView.module.scss';
 
 const LoginForm: React.FC = () => {
@@ -94,6 +98,12 @@ const RegisterForm: React.FC = () => {
   return (
     <form className={styles.form} onSubmit={(event) => void submit(event)}>
       {error && <MessageBar messageBarType={MessageBarType.error}>{error}</MessageBar>}
+      <MessageBar
+        className={styles.securityNotice}
+        messageBarType={MessageBarType.severeWarning}
+      >
+        {SECURITY_PASSWORD_NOTICE}
+      </MessageBar>
       <TextField
         autoComplete="name"
         label="Nombre completo"
@@ -175,6 +185,12 @@ export const AuthView: React.FC<IAuthViewProps> = ({ children }) => {
               ? 'Estado: Pending_Admin_Approval'
               : 'Estado: Pending_Validation. Usa la sincronización superior para importar la respuesta de Power Automate.'}
           </MessageBar>
+          <a
+            className={styles.adminContact}
+            href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Humano Ops Hub - Solicitud de validación de acceso')}`}
+          >
+            Contactar al administrador: {ADMIN_NOTIFICATION_EMAIL}
+          </a>
           <div className={styles.actions}>
             <span className={styles.helper}>Los datos locales permanecen disponibles en este dispositivo.</span>
             <DefaultButton onClick={() => void signOut()} text="Cerrar sesión" />

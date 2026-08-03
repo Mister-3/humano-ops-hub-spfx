@@ -32,6 +32,22 @@
   line-height: 1.5;
 }
 
+.adminRecipient {
+  margin: 8px 0 0;
+  color: #a7a7b2;
+  font-size: 12px;
+}
+
+.adminRecipient a {
+  color: #70c1ff;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .identityCell {
   display: flex;
   min-width: 0;
@@ -91,6 +107,36 @@
   align-items: end;
 }
 
+.approvalCell {
+  display: flex;
+  min-width: 280px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.provisionalPassword {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  color: #fff7df;
+  background: rgba(255, 185, 0, 0.09);
+  border: 1px solid rgba(255, 185, 0, 0.4);
+  border-radius: 8px;
+}
+
+.provisionalPassword span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.provisionalPassword code {
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+
 .emptyState {
   padding: 28px;
   color: #c8c6c4;
@@ -99,6 +145,12 @@
 
 @media (max-width: 720px) {
   .headerRow {
+    flex-direction: column;
+  }
+
+  .headerActions {
+    width: 100%;
+    align-items: stretch;
     flex-direction: column;
   }
 

@@ -11,6 +11,7 @@ import {
 import PowerAutomateSyncService from './services/PowerAutomateSyncService';
 import { useAuth } from './auth/AuthProvider';
 import AuthView from './auth/AuthView';
+import ChangePasswordDialog from './auth/ChangePasswordDialog';
 import SupervisionOperaciones from './webparts/supervisionOperaciones/components/SupervisionOperaciones';
 import GraphService from './webparts/supervisionOperaciones/services/GraphService';
 
@@ -20,6 +21,8 @@ const App: React.FC = () => {
   const syncService = React.useMemo(() => new PowerAutomateSyncService(), []);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [isSyncing, setIsSyncing] = React.useState<boolean>(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] =
+    React.useState<boolean>(false);
   const [message, setMessage] = React.useState<{
     type: MessageBarType;
     text: string;
@@ -73,6 +76,11 @@ const App: React.FC = () => {
       event.target.value = '';
       setIsSyncing(false);
     }
+  };
+
+  const handleSignOut = async (): Promise<void> => {
+    setIsChangePasswordOpen(false);
+    await signOut();
   };
 
   return (
@@ -134,10 +142,18 @@ const App: React.FC = () => {
               rol: currentUser.role
             }}
             graphService={graphService}
-            onSignOut={() => void signOut()}
+            onChangePassword={() => setIsChangePasswordOpen(true)}
+            onSignOut={() => void handleSignOut()}
           />
         ) : null}
       </AuthView>
+
+      <ChangePasswordDialog
+        isOpen={Boolean(
+          currentUser?.status === 'Active' && isChangePasswordOpen
+        )}
+        onDismiss={() => setIsChangePasswordOpen(false)}
+      />
     </div>
   );
 };

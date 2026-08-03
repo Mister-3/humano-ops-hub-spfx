@@ -15,6 +15,7 @@ import {
 } from '@fluentui/react';
 
 import { useAuth } from '../../../../auth/AuthProvider';
+import { ADMIN_NOTIFICATION_EMAIL } from '../../../../auth/AuthService';
 import type {
   AppUserRole,
   IAppUserRecord
@@ -41,6 +42,8 @@ const UserAdminPanel: React.FC = () => {
   const [selectedRoles, setSelectedRoles] = React.useState<Record<number, AssignableRole>>({});
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [processingId, setProcessingId] = React.useState<number>();
+  const [provisionalPasswords, setProvisionalPasswords] =
+    React.useState<Record<number, string>>({});
   const [message, setMessage] = React.useState<{ type: MessageBarType; text: string }>();
 
   const loadUsers = React.useCallback(async (): Promise<void> => {
@@ -75,11 +78,15 @@ const UserAdminPanel: React.FC = () => {
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
-      await authorizeUser(user.Id, role);
+      const result = await authorizeUser(user.Id, role);
+      setProvisionalPasswords((current) => ({
+        ...current,
+        [user.Id]: result.provisionalPassword
+      }));
       await loadUsers();
       setMessage({
         type: MessageBarType.success,
-        text: `${user.Nombre} fue activado con el rol ${role}.`
+        text: `${user.Nombre} fue activado con el rol ${role}. Copia y entrega su clave provisional por un canal seguro.`
       });
     } catch (error: unknown) {
       setMessage({
@@ -88,6 +95,28 @@ const UserAdminPanel: React.FC = () => {
       });
     } finally {
       setProcessingId(undefined);
+    }
+  };
+
+  const copyProvisionalPassword = async (
+    userId: number
+  ): Promise<void> => {
+    const password = provisionalPasswords[userId];
+    if (!password) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(password);
+      setMessage({
+        type: MessageBarType.success,
+        text: 'Clave provisional copiada. Compártela únicamente por un canal seguro.'
+      });
+    } catch {
+      setMessage({
+        type: MessageBarType.warning,
+        text: 'El navegador bloqueó el portapapeles. Selecciona y copia la clave manualmente.'
+      });
     }
   };
 
@@ -137,39 +166,58 @@ const UserAdminPanel: React.FC = () => {
     {
       key: 'approval',
       name: 'Rol y autorización',
-      minWidth: 250,
+      minWidth: 300,
+      maxWidth: 430,
       onRender: (item: IAppUserRecord & { Id: number }) => {
         const isMaster = item.Rol === 'Master_Admin';
         const isActive = item.Estado === 'Active';
+        const provisionalPassword = provisionalPasswords[item.Id];
         return (
-          <div className={styles.roleEditor}>
-            <Dropdown
-              ariaLabel={`Rol para ${item.Nombre}`}
-              disabled={isMaster || processingId === item.Id}
-              onChange={(_, option) => {
-                const value = String(option?.key || '');
-                if (isAssignableRole(value)) {
-                  setSelectedRoles((current) => ({ ...current, [item.Id]: value }));
+          <div className={styles.approvalCell}>
+            <div className={styles.roleEditor}>
+              <Dropdown
+                ariaLabel={`Rol para ${item.Nombre}`}
+                disabled={isMaster || processingId === item.Id}
+                onChange={(_, option) => {
+                  const value = String(option?.key || '');
+                  if (isAssignableRole(value)) {
+                    setSelectedRoles((current) => ({ ...current, [item.Id]: value }));
+                  }
+                }}
+                options={roleOptions}
+                selectedKey={selectedRoles[item.Id] || 'Asistente'}
+              />
+              <PrimaryButton
+                disabled={
+                  isMaster ||
+                  isActive ||
+                  !item.IsProfileValidatedByPA ||
+                  processingId !== undefined
                 }
-              }}
-              options={roleOptions}
-              selectedKey={selectedRoles[item.Id] || 'Asistente'}
-            />
-            <PrimaryButton
-              disabled={
-                isMaster ||
-                isActive ||
-                !item.IsProfileValidatedByPA ||
-                processingId !== undefined
-              }
-              onClick={() => void approve(item)}
-              text={isActive ? 'Activo' : 'Autorizar Acceso'}
-            />
+                onClick={() => void approve(item)}
+                text={isActive ? 'Activo' : 'Autorizar Acceso'}
+              />
+            </div>
+
+            {provisionalPassword && (
+              <div
+                aria-live="polite"
+                className={styles.provisionalPassword}
+              >
+                <span>Clave provisional (visible solo en esta sesión)</span>
+                <code>{provisionalPassword}</code>
+                <DefaultButton
+                  iconProps={{ iconName: 'Copy' }}
+                  onClick={() => void copyProvisionalPassword(item.Id)}
+                  text="Copiar Clave Provisional"
+                />
+              </div>
+            )}
           </div>
         );
       }
     }
-  ], [processingId, selectedRoles]);
+  ], [processingId, provisionalPasswords, selectedRoles]);
 
   if (currentUser?.role !== 'Master_Admin') {
     return (
@@ -188,8 +236,18 @@ const UserAdminPanel: React.FC = () => {
             <p className={styles.description}>
               Autoriza cuentas validadas por Power Automate y asigna su rol operativo.
             </p>
+            <p className={styles.adminRecipient}>
+              Alertas administrativas: <a href={`mailto:${ADMIN_NOTIFICATION_EMAIL}`}>{ADMIN_NOTIFICATION_EMAIL}</a>
+            </p>
           </div>
-          <DefaultButton iconProps={{ iconName: 'Refresh' }} onClick={() => void loadUsers()} text="Actualizar" />
+          <div className={styles.headerActions}>
+            <DefaultButton
+              href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Humano Ops Hub - Gestión de usuarios')}`}
+              iconProps={{ iconName: 'Mail' }}
+              text="Notificar Admin"
+            />
+            <DefaultButton iconProps={{ iconName: 'Refresh' }} onClick={() => void loadUsers()} text="Actualizar" />
+          </div>
         </div>
       </div>
 
