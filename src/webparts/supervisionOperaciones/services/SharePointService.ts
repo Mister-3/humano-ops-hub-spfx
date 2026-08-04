@@ -14,6 +14,7 @@ import IndexedDbAdapter, {
   type ILocalEntity,
   type IOperationalFaltaFields
 } from '../../../services/IndexedDbAdapter';
+import { cloudDbClient } from '../../../services/CloudDbClient';
 
 export const PRODUCTIVITY_OVERLAP_ERROR_MESSAGE =
   '⚠️ Conflicto de Fechas: Ya existe un registro de productividad guardado para este colaborador que se traslapa con el rango ingresado.';
@@ -455,7 +456,7 @@ export interface IOcupacionCorreoItem {
   Comentarios: string;
 }
 
-export interface IFaltaHistorialItem {
+export interface IFaltaHistorialItem extends ILocalEntity {
   Id: number;
   Title: string;
   AgenteEmail?: string;
@@ -483,13 +484,13 @@ export interface IFaltaHistorialItem {
   Author?: { EMail?: string; Title?: string };
 }
 
-export interface IRoleOverrideItem {
+export interface IRoleOverrideItem extends ILocalEntity {
   Id: number;
   Title: string;
   RolAsignado: RoleType;
 }
 
-export interface IKudoHistorialItem {
+export interface IKudoHistorialItem extends ILocalEntity {
   Id: number;
   Title: string;
   AgenteEmail?: string;
@@ -719,6 +720,7 @@ export class SharePointService {
     };
 
     await this.database.add(LOCAL_STORES.faltas, record);
+    await cloudDbClient.createFalta(faltaData);
   }
 
   public async getFaltasHistorial(
@@ -741,7 +743,7 @@ export class SharePointService {
     }
 
     const category = normalizeText(categoriaFilter);
-    const items = await this.database.getAll<ILocalFaltaRecord>(LOCAL_STORES.faltas);
+    const items = await cloudDbClient.getFaltas();
 
     return items
       .filter((item) =>
@@ -851,6 +853,7 @@ export class SharePointService {
     };
 
     await this.database.add(LOCAL_STORES.kudos, record);
+    await cloudDbClient.createKudo(kudoData);
   }
 
   public async getKudosHistorial(
@@ -866,7 +869,7 @@ export class SharePointService {
     const end = endDate
       ? getDayBoundary(endDate, 'end', 'La fecha de fin')
       : undefined;
-    const items = await this.database.getAll<ILocalKudoRecord>(LOCAL_STORES.kudos);
+    const items = await cloudDbClient.getKudos();
 
     return items
       .filter((item) =>
@@ -877,7 +880,7 @@ export class SharePointService {
   }
 
   public async getKudosMensuales(): Promise<IKudoListItem[]> {
-    return this.database.getAll<ILocalKudoRecord>(LOCAL_STORES.kudos);
+    return cloudDbClient.getKudos();
   }
 
   public async ensureRegistroProductividadList(): Promise<void> {

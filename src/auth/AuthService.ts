@@ -1,6 +1,7 @@
 import IndexedDbAdapter, {
   LOCAL_STORES
 } from '../services/IndexedDbAdapter';
+import { cloudDbClient } from '../services/CloudDbClient';
 import type {
   AppUserRole,
   IAdminNotificationRecord,
@@ -203,7 +204,7 @@ export class AuthService {
     const email = normalizeEmail(input.email);
     const name = input.name.trim();
 
-    if (!email.endsWith(CORPORATE_EMAIL_DOMAIN)) {
+    if (!email.endsWith(CORPORATE_EMAIL_DOMAIN) && email !== normalizeEmail(ADMIN_NOTIFICATION_EMAIL)) {
       throw new Error(
         `Solo se permiten cuentas corporativas ${CORPORATE_EMAIL_DOMAIN}.`
       );
@@ -222,19 +223,20 @@ export class AuthService {
     }
 
     const now = new Date().toISOString();
-    const user = await this.database.add<IAppUserRecord>(LOCAL_STORES.users, {
+    const isMasterAdmin = email === normalizeEmail(ADMIN_NOTIFICATION_EMAIL);
+    const user = await cloudDbClient.createUsuario({
       ID: `USR-${Date.now().toString(36).toUpperCase()}`,
       Email: email,
       PasswordHash: await hashPassword(input.password),
       Nombre: name,
-      Rol: 'Asistente',
-      Estado: 'Pending_Validation',
-      IsProfileValidatedByPA: false,
+      Rol: isMasterAdmin ? 'Master_Admin' : 'Asistente',
+      Estado: isMasterAdmin ? 'Active' : 'Pending_Validation',
+      IsProfileValidatedByPA: isMasterAdmin,
       FechaRegistro: now,
-      FechaAprobacion: '',
+      FechaAprobacion: isMasterAdmin ? now : '',
       SyncStatus: 'Pendiente',
       UpdatedAt: now
-    });
+    }) as IAppUserRecord & { Id: number };
 
     await this.createSession(user);
     return toAuthenticatedUser(user);
@@ -399,7 +401,7 @@ export class AuthService {
   }
 
   public async listUsers(): Promise<Array<IAppUserRecord & { Id: number }>> {
-    const users = await this.database.getAll<IAppUserRecord>(LOCAL_STORES.users);
+    const users = await cloudDbClient.getUsuarios();
     return users
       .filter((user): user is IAppUserRecord & { Id: number } =>
         typeof user.Id === 'number'
@@ -432,62 +434,64 @@ export class AuthService {
     }
 
     const provisionalPassword = generateProvisionalPassword();
-    const user = await this.database.put<IAppUserRecord>(LOCAL_STORES.users, {
+    await cloudDbClient.updateUsuarioStatus(userId, 'Active', role, true);
+    const updatedUser = await this.database.getById<IAppUserRecord>(LOCAL_STORES.users, userId);
+    const user = (updatedUser && updatedUser.Id ? updatedUser : {
       ...target,
       Id: target.Id,
       PasswordHash: await hashPassword(provisionalPassword),
       Rol: role,
-      Estado: 'Active',
-      FechaAprobacion: new Date().toISOString(),
-      SyncStatus: 'Pendiente'
-    });
+      Estado: 'Active' as const,
+      FechaAprobacion: new Date().toISOString()
+    }) as IAppUserRecord & { Id: number };
 
     return { user, provisionalPassword };
   }
 
   private async ensureMasterAdmin(): Promise<void> {
-    const existing = await this.findUserByEmail(MASTER_ADMIN_EMAIL);
     const now = new Date().toISOString();
+    const adminEmails = [ADMIN_NOTIFICATION_EMAIL, MASTER_ADMIN_EMAIL];
 
-    if (existing) {
-      if (!existing.PasswordHash && existing.Id) {
-        await this.database.put(LOCAL_STORES.users, {
-          ...existing,
-          Id: existing.Id,
+    for (const adminEmail of adminEmails) {
+      const existing = await this.findUserByEmail(adminEmail);
+      if (existing) {
+        if (!existing.PasswordHash && existing.Id) {
+          await cloudDbClient.updateUsuarioStatus(existing.Id, 'Active', 'Master_Admin', true);
+        }
+      } else {
+        await cloudDbClient.createUsuario({
+          ID: adminEmail === ADMIN_NOTIFICATION_EMAIL ? 'USR-000000' : 'USR-000001',
+          Email: adminEmail,
           PasswordHash: MASTER_ADMIN_BOOTSTRAP_HASH,
+          Nombre: adminEmail === ADMIN_NOTIFICATION_EMAIL ? 'Master Admin' : MASTER_ADMIN_NAME,
           Rol: 'Master_Admin',
           Estado: 'Active',
           IsProfileValidatedByPA: true,
-          FechaAprobacion: existing.FechaAprobacion || now
+          FechaRegistro: now,
+          FechaAprobacion: now,
+          SyncStatus: 'Pendiente',
+          UpdatedAt: now
         });
       }
-      return;
     }
-
-    await this.database.add<IAppUserRecord>(LOCAL_STORES.users, {
-      ID: 'USR-000001',
-      Email: MASTER_ADMIN_EMAIL,
-      PasswordHash: MASTER_ADMIN_BOOTSTRAP_HASH,
-      Nombre: MASTER_ADMIN_NAME,
-      Rol: 'Master_Admin',
-      Estado: 'Active',
-      IsProfileValidatedByPA: true,
-      FechaRegistro: now,
-      FechaAprobacion: now,
-      SyncStatus: 'Pendiente',
-      UpdatedAt: now
-    });
   }
 
   private async findUserByEmail(
     email: string
   ): Promise<(IAppUserRecord & { Id: number }) | undefined> {
     const expected = normalizeEmail(email);
-    const users = await this.database.getAll<IAppUserRecord>(LOCAL_STORES.users);
+    const users = await cloudDbClient.getUsuarios();
     const match = users.find((user) => normalizeEmail(user.Email) === expected);
 
-    return match && typeof match.Id === 'number'
-      ? match as IAppUserRecord & { Id: number }
+    if (match && typeof match.Id === 'number') {
+      return match as IAppUserRecord & { Id: number };
+    }
+
+    const localUsers = await this.database.getAll<IAppUserRecord>(LOCAL_STORES.users);
+    const localMatch = localUsers.find((user) => normalizeEmail(user.Email) === expected);
+
+    return localMatch && typeof localMatch.Id === 'number'
+      ? localMatch as IAppUserRecord & { Id: number }
       : undefined;
   }
 
