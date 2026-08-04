@@ -18,6 +18,7 @@ import IndexedDbAdapter, {
   type ILocalEntity,
   type LocalStoreName
 } from './IndexedDbAdapter';
+import { cloudDbClient } from './CloudDbClient';
 
 export interface IHeadcountRow extends ILocalEntity {
   Id: number;
@@ -402,10 +403,10 @@ export class PowerAutomateSyncService {
 
   public async exportPackage(): Promise<IPowerAutomateExportPackage> {
     const [users, headcount, faltas, kudos, ausencias, notifications] = await Promise.all([
-      this.database.getAll<IAppUserRecord>(LOCAL_STORES.users),
+      cloudDbClient.getUsuarios(),
       this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount),
-      this.database.getAll(LOCAL_STORES.faltas),
-      this.database.getAll(LOCAL_STORES.kudos),
+      cloudDbClient.getFaltas(),
+      cloudDbClient.getKudos(),
       this.database.getAll(LOCAL_STORES.ausencias),
       this.database.getAll<IAdminNotificationRecord>(LOCAL_STORES.notifications)
     ]);
@@ -714,6 +715,7 @@ export class PowerAutomateSyncService {
         const added = await this.database.add(LOCAL_STORES.users, imported);
         byEmail.set(email, added);
       }
+      await cloudDbClient.updateUsuarioStatus(email, imported.Estado, imported.Rol, imported.IsProfileValidatedByPA);
     }
   }
 

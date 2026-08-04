@@ -1,5 +1,6 @@
 import * as React from 'react';
 import {
+  DefaultButton,
   Dropdown,
   IconButton,
   type IDropdownOption,
@@ -13,6 +14,7 @@ import {
   Text,
   TextField
 } from '@fluentui/react';
+import PowerAutomateSyncService from '../../../../services/PowerAutomateSyncService';
 
 import type { RoleType } from '../../models/AppModels';
 import SharePointService, {
@@ -153,6 +155,11 @@ const AdminConfiguration: React.FC = () => {
   const [catalogErrorMessage, setCatalogErrorMessage] =
     React.useState<string>('');
   const sharePointService = React.useMemo(() => new SharePointService(), []);
+  const syncService = React.useMemo(() => new PowerAutomateSyncService(), []);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [isSyncing, setIsSyncing] = React.useState<boolean>(false);
+  const [syncSuccessMessage, setSyncSuccessMessage] = React.useState<string>('');
+  const [syncErrorMessage, setSyncErrorMessage] = React.useState<string>('');
 
   React.useEffect(() => {
     let isMounted = true;
@@ -414,6 +421,50 @@ const AdminConfiguration: React.FC = () => {
     }
   };
 
+  const handleExport = async (): Promise<void> => {
+    setIsSyncing(true);
+    setSyncSuccessMessage('');
+    setSyncErrorMessage('');
+
+    try {
+      await syncService.downloadExport();
+      setSyncSuccessMessage(
+        'Diferencias exportadas correctamente para sincronizar AppDB.xlsx mediante Power Automate.'
+      );
+    } catch (error: unknown) {
+      setSyncErrorMessage(
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleImport = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsSyncing(true);
+    setSyncSuccessMessage('');
+    setSyncErrorMessage('');
+
+    try {
+      await syncService.importFile(file);
+      setSyncSuccessMessage(
+        'Respuesta de OneDrive / Excel importada y fusionada correctamente.'
+      );
+    } catch (error: unknown) {
+      setSyncErrorMessage(
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      event.target.value = '';
+      setIsSyncing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Stack className={styles.loading} horizontalAlign="center" verticalAlign="center">
@@ -448,6 +499,53 @@ const AdminConfiguration: React.FC = () => {
           {errorMessage}
         </MessageBar>
       )}
+
+      <Stack className={styles.roleCard} tokens={{ childrenGap: 18 }}>
+        <Stack tokens={{ childrenGap: 4 }}>
+          <Text variant="xLarge">Sincronización EntraID y SharePoint</Text>
+          <Text className={styles.description}>
+            Exporta las novedades hacia AppDB.xlsx para ser procesadas mediante Power Automate e importa las respuestas de validación corporativa.
+          </Text>
+        </Stack>
+
+        {syncSuccessMessage && (
+          <MessageBar messageBarType={MessageBarType.success}>
+            {syncSuccessMessage}
+          </MessageBar>
+        )}
+
+        {syncErrorMessage && (
+          <MessageBar messageBarType={MessageBarType.error}>
+            {syncErrorMessage}
+          </MessageBar>
+        )}
+
+        <Stack horizontal wrap verticalAlign="center" tokens={{ childrenGap: 16 }}>
+          <PrimaryButton
+            disabled={isSyncing}
+            iconProps={{ iconName: 'Download' }}
+            onClick={() => void handleExport()}
+            text="🔄 Exportar a Excel / Power Automate"
+          />
+          <DefaultButton
+            disabled={isSyncing}
+            iconProps={{ iconName: 'Upload' }}
+            onClick={() => fileInputRef.current?.click()}
+            text="Importar respuesta (.xlsx / .json)"
+          />
+          <input
+            ref={fileInputRef}
+            accept=".xlsx,.xls,.json"
+            aria-label="Seleccionar paquete AppDB"
+            style={{ display: 'none' }}
+            onChange={(event) => void handleImport(event)}
+            type="file"
+          />
+          {isSyncing && (
+            <Spinner label="Sincronizando..." size={SpinnerSize.small} />
+          )}
+        </Stack>
+      </Stack>
 
       <Stack className={styles.formCard} tokens={{ childrenGap: 20 }}>
         <section className={styles.metricsSection}>
