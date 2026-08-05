@@ -25,11 +25,15 @@ export interface ISupabaseUserRow {
 
 export interface ISupabaseHeadcountRow {
   id?: number | string;
+  member_email?: string;
   email_empleado?: string;
+  member_name?: string;
   nombre_empleado?: string;
-  email_supervisor?: string;
   supervisor_email?: string;
+  email_supervisor?: string;
+  member_puesto?: string;
   cargo?: string;
+  member_area?: string;
   departamento?: string;
   estado_activo?: boolean;
   agente_object_id?: string;
@@ -354,11 +358,11 @@ export class CloudDbClient {
           const mapped: IHeadcountRow[] = data.map((row: ISupabaseHeadcountRow, index: number) => ({
             Id: typeof row.id === 'number' ? row.id : (index + 1),
             ID: String(row.id || `HC-${index + 1}`),
-            EmailEmpleado: row.email_empleado || (row as any).email || '',
-            NombreEmpleado: row.nombre_empleado || (row as any).nombre || '',
-            EmailSupervisor: row.email_supervisor || row.supervisor_email || '',
-            Cargo: row.cargo || 'Oficial',
-            Departamento: row.departamento || 'Operaciones',
+            EmailEmpleado: row.member_email || row.email_empleado || (row as any).email || '',
+            NombreEmpleado: row.member_name || row.nombre_empleado || (row as any).nombre || '',
+            EmailSupervisor: row.supervisor_email || row.email_supervisor || '',
+            Cargo: row.member_puesto || row.cargo || 'Oficial',
+            Departamento: row.member_area || row.departamento || 'Operaciones',
             EstadoActivo: row.estado_activo !== false,
             AgenteObjectID: row.agente_object_id || '',
             Rol: (row.rol as any) || 'Oficial',
@@ -389,17 +393,17 @@ export class CloudDbClient {
         const { data, error } = await supabase
           .from('headcount')
           .select('*')
-          .or(`email_supervisor.ilike.${normSupervisor},supervisor_email.ilike.${normSupervisor}`);
+          .or(`supervisor_email.ilike.${normSupervisor},email_supervisor.ilike.${normSupervisor}`);
 
         if (!error && Array.isArray(data) && data.length > 0) {
           return data.map((row: ISupabaseHeadcountRow, index: number) => ({
             Id: typeof row.id === 'number' ? row.id : (index + 1),
             ID: String(row.id || `HC-${index + 1}`),
-            EmailEmpleado: row.email_empleado || (row as any).email || '',
-            NombreEmpleado: row.nombre_empleado || (row as any).nombre || '',
-            EmailSupervisor: row.email_supervisor || row.supervisor_email || '',
-            Cargo: row.cargo || 'Oficial',
-            Departamento: row.departamento || 'Operaciones',
+            EmailEmpleado: row.member_email || row.email_empleado || (row as any).email || '',
+            NombreEmpleado: row.member_name || row.nombre_empleado || (row as any).nombre || '',
+            EmailSupervisor: row.supervisor_email || row.email_supervisor || '',
+            Cargo: row.member_puesto || row.cargo || 'Oficial',
+            Departamento: row.member_area || row.departamento || 'Operaciones',
             EstadoActivo: row.estado_activo !== false,
             AgenteObjectID: row.agente_object_id || '',
             Rol: (row.rol as any) || 'Oficial',
@@ -424,33 +428,32 @@ export class CloudDbClient {
     if (!rows || rows.length === 0) return;
 
     const registrosHeadcount = rows.map((r: any) => {
-      const emailEmpleado = (
-        r.EmailEmpleado || r.email_empleado || r.memberemail || r.MemberEmail || r.emailempleado || r.email || r.Correo || r.correo || ''
+      const memberEmail = (
+        r.member_email || r.memberemail || r.MemberEmail || r.EmailEmpleado || r.email_empleado || r.emailempleado || r.email || r.Correo || r.correo || ''
       ).toString().trim().toLowerCase();
-      const nombreEmpleado = (
-        r.NombreEmpleado || r.nombre_empleado || r.membername || r.MemberName || r.nombreempleado || r.nombre || ''
+      const memberName = (
+        r.member_name || r.membername || r.MemberName || r.NombreEmpleado || r.nombre_empleado || r.nombreempleado || r.nombre || ''
       ).toString().trim();
-      const emailSupervisor = (
-        r.EmailSupervisor || r.email_supervisor || r.supervisoremail || r.SupervisorEmail || r.emailsupervisor || r.supervisor_email || ''
+      const supervisorEmail = (
+        r.supervisor_email || r.supervisoremail || r.SupervisorEmail || r.EmailSupervisor || r.email_supervisor || r.emailsupervisor || ''
       ).toString().trim().toLowerCase();
-      const cargo = (
-        r.Cargo || r.cargo || r.memberpuesto || r.MemberPuesto || r.puesto || ''
+      const memberPuesto = (
+        r.member_puesto || r.memberpuesto || r.MemberPuesto || r.Cargo || r.cargo || r.puesto || ''
       ).toString().trim() || 'Oficial';
-      const departamento = (
-        r.Departamento || r.departamento || r.memberarea || r.MemberArea || r.area || ''
+      const memberArea = (
+        r.member_area || r.memberarea || r.MemberArea || r.Departamento || r.departamento || r.area || ''
       ).toString().trim() || 'Operaciones';
       const estadoActivo = r.EstadoActivo ?? r.estado_activo ?? true;
 
       return {
-        email_empleado: emailEmpleado,
-        nombre_empleado: nombreEmpleado,
-        email_supervisor: emailSupervisor,
-        supervisor_email: emailSupervisor,
-        cargo,
-        departamento,
+        member_email: memberEmail,
+        member_name: memberName,
+        supervisor_email: supervisorEmail,
+        member_puesto: memberPuesto,
+        member_area: memberArea,
         estado_activo: Boolean(estadoActivo)
       };
-    }).filter(item => Boolean(item.email_empleado));
+    }).filter(item => Boolean(item.member_email));
 
     if (registrosHeadcount.length === 0) return;
 
@@ -458,7 +461,7 @@ export class CloudDbClient {
       try {
         const { error } = await supabase
           .from('headcount')
-          .upsert(registrosHeadcount, { onConflict: 'email_empleado' });
+          .upsert(registrosHeadcount, { onConflict: 'member_email' });
 
         if (!error) {
           console.log('Headcount importado exitosamente:', registrosHeadcount.length);
