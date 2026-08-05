@@ -251,6 +251,38 @@ const getRowCellValues = (
     : Object.values(values);
 };
 
+const IMPORTED_FILES_KEY = 'humanoOps.importedTimestamps';
+
+const getImportedTimestamps = (): Set<string> => {
+  if (typeof localStorage === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(IMPORTED_FILES_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const saveImportedTimestamp = (timestamp: string): void => {
+  if (typeof localStorage === 'undefined' || !timestamp) return;
+  try {
+    const existing = getImportedTimestamps();
+    existing.add(timestamp);
+    localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(Array.from(existing)));
+  } catch {
+    // Ignore storage errors
+  }
+};
+
+const generatePackageChecksum = (tables: Record<string, unknown>): string => {
+  const str = JSON.stringify(tables);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return `hash:${Math.abs(hash)}_${str.length}`;
+};
+
 const extractUserRowValues = (row: Record<string, unknown> | IUsuarioExcelRow) => {
   const r = row as Record<string, unknown>;
   const email = normalizeEmail(r.Email || r.email || r.Correo || r.correo);
@@ -518,6 +550,16 @@ export class PowerAutomateSyncService {
       );
     }
 
+    const exportedAt = parsed.exportedAt || (parsed as any).exported_at;
+    const packageSignature = exportedAt
+      ? `time:${exportedAt}`
+      : generatePackageChecksum(tables as unknown as Record<string, unknown>);
+
+    const importedSet = getImportedTimestamps();
+    if (importedSet.has(packageSignature)) {
+      throw new Error('Este archivo ya fue importado anteriormente y no puede procesarse de nuevo.');
+    }
+
     await this.mergeUsers(
       tables.Tabla_Usuarios || [],
       tables.Tabla_Headcount
@@ -618,6 +660,7 @@ export class PowerAutomateSyncService {
       })),
       (item) => toText(item.ID)
     );
+    saveImportedTimestamp(packageSignature);
   }
 
   public async importFile(file: File): Promise<void> {
@@ -756,13 +799,25 @@ export class PowerAutomateSyncService {
       const currentCloud = cloudUserMap.get(email);
       const current = currentCloud || currentLocal;
 
-      const importedStatus = isAppUserStatus(extractedEstado)
-        ? (extractedEstado as AppUserStatus)
-        : 'Pending_Validation';
-      const status = isValidatedPA && importedStatus === 'Pending_Validation'
-        ? 'Pending_Admin_Approval'
-        : importedStatus;
-      const validatedDirectoryName = isValidatedPA
+      const isAlreadyActiveOrValidated = current?.Estado === 'Active' || Boolean(current?.IsProfileValidatedByPA);
+
+      let status: AppUserStatus;
+      let finalValidatedPA: boolean;
+
+      if (isAlreadyActiveOrValidated) {
+        status = 'Active';
+        finalValidatedPA = true;
+      } else {
+        const importedStatus = isAppUserStatus(extractedEstado)
+          ? (extractedEstado as AppUserStatus)
+          : 'Pending_Validation';
+        finalValidatedPA = isValidatedPA;
+        status = finalValidatedPA && importedStatus === 'Pending_Validation'
+          ? 'Pending_Admin_Approval'
+          : importedStatus;
+      }
+
+      const validatedDirectoryName = finalValidatedPA
         ? directoryNamesByEmail.get(email) || toText((rawRow as any).Nombre || (rawRow as any).nombre)
         : '';
 
