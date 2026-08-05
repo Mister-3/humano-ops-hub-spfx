@@ -261,7 +261,7 @@ export class AuthService {
       PasswordHash: await hashPassword(input.password),
       Nombre: name,
       Rol: isMasterAdmin ? 'Master_Admin' : 'Asistente',
-      Estado: isMasterAdmin ? 'Active' : 'Pending_Validation',
+      Estado: isMasterAdmin ? 'Active' : 'Pending_Admin_Approval',
       IsProfileValidatedByPA: isMasterAdmin,
       FechaRegistro: now,
       FechaAprobacion: isMasterAdmin ? now : '',

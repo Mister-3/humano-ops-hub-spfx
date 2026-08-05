@@ -100,7 +100,7 @@ export class CloudDbClient {
               Email: row.email || '',
               Nombre: row.nombre || '',
               Rol: (row.rol as AppUserRole) || 'Asistente',
-              Estado: (row.estado as AppUserStatus) || 'Pending_Validation',
+              Estado: (row.estado as AppUserStatus) || 'Pending_Admin_Approval',
               IsProfileValidatedByPA: Boolean(row.is_profile_validated_pa),
               FechaRegistro: row.fecha_registro || new Date().toISOString(),
               FechaAprobacion: '',
@@ -133,7 +133,7 @@ export class CloudDbClient {
       Email: user.Email || '',
       Nombre: user.Nombre || '',
       Rol: user.Rol || 'Asistente',
-      Estado: user.Estado || 'Pending_Validation',
+      Estado: user.Estado || 'Pending_Admin_Approval',
       IsProfileValidatedByPA: Boolean(user.IsProfileValidatedByPA),
       FechaRegistro: user.FechaRegistro || new Date().toISOString(),
       FechaAprobacion: user.FechaAprobacion || '',
@@ -162,7 +162,9 @@ export class CloudDbClient {
           .insert([payload])
           .select();
 
-        if (!error && data && data.length > 0) {
+        if (error) {
+          console.error('CloudDbClient.createUsuario error inserting to Supabase:', error);
+        } else if (data && data.length > 0) {
           const insertedRow = data[0] as ISupabaseUserRow;
           if (insertedRow.id && typeof insertedRow.id === 'number') {
             savedLocal.Id = insertedRow.id;

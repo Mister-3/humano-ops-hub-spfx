@@ -59,9 +59,30 @@ const UserAdminPanel: React.FC = () => {
   const { currentUser, listUsers } = useAuth();
   const [users, setUsers] = React.useState<Array<IAppUserRecord & { Id: number }>>([]);
   const [selectedRoles, setSelectedRoles] = React.useState<Record<number, AppUserRole>>({});
+  const [statusFilter, setStatusFilter] = React.useState<string>('ALL');
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [processingId, setProcessingId] = React.useState<number>();
   const [message, setMessage] = React.useState<{ type: MessageBarType; text: string }>();
+
+  const statusFilterOptions: IDropdownOption[] = [
+    { key: 'ALL', text: 'Todos los estados' },
+    { key: 'PENDING', text: 'Pendientes de Aprobación' },
+    { key: 'ACTIVE', text: 'Activos' },
+    { key: 'DISABLED', text: 'Deshabilitados' }
+  ];
+
+  const filteredUsers = React.useMemo(() => {
+    if (statusFilter === 'PENDING') {
+      return users.filter(u => u.Estado === 'Pending_Admin_Approval' || u.Estado === 'Pending_Validation');
+    }
+    if (statusFilter === 'ACTIVE') {
+      return users.filter(u => u.Estado === 'Active');
+    }
+    if (statusFilter === 'DISABLED') {
+      return users.filter(u => u.Estado === 'Disabled');
+    }
+    return users;
+  }, [users, statusFilter]);
 
   const loadUsers = React.useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -275,6 +296,15 @@ const UserAdminPanel: React.FC = () => {
             </p>
           </div>
           <div className={styles.headerActions}>
+            <Dropdown
+              ariaLabel="Filtrar por estado"
+              onChange={(_, option) => {
+                if (option) setStatusFilter(String(option.key));
+              }}
+              options={statusFilterOptions}
+              selectedKey={statusFilter}
+              styles={{ root: { minWidth: 180 } }}
+            />
             <DefaultButton
               href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Humano Ops Hub - Gestión de usuarios')}`}
               iconProps={{ iconName: 'Mail' }}
@@ -294,12 +324,12 @@ const UserAdminPanel: React.FC = () => {
       <div className={styles.tableCard}>
         {isLoading ? (
           <Spinner label="Cargando usuarios..." size={SpinnerSize.large} />
-        ) : users.length === 0 ? (
-          <div className={styles.emptyState}>No existen usuarios registrados.</div>
+        ) : filteredUsers.length === 0 ? (
+          <div className={styles.emptyState}>No existen usuarios registrados para este filtro.</div>
         ) : (
           <DetailsList
             columns={columns}
-            items={users}
+            items={filteredUsers}
             layoutMode={DetailsListLayoutMode.justified}
             selectionMode={SelectionMode.none}
           />
