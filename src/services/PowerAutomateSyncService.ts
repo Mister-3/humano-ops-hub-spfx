@@ -560,9 +560,12 @@ export class PowerAutomateSyncService {
       throw new Error('Este archivo ya fue importado anteriormente y no puede procesarse de nuevo.');
     }
 
+    const headcountRows = tables.Tabla_Headcount || (tables as any).Headcount || [];
+    await cloudDbClient.upsertHeadcount(headcountRows);
+
     await this.mergeUsers(
       tables.Tabla_Usuarios || [],
-      tables.Tabla_Headcount
+      headcountRows
     );
     await this.mergeStore(
       LOCAL_STORES.headcount,

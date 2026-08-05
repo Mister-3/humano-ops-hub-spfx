@@ -418,6 +418,61 @@ export class CloudDbClient {
     });
   }
 
+  public async upsertHeadcount(
+    rows: ReadonlyArray<unknown>
+  ): Promise<void> {
+    if (!rows || rows.length === 0) return;
+
+    const registrosHeadcount = rows.map((r: any) => {
+      const emailEmpleado = (
+        r.EmailEmpleado || r.email_empleado || r.memberemail || r.MemberEmail || r.emailempleado || r.email || r.Correo || r.correo || ''
+      ).toString().trim().toLowerCase();
+      const nombreEmpleado = (
+        r.NombreEmpleado || r.nombre_empleado || r.membername || r.MemberName || r.nombreempleado || r.nombre || ''
+      ).toString().trim();
+      const emailSupervisor = (
+        r.EmailSupervisor || r.email_supervisor || r.supervisoremail || r.SupervisorEmail || r.emailsupervisor || r.supervisor_email || ''
+      ).toString().trim().toLowerCase();
+      const cargo = (
+        r.Cargo || r.cargo || r.memberpuesto || r.MemberPuesto || r.puesto || ''
+      ).toString().trim() || 'Oficial';
+      const departamento = (
+        r.Departamento || r.departamento || r.memberarea || r.MemberArea || r.area || ''
+      ).toString().trim() || 'Operaciones';
+      const estadoActivo = r.EstadoActivo ?? r.estado_activo ?? true;
+
+      return {
+        email_empleado: emailEmpleado,
+        nombre_empleado: nombreEmpleado,
+        email_supervisor: emailSupervisor,
+        supervisor_email: emailSupervisor,
+        cargo,
+        departamento,
+        estado_activo: Boolean(estadoActivo)
+      };
+    }).filter(item => Boolean(item.email_empleado));
+
+    if (registrosHeadcount.length === 0) return;
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase
+          .from('headcount')
+          .upsert(registrosHeadcount, { onConflict: 'email_empleado' });
+
+        if (!error) {
+          console.log('Headcount importado exitosamente:', registrosHeadcount.length);
+        } else {
+          console.warn('CloudDbClient.upsertHeadcount Supabase error (intentando insert):', error);
+          await supabase.from('headcount').insert(registrosHeadcount);
+          console.log('Headcount importado exitosamente:', registrosHeadcount.length);
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.upsertHeadcount error:', err);
+      }
+    }
+  }
+
   // ==========================================
   // FALTAS Y ERRORES CRUD (OperacionalService)
   // ==========================================
