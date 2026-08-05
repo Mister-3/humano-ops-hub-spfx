@@ -192,11 +192,6 @@ export class CloudDbClient {
         const updatePayload: Record<string, unknown> = {};
         if (estado) updatePayload.estado = estado;
         if (rol) updatePayload.rol = rol;
-        if (typeof isManualOverride === 'boolean') {
-          updatePayload.is_role_manually_overridden = isManualOverride;
-        } else if (rol) {
-          updatePayload.is_role_manually_overridden = true;
-        }
         if (typeof isProfileValidatedByPA === 'boolean') {
           updatePayload.is_profile_validated_pa = isProfileValidatedByPA;
         }
@@ -256,9 +251,9 @@ export class CloudDbClient {
     if (isSupabaseConfigured()) {
       try {
         const updatePayload = {
-          rol: newRole,
-          is_role_manually_overridden: true
+          rol: newRole
         };
+        console.log('Enviando PATCH a Supabase para:', identifier, updatePayload);
         let query = supabase.from('usuarios').update(updatePayload);
         const strId = String(identifier).trim();
         if (typeof identifier === 'number') {
