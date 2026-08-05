@@ -40,14 +40,14 @@ export interface IHeadcountRow extends ILocalEntity {
 export interface IUsuarioExcelRow {
   ID: string;
   Email: string;
-  PasswordHash: string;
   Nombre: string;
   Rol: AppUserRole;
-  CalculatedRol?: AppUserRole | string;
   Estado: AppUserStatus;
-  IsProfileValidatedByPA: boolean;
-  FechaRegistro: string;
-  FechaAprobacion: string;
+  PasswordHash?: string;
+  CalculatedRol?: AppUserRole | string;
+  IsProfileValidatedByPA?: boolean;
+  FechaRegistro?: string;
+  FechaAprobacion?: string;
 }
 
 export interface IHeadcountExcelRow {
@@ -305,15 +305,11 @@ const getRecordId = (record: Record<string, unknown>): string =>
   toText(record.AuditID || record.ID || record.Id);
 
 const toUsuarioExcel = (user: IAppUserRecord): IUsuarioExcelRow => ({
-  ID: user.ID,
+  ID: user.ID || String(user.Id || ''),
   Email: normalizeEmail(user.Email),
-  PasswordHash: user.PasswordHash,
   Nombre: user.Nombre,
   Rol: user.Rol,
-  Estado: user.Estado,
-  IsProfileValidatedByPA: user.IsProfileValidatedByPA,
-  FechaRegistro: user.FechaRegistro,
-  FechaAprobacion: user.FechaAprobacion
+  Estado: user.Estado
 });
 
 const toHeadcountExcel = (row: IHeadcountRow): IHeadcountExcelRow => ({
