@@ -157,6 +157,12 @@ const toNumber = (value: unknown): number => {
 const isPending = (item: ILocalEntity): boolean =>
   item.SyncStatus !== 'Sincronizado';
 
+const isPendingUser = (user: IAppUserRecord): boolean =>
+  user.SyncStatus !== 'Sincronizado' ||
+  user.Estado === 'Pending_Admin_Approval' ||
+  user.Estado === 'Pending_Validation' ||
+  user.IsProfileValidatedByPA === false;
+
 const isAppUserRole = (value: string): value is AppUserRole =>
   ACTIVE_USER_ROLES.includes(value as AppUserRole);
 
@@ -415,7 +421,7 @@ export class PowerAutomateSyncService {
       targetWorkbook: 'AppDB.xlsx',
       exportedAt: new Date().toISOString(),
       tables: {
-        Tabla_Usuarios: users.filter(isPending).map(toUsuarioExcel),
+        Tabla_Usuarios: users.filter(isPendingUser).map(toUsuarioExcel),
         Tabla_Headcount: headcount.filter(isPending).map(toHeadcountExcel),
         Tabla_Faltas: faltas.filter(isPending).map(toFaltaExcel),
         Tabla_Kudos: kudos.filter(isPending).map(toKudoExcel),
