@@ -40,18 +40,28 @@ const DEFAULT_HEADCOUNT: ReadonlyArray<Omit<IHeadcountRow, 'Id'>> = [
 const normalizeEmail = (value?: string): string =>
   value?.trim().toLocaleLowerCase() || '';
 
-const getRowEmail = (row: IHeadcountRow): string =>
-  normalizeEmail(row.EmailEmpleado || row.Email);
+const getRowEmail = (row: IHeadcountRow): string => {
+  const r = row as unknown as Record<string, unknown>;
+  return normalizeEmail(
+    (r.EmailEmpleado || r.Email || r.memberemail || r.emailempleado || r.email || r.Correo || r.correo) as string | undefined
+  );
+};
 
-const getRowName = (row: IHeadcountRow): string =>
-  row.NombreEmpleado || row.Nombre || getRowEmail(row);
+const getRowName = (row: IHeadcountRow): string => {
+  const r = row as unknown as Record<string, unknown>;
+  return ((r.NombreEmpleado || r.Nombre || r.membername || r.nombreempleado || r.nombre) as string) || getRowEmail(row);
+};
 
-const getSupervisorEmail = (row: IHeadcountRow): string =>
-  normalizeEmail(row.EmailSupervisor || row.SupervisorEmail);
+const getSupervisorEmail = (row: IHeadcountRow): string => {
+  const r = row as unknown as Record<string, unknown>;
+  return normalizeEmail(
+    (r.EmailSupervisor || r.SupervisorEmail || r.supervisoremail || r.emailsupervisor || r.Supervisor_Email || r.Email_Supervisor) as string | undefined
+  );
+};
 
 const getRowRole = (row: IHeadcountRow): IHeadcountRow['Rol'] =>
   row.Rol || (
-    row.Cargo.toLocaleLowerCase().includes('supervisor')
+    (row.Cargo || '').toLocaleLowerCase().includes('supervisor')
       ? 'Supervisor'
       : 'Oficial'
   );

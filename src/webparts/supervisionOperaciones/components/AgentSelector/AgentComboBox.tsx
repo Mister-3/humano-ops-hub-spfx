@@ -194,12 +194,14 @@ export const AgentComboBox: React.FC<IAgentComboBoxProps> = ({
     }
   }, [authorizedScopeOptions, onScopeChange, selectedScopeKey]);
 
+  const isDropdownDisabled = disabled || (agents.length <= 1 && scopeOptions.length === 0);
+
   return (
     <ComboBox
       allowFreeform={false}
       allowFreeInput
       autoComplete="off"
-      disabled={disabled}
+      disabled={isDropdownDisabled}
       label={label}
       onChange={(_, option) => {
         const data = option?.data as AgentComboBoxOptionData | undefined;

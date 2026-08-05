@@ -90,6 +90,11 @@ export default class SecurityService {
   public async getVisibleAgents(userRole: RoleType): Promise<IDirectReport[]> {
     const currentUser = await this.graphService.getCurrentUser();
     const currentUserAsAgent = this.toVisibleAgent(currentUser);
+    const normalizedRole = (userRole || '').toString().toLowerCase();
+
+    if (normalizedRole === 'agente' || normalizedRole === 'oficial') {
+      return [currentUserAsAgent];
+    }
 
     switch (userRole) {
       case 'Master_Admin':
@@ -115,6 +120,7 @@ export default class SecurityService {
           currentUserAsAgent
         ]);
 
+      case 'Agente':
       case 'Oficial':
       default:
         return [currentUserAsAgent];

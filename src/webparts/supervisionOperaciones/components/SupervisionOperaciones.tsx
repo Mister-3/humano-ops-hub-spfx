@@ -218,10 +218,11 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
         const resolvedUsers = await securityService.getVisibleAgents(
           usuario.rol
         );
-        const scopedUsers =
-          usuario.rol === 'Asistente' ||
-          usuario.rol === 'Analista' ||
-          usuario.rol === 'Oficial'
+        const userRoleStr = (usuario.rol || '').toString().toLowerCase();
+        const isAgent = userRoleStr === 'agente' || userRoleStr === 'oficial';
+        const scopedUsers = isAgent
+          ? includeCurrentUserInScope([], usuario)
+          : usuario.rol === 'Asistente' || usuario.rol === 'Analista'
             ? includeCurrentUserInScope(resolvedUsers, usuario)
             : resolvedUsers;
 
