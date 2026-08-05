@@ -115,7 +115,7 @@ const UserAdminPanel: React.FC = () => {
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
-      await cloudDbClient.updateUsuarioStatus(user.Id, 'Active', role, true, true);
+      await cloudDbClient.updateUsuarioStatus(user.Email || user.Id, 'Active', role, true, true);
       await loadUsers();
       setMessage({
         type: MessageBarType.success,
@@ -136,7 +136,7 @@ const UserAdminPanel: React.FC = () => {
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
-      await cloudDbClient.updateUsuarioRole(user.Id, role);
+      await cloudDbClient.updateUsuarioRole(user.Email || user.Id, role);
       await loadUsers();
       setMessage({
         type: MessageBarType.success,
@@ -156,7 +156,7 @@ const UserAdminPanel: React.FC = () => {
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
-      await cloudDbClient.updateUsuarioStatus(user.Id, 'Disabled');
+      await cloudDbClient.updateUsuarioStatus(user.Email || user.Id, 'Disabled');
       await loadUsers();
       setMessage({
         type: MessageBarType.warning,
