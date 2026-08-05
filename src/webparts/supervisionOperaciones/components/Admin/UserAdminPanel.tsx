@@ -36,6 +36,17 @@ const roleOptions: IDropdownOption[] = [
 const isAssignableRole = (value: string): value is AssignableRole =>
   roleOptions.some((option) => option.key === value);
 
+const isMasterAdminRole = (role?: string): boolean => {
+  if (!role) return false;
+  const normalized = role.trim().toLowerCase().replace(/[\s_-]+/g, '_');
+  return (
+    normalized === 'master_admin' ||
+    role === 'Master Admin' ||
+    role === 'Master_Admin' ||
+    role.toLowerCase().includes('master')
+  );
+};
+
 const UserAdminPanel: React.FC = () => {
   const { currentUser, listUsers, authorizeUser } = useAuth();
   const [users, setUsers] = React.useState<Array<IAppUserRecord & { Id: number }>>([]);
@@ -169,7 +180,7 @@ const UserAdminPanel: React.FC = () => {
       minWidth: 300,
       maxWidth: 430,
       onRender: (item: IAppUserRecord & { Id: number }) => {
-        const isMaster = item.Rol === 'Master_Admin';
+        const isMaster = isMasterAdminRole(item.Rol);
         const isActive = item.Estado === 'Active';
         const provisionalPassword = provisionalPasswords[item.Id];
         return (
@@ -188,14 +199,9 @@ const UserAdminPanel: React.FC = () => {
                 selectedKey={selectedRoles[item.Id] || 'Asistente'}
               />
               <PrimaryButton
-                disabled={
-                  isMaster ||
-                  isActive ||
-                  !item.IsProfileValidatedByPA ||
-                  processingId !== undefined
-                }
+                disabled={isMaster || processingId === item.Id}
                 onClick={() => void approve(item)}
-                text={isActive ? 'Activo' : 'Autorizar Acceso'}
+                text={isActive ? 'Actualizar rol' : 'Autorizar'}
               />
             </div>
 
@@ -219,7 +225,7 @@ const UserAdminPanel: React.FC = () => {
     }
   ], [processingId, provisionalPasswords, selectedRoles]);
 
-  if (currentUser?.role !== 'Master_Admin') {
+  if (!isMasterAdminRole(currentUser?.role)) {
     return (
       <MessageBar messageBarType={MessageBarType.blocked}>
         Acceso exclusivo para el Master Admin.
