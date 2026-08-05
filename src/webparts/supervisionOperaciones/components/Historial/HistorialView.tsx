@@ -18,6 +18,7 @@ import {
 import type { RoleType } from '../../models/AppModels';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
+  deduplicateKudos,
   type ICatalogoItem,
   type IFaltaHistorialItem,
   type IKudoHistorialItem,
@@ -1167,6 +1168,10 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
         records = records.filter((item) => (
           isFaltaItem(item) && isApprovedFalta(item)
         ));
+      }
+
+      if (moduleType === 'kudos') {
+        records = deduplicateKudos(records as IKudoHistorialItem[]);
       }
 
       records.sort((left, right) => (

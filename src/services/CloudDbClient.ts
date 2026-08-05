@@ -43,6 +43,42 @@ export interface ISupabaseKudoRow {
   fecha?: string;
 }
 
+export const deduplicateKudos = <T extends Partial<IKudoHistorialItem> & {
+  id?: number | string;
+  email_destino?: string;
+  email_origen?: string;
+  fecha?: string;
+  motivo?: string;
+}>(
+  items: ReadonlyArray<T>
+): T[] => {
+  const seenKeys = new Set<string>();
+  const result: T[] = [];
+
+  for (const kudo of items) {
+    const numericId = typeof kudo.Id === 'number' && kudo.Id > 0
+      ? kudo.Id
+      : (typeof kudo.id === 'number' && kudo.id > 0 ? kudo.id : 0);
+    const auditId = (kudo.AuditID || (typeof kudo.id === 'string' ? kudo.id : '')).trim();
+    const email = (kudo.AgenteEmail || kudo.email_destino || kudo.Title || '').trim().toLowerCase();
+    const fecha = (kudo.FechaKudo || kudo.fecha || '').trim();
+    const motivo = (kudo.Atributo || kudo.Mensaje || kudo.motivo || '').trim().toLowerCase();
+
+    const key = numericId > 0
+      ? `id:${numericId}`
+      : (auditId && auditId !== '-')
+        ? `audit:${auditId}`
+        : `composite:${email}_${fecha}_${motivo}`;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      result.push(kudo);
+    }
+  }
+
+  return result;
+};
+
 export class CloudDbClient {
   // ==========================================
   // USUARIOS CRUD
@@ -325,7 +361,7 @@ export class CloudDbClient {
           .from('kudos')
           .select('*');
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mappedKudos: IKudoHistorialItem[] = data.map((row: ISupabaseKudoRow, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
             return {
@@ -342,21 +378,24 @@ export class CloudDbClient {
             };
           });
 
+          const deduplicated = deduplicateKudos(mappedKudos);
+
           // Cache to IndexedDB
           try {
-            await indexedDb.replaceAll(LOCAL_STORES.kudos, mappedKudos);
+            await indexedDb.replaceAll(LOCAL_STORES.kudos, deduplicated);
           } catch {
             // Ignore cache error
           }
 
-          return mappedKudos;
+          return deduplicated;
         }
       } catch (err) {
         console.warn('CloudDbClient.getKudos fallback to IndexedDB:', err);
       }
     }
 
-    return indexedDb.getAll<IKudoHistorialItem>(LOCAL_STORES.kudos);
+    const localKudos = await indexedDb.getAll<IKudoHistorialItem>(LOCAL_STORES.kudos);
+    return deduplicateKudos(localKudos);
   }
 
   public async createKudo(

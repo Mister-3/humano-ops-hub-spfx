@@ -18,6 +18,7 @@ import {
 } from '@fluentui/react';
 
 import SharePointService, {
+  deduplicateKudos,
   isFaltaApprovedForScoring,
   type IConfiguracionMetricas,
   type IEvaluacionKudoItem,
@@ -453,7 +454,7 @@ const buildEmployeeMonthCandidate = (
     );
   });
 
-  kudos.forEach((item) => {
+  deduplicateKudos(kudos).forEach((item: IEvaluacionKudoItem) => {
     const agent = getAccumulator(item);
 
     if (!agent) {

@@ -14,10 +14,12 @@ import SkeletonLoader from '../Common/SkeletonLoader';
 import type { IDirectReport } from '../../services/GraphService';
 import useCurrentDate from '../../hooks/useCurrentDate';
 import SharePointService, {
+  deduplicateKudos,
   isFaltaApprovedForScoring,
   type IConfiguracionMetricas,
   type IDashboardProductividadItem,
   type IKudoHistorialItem,
+  type IKudoListItem,
   type IPublicacionEmpleadoMes
 } from '../../services/SharePointService';
 import {
@@ -598,7 +600,7 @@ const Dashboard: React.FC<IDashboardProps> = ({
           }
         });
 
-        kudos.forEach((item) => {
+        deduplicateKudos(kudos).forEach((item: IKudoListItem) => {
           if (!isAuthorizedItem(item)) {
             return;
           }

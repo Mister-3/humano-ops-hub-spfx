@@ -14,7 +14,8 @@ import IndexedDbAdapter, {
   type ILocalEntity,
   type IOperationalFaltaFields
 } from '../../../services/IndexedDbAdapter';
-import { cloudDbClient } from '../../../services/CloudDbClient';
+import { cloudDbClient, deduplicateKudos } from '../../../services/CloudDbClient';
+export { deduplicateKudos } from '../../../services/CloudDbClient';
 
 export const PRODUCTIVITY_OVERLAP_ERROR_MESSAGE =
   '⚠️ Conflicto de Fechas: Ya existe un registro de productividad guardado para este colaborador que se traslapa con el rango ingresado.';
@@ -852,7 +853,6 @@ export class SharePointService {
       UpdatedAt: new Date().toISOString()
     };
 
-    await this.database.add(LOCAL_STORES.kudos, record);
     await cloudDbClient.createKudo(kudoData);
   }
 
@@ -870,8 +870,9 @@ export class SharePointService {
       ? getDayBoundary(endDate, 'end', 'La fecha de fin')
       : undefined;
     const items = await cloudDbClient.getKudos();
+    const deduplicated = deduplicateKudos(items);
 
-    return items
+    return deduplicated
       .filter((item) =>
         isDateInRange(item.FechaKudo, start, end) &&
         isItemInAgentScope(item, agenteNombre, agenteEmail, agenteObjectId)
@@ -880,7 +881,8 @@ export class SharePointService {
   }
 
   public async getKudosMensuales(): Promise<IKudoListItem[]> {
-    return cloudDbClient.getKudos();
+    const items = await cloudDbClient.getKudos();
+    return deduplicateKudos(items);
   }
 
   public async ensureRegistroProductividadList(): Promise<void> {
@@ -1279,7 +1281,7 @@ export class SharePointService {
 
     const [rawProductividad, rawKudos, rawFaltas, config] = await Promise.all([
       this.database.getAll<IProductividadHistorialItem>(LOCAL_STORES.productividad),
-      this.database.getAll<IKudoHistorialItem>(LOCAL_STORES.kudos),
+      cloudDbClient.getKudos(),
       this.database.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas),
       this.getConfiguracion()
     ]);
@@ -1294,7 +1296,7 @@ export class SharePointService {
         ) && inScope(item)
       )
       .map((item) => normalizeProductividadMetrics(item) as IEvaluacionProductividadItem);
-    const kudos = rawKudos.filter((item) =>
+    const kudos = deduplicateKudos(rawKudos).filter((item) =>
       isDateInRange(item.FechaKudo, start, end) && inScope(item)
     );
     const faltas = rawFaltas.filter((item) =>
@@ -1318,12 +1320,14 @@ export class SharePointService {
       return this.getDatosEvaluacion(startDate, endDate);
     }
 
-    const [config, productividad, faltas, kudos] = await Promise.all([
+    const [config, productividad, faltas, rawKudos] = await Promise.all([
       this.getConfiguracion(),
       this.database.getAll<IProductividadHistorialItem>(LOCAL_STORES.productividad),
       this.database.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas),
-      this.database.getAll<IKudoHistorialItem>(LOCAL_STORES.kudos)
+      cloudDbClient.getKudos()
     ]);
+
+    const kudos = deduplicateKudos(rawKudos);
 
     return {
       config,
