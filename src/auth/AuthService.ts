@@ -465,7 +465,7 @@ export class AuthService {
     }
 
     const provisionalPassword = generateProvisionalPassword();
-    await cloudDbClient.updateUsuarioStatus(userId, 'Active', role, true);
+    await cloudDbClient.updateUsuarioStatus(target.Email || userId, 'Active', role, true);
     const updatedUser = await this.database.getById<IAppUserRecord>(LOCAL_STORES.users, userId);
     const user = (updatedUser && updatedUser.Id ? updatedUser : {
       ...target,
@@ -486,8 +486,8 @@ export class AuthService {
     for (const adminEmail of adminEmails) {
       const existing = await this.findUserByEmail(adminEmail);
       if (existing) {
-        if (!existing.PasswordHash && existing.Id) {
-          await cloudDbClient.updateUsuarioStatus(existing.Id, 'Active', 'Master_Admin', true);
+        if (!existing.PasswordHash) {
+          await cloudDbClient.updateUsuarioStatus(adminEmail, 'Active', 'Master_Admin', true);
         }
       } else {
         await cloudDbClient.createUsuario({
