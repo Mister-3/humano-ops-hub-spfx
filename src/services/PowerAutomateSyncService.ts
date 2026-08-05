@@ -51,13 +51,20 @@ export interface IUsuarioExcelRow {
 }
 
 export interface IHeadcountExcelRow {
-  ID: string | number;
-  EmailEmpleado: string;
-  NombreEmpleado: string;
-  Cargo: string;
-  Departamento: string;
-  EmailSupervisor: string;
-  EstadoActivo: boolean;
+  ID?: string | number;
+  EmailEmpleado?: string;
+  NombreEmpleado?: string;
+  Cargo?: string;
+  Departamento?: string;
+  EmailSupervisor?: string;
+  EstadoActivo?: boolean;
+  memberemail?: string;
+  membername?: string;
+  memberpuesto?: string;
+  memberarea?: string;
+  supervisoremail?: string;
+  puesto?: string;
+  area?: string;
 }
 
 export interface IFaltaExcelRow {
@@ -244,6 +251,59 @@ const getRowCellValues = (
     : Object.values(values);
 };
 
+const extractUserRowValues = (row: Record<string, unknown> | IUsuarioExcelRow) => {
+  const r = row as Record<string, unknown>;
+  const email = normalizeEmail(r.Email || r.email || r.Correo || r.correo);
+  const id = toText(r.ID || r.id || r.Id);
+  const rol = toText(r.Rol || r.rol || r.role || r.CalculatedRol || r.calculatedrol);
+  const estado = toText(r.Estado || r.estado || r.status || r.Status);
+  const rawValidated = r.IsProfileValidatedByPA ?? r.isprofilevalidatedbypa ?? r.is_profile_validated_by_pa ?? r.is_profile_validated_pa;
+  const isValidatedPA = toBoolean(rawValidated);
+
+  return { email, id, rol, estado, isValidatedPA };
+};
+
+const normalizeHeaderKey = (header: string): string =>
+  toText(header).toLowerCase().replace(/[\s_-]+/g, '');
+
+const mapHeaderToCanonical = (normalized: string, tableName: ExcelTableName): string => {
+  if (tableName === 'Tabla_Headcount') {
+    if (['memberemail', 'emailempleado', 'email', 'correomiembro', 'correoempleado'].includes(normalized)) return 'EmailEmpleado';
+    if (['membername', 'nombreempleado', 'nombre', 'nombremiembro'].includes(normalized)) return 'NombreEmpleado';
+    if (['supervisoremail', 'emailsupervisor', 'correosupervisor'].includes(normalized)) return 'EmailSupervisor';
+    if (['memberpuesto', 'puesto', 'cargo', 'posicion'].includes(normalized)) return 'Cargo';
+    if (['memberarea', 'area', 'departamento'].includes(normalized)) return 'Departamento';
+    if (['id', 'agenteobjectid'].includes(normalized)) return 'ID';
+    if (['estadoactivo', 'activo', 'estado'].includes(normalized)) return 'EstadoActivo';
+  }
+  if (tableName === 'Tabla_Usuarios') {
+    if (['id'].includes(normalized)) return 'ID';
+    if (['email', 'correo'].includes(normalized)) return 'Email';
+    if (['nombre', 'name', 'fullname', 'full_name'].includes(normalized)) return 'Nombre';
+    if (['rol', 'role', 'calculatedrol'].includes(normalized)) return 'Rol';
+    if (['estado', 'status'].includes(normalized)) return 'Estado';
+    if (['isprofilevalidatedbypa', 'is_profile_validated_by_pa', 'is_profile_validated_pa'].includes(normalized)) return 'IsProfileValidatedByPA';
+  }
+  return normalized;
+};
+
+const matchHeaders = (candidateHeaders: string[], definition: IExcelTableDefinition): boolean => {
+  const normalizedCandidates = candidateHeaders.map(h => normalizeHeaderKey(h));
+  const mappedCandidates = normalizedCandidates.map(h => mapHeaderToCanonical(h, definition.tableName));
+
+  if (definition.tableName === 'Tabla_Headcount') {
+    const hasEmail = mappedCandidates.includes('EmailEmpleado');
+    const hasSupervisorOrName = mappedCandidates.includes('EmailSupervisor') || mappedCandidates.includes('NombreEmpleado') || mappedCandidates.includes('ID');
+    return hasEmail && hasSupervisorOrName;
+  }
+
+  return definition.requiredHeaders.every((reqHeader) => {
+    const normReq = normalizeHeaderKey(reqHeader);
+    const canonicalReq = mapHeaderToCanonical(normReq, definition.tableName);
+    return mappedCandidates.includes(canonicalReq) || normalizedCandidates.includes(normReq);
+  });
+};
+
 const findWorksheet = (
   workbook: ExcelWorkbook,
   definition: IExcelTableDefinition
@@ -255,9 +315,9 @@ const findWorksheet = (
 
   return workbook.worksheets.find((worksheet) => {
     for (let rowNumber = 1; rowNumber <= Math.min(10, worksheet.rowCount); rowNumber += 1) {
-      const headers = getRowCellValues(worksheet, rowNumber)
+      const candidateHeaders = getRowCellValues(worksheet, rowNumber)
         .map((value) => toText(normalizeCellValue(value as CellValue)));
-      if (definition.requiredHeaders.every((header) => headers.includes(header))) {
+      if (matchHeaders(candidateHeaders, definition)) {
         return true;
       }
     }
@@ -275,7 +335,7 @@ const readWorksheetRows = (
   for (let rowNumber = 1; rowNumber <= Math.min(10, worksheet.rowCount); rowNumber += 1) {
     const candidateHeaders = getRowCellValues(worksheet, rowNumber)
       .map((value) => toText(normalizeCellValue(value as CellValue)));
-    if (definition.requiredHeaders.every((header) => candidateHeaders.includes(header))) {
+    if (matchHeaders(candidateHeaders, definition)) {
       headerRowNumber = rowNumber;
       headers = candidateHeaders;
       break;
@@ -298,6 +358,11 @@ const readWorksheetRows = (
       if (!header) return;
       const value = normalizeCellValue(row.getCell(index + 1).value);
       record[header] = value;
+      const normKey = normalizeHeaderKey(header);
+      const canonicalKey = mapHeaderToCanonical(normKey, definition.tableName);
+      if (canonicalKey) {
+        record[canonicalKey] = value;
+      }
       if (toText(value)) hasValues = true;
     });
 
@@ -662,6 +727,8 @@ export class PowerAutomateSyncService {
     URL.revokeObjectURL(url);
   }
 
+
+
   private async mergeUsers(
     rows: ReadonlyArray<IUsuarioExcelRow>,
     headcountRows: ReadonlyArray<IHeadcountExcelRow>
@@ -682,27 +749,25 @@ export class PowerAutomateSyncService {
         .filter(([email, name]) => Boolean(email && name))
     );
 
-    for (const row of rows) {
-      const email = normalizeEmail(row.Email);
+    for (const rawRow of rows) {
+      const { email, id, rol: extractedRol, estado: extractedEstado, isValidatedPA } = extractUserRowValues(rawRow);
       if (!email) continue;
       const currentLocal = byEmail.get(email);
       const currentCloud = cloudUserMap.get(email);
       const current = currentCloud || currentLocal;
 
-      const importedStatus = isAppUserStatus(row.Estado)
-        ? row.Estado
+      const importedStatus = isAppUserStatus(extractedEstado)
+        ? (extractedEstado as AppUserStatus)
         : 'Pending_Validation';
-      const validated = toBoolean(row.IsProfileValidatedByPA);
-      const status = validated && importedStatus === 'Pending_Validation'
+      const status = isValidatedPA && importedStatus === 'Pending_Validation'
         ? 'Pending_Admin_Approval'
         : importedStatus;
-      const validatedDirectoryName = validated
-        ? directoryNamesByEmail.get(email) || toText(row.Nombre)
+      const validatedDirectoryName = isValidatedPA
+        ? directoryNamesByEmail.get(email) || toText((rawRow as any).Nombre || (rawRow as any).nombre)
         : '';
 
-      const rawCalculatedRol = toText(row.CalculatedRol || row.Rol);
-      const calculatedRol: AppUserRole = isAppUserRole(rawCalculatedRol)
-        ? (rawCalculatedRol as AppUserRole)
+      const calculatedRol: AppUserRole = isAppUserRole(extractedRol)
+        ? (extractedRol as AppUserRole)
         : 'Agente';
 
       const currentRole = current?.Rol;
@@ -717,16 +782,16 @@ export class PowerAutomateSyncService {
       }
 
       const imported: IAppUserRecord = {
-        ID: toText(row.ID),
+        ID: id || toText(current?.ID || `USR-${Date.now().toString(36).toUpperCase()}`),
         Email: email,
-        PasswordHash: toText(row.PasswordHash) || current?.PasswordHash || '',
-        Nombre: validatedDirectoryName || toText(row.Nombre) || current?.Nombre || email,
+        PasswordHash: toText((rawRow as any).PasswordHash) || current?.PasswordHash || '',
+        Nombre: validatedDirectoryName || toText((rawRow as any).Nombre || (rawRow as any).nombre) || current?.Nombre || email,
         Rol: finalRole,
         Estado: status,
-        IsProfileValidatedByPA: validated,
+        IsProfileValidatedByPA: isValidatedPA,
         IsRoleManuallyOverridden: isRoleOverridden,
-        FechaRegistro: toText(row.FechaRegistro),
-        FechaAprobacion: toText(row.FechaAprobacion),
+        FechaRegistro: toText((rawRow as any).FechaRegistro) || current?.FechaRegistro || new Date().toISOString(),
+        FechaAprobacion: toText((rawRow as any).FechaAprobacion) || current?.FechaAprobacion || '',
         SyncStatus: 'Sincronizado',
         UpdatedAt: new Date().toISOString()
       };

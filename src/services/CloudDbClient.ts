@@ -189,10 +189,9 @@ export class CloudDbClient {
   ): Promise<void> {
     if (isSupabaseConfigured()) {
       try {
-        const updatePayload: Record<string, unknown> = { estado };
-        if (rol) {
-          updatePayload.rol = rol;
-        }
+        const updatePayload: Record<string, unknown> = {};
+        if (estado) updatePayload.estado = estado;
+        if (rol) updatePayload.rol = rol;
         if (typeof isManualOverride === 'boolean') {
           updatePayload.is_role_manually_overridden = isManualOverride;
         } else if (rol) {
@@ -202,11 +201,16 @@ export class CloudDbClient {
           updatePayload.is_profile_validated_pa = isProfileValidatedByPA;
         }
 
+        console.log('Enviando PATCH a Supabase para:', identifier, updatePayload);
+
         let query = supabase.from('usuarios').update(updatePayload);
+        const strId = String(identifier).trim();
         if (typeof identifier === 'number') {
           query = query.eq('id', identifier);
+        } else if (/^\d+$/.test(strId)) {
+          query = query.eq('id', parseInt(strId, 10));
         } else {
-          query = query.eq('email', identifier);
+          query = query.eq('email', strId.toLowerCase());
         }
 
         await query;
@@ -221,7 +225,7 @@ export class CloudDbClient {
       const target = users.find(u =>
         typeof identifier === 'number'
           ? u.Id === identifier
-          : u.Email.toLowerCase() === identifier.toLowerCase()
+          : u.Email.toLowerCase() === String(identifier).trim().toLowerCase()
       );
 
       if (target && target.Id) {
@@ -251,14 +255,18 @@ export class CloudDbClient {
   ): Promise<void> {
     if (isSupabaseConfigured()) {
       try {
-        let query = supabase.from('usuarios').update({
+        const updatePayload = {
           rol: newRole,
           is_role_manually_overridden: true
-        });
+        };
+        let query = supabase.from('usuarios').update(updatePayload);
+        const strId = String(identifier).trim();
         if (typeof identifier === 'number') {
           query = query.eq('id', identifier);
+        } else if (/^\d+$/.test(strId)) {
+          query = query.eq('id', parseInt(strId, 10));
         } else {
-          query = query.eq('email', identifier);
+          query = query.eq('email', strId.toLowerCase());
         }
 
         await query;
