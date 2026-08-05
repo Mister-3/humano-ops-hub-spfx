@@ -43,8 +43,8 @@ const LoginForm: React.FC = () => {
     setIsSubmitting(true);
     try {
       await signIn(email, password);
-    } catch (submitError: unknown) {
-      setError(submitError instanceof Error ? submitError.message : String(submitError));
+    } catch (submitError: any) {
+      setError(submitError?.message || submitError?.error_description || (typeof submitError === 'string' ? submitError : 'Error al iniciar sesión'));
     } finally {
       setIsSubmitting(false);
     }
@@ -62,11 +62,9 @@ const LoginForm: React.FC = () => {
         auditId: result.auditId,
         recipient: result.notificationRecipient
       });
-    } catch (recoveryFailure: unknown) {
+    } catch (recoveryFailure: any) {
       setRecoveryError(
-        recoveryFailure instanceof Error
-          ? recoveryFailure.message
-          : String(recoveryFailure)
+        recoveryFailure?.message || recoveryFailure?.error_description || (typeof recoveryFailure === 'string' ? recoveryFailure : 'Error al recuperar la cuenta')
       );
     } finally {
       setIsRecovering(false);
@@ -200,8 +198,8 @@ const RegisterForm: React.FC = () => {
     setIsSubmitting(true);
     try {
       await register({ email, name, password });
-    } catch (submitError: unknown) {
-      setError(submitError instanceof Error ? submitError.message : String(submitError));
+    } catch (submitError: any) {
+      setError(submitError?.message || submitError?.error_description || (typeof submitError === 'string' ? submitError : 'Error al registrar la cuenta'));
     } finally {
       setIsSubmitting(false);
     }
