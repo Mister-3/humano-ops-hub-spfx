@@ -142,40 +142,38 @@ export class CloudDbClient {
       UpdatedAt: new Date().toISOString()
     };
 
-    // Store in IndexedDB local cache
-    const savedLocal = await indexedDb.add<IAppUserRecord>(LOCAL_STORES.users, newUserRecord);
-
     if (isSupabaseConfigured()) {
-      try {
-        const payload: ISupabaseUserRow = {
-          email: savedLocal.Email,
-          nombre: savedLocal.Nombre,
-          rol: savedLocal.Rol,
-          estado: savedLocal.Estado,
-          is_profile_validated_pa: savedLocal.IsProfileValidatedByPA,
-          fecha_registro: savedLocal.FechaRegistro,
-          password_hash: savedLocal.PasswordHash
-        };
+      const payload: ISupabaseUserRow = {
+        email: newUserRecord.Email,
+        nombre: newUserRecord.Nombre,
+        rol: newUserRecord.Rol,
+        estado: newUserRecord.Estado,
+        is_profile_validated_pa: newUserRecord.IsProfileValidatedByPA,
+        fecha_registro: newUserRecord.FechaRegistro,
+        password_hash: newUserRecord.PasswordHash
+      };
 
-        const { data, error } = await supabase
-          .from('usuarios')
-          .insert([payload])
-          .select();
+      const { data, error } = await supabase
+        .from('usuarios')
+        .insert([payload])
+        .select();
 
-        if (error) {
-          console.error('CloudDbClient.createUsuario error inserting to Supabase:', error);
-        } else if (data && data.length > 0) {
-          const insertedRow = data[0] as ISupabaseUserRow;
-          if (insertedRow.id && typeof insertedRow.id === 'number') {
-            savedLocal.Id = insertedRow.id;
-            savedLocal.SyncStatus = 'Sincronizado';
-            await indexedDb.put(LOCAL_STORES.users, savedLocal);
-          }
+      if (error) {
+        console.error('[CRITICAL SUPABASE INSERT ERROR]:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        const insertedRow = data[0] as ISupabaseUserRow;
+        if (insertedRow.id && typeof insertedRow.id === 'number') {
+          newUserRecord.Id = insertedRow.id;
+          newUserRecord.SyncStatus = 'Sincronizado';
         }
-      } catch (err) {
-        console.warn('CloudDbClient.createUsuario error inserting to Supabase:', err);
       }
     }
+
+    // Store in IndexedDB local cache after successful Supabase insertion (or if offline)
+    const savedLocal = await indexedDb.add<IAppUserRecord>(LOCAL_STORES.users, newUserRecord);
 
     return savedLocal;
   }
