@@ -978,7 +978,10 @@ const AdminConfiguration: React.FC = () => {
 };
 
 const AdminPanel: React.FC<IAdminPanelProps> = ({ userRole }) => {
-  if (userRole !== 'Admin' && userRole !== 'Master_Admin') {
+  const normalized = String(userRole || '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
+  const isAuthorized = normalized === 'admin' || normalized === 'master_admin';
+
+  if (!isAuthorized) {
     return (
       <Stack className={styles.panel}>
         <MessageBar messageBarType={MessageBarType.blocked}>

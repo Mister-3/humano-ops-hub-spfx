@@ -55,23 +55,34 @@ export interface ISupervisionOperacionesProps {
   onSignOut: () => void;
 }
 
+const isMasterAdminRole = (role?: string): boolean => {
+  if (!role) return false;
+  const normalized = role.trim().toLowerCase().replace(/[\s_-]+/g, '_');
+  return normalized === 'master_admin';
+};
+
 const canAccessModule = (
   moduleKey: AppModuleKey,
   userRole: RoleType
 ): boolean => {
+  if (isMasterAdminRole(userRole)) {
+    return true;
+  }
+
+  const normalized = String(userRole || '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
+
   if (moduleKey === 'userAdmin') {
-    return userRole === 'Master_Admin';
+    return false;
   }
 
   if (moduleKey === 'admin') {
-    return userRole === 'Master_Admin' || userRole === 'Admin';
+    return normalized === 'admin';
   }
 
   if (moduleKey === 'productividad' || moduleKey === 'Ocupacion') {
-    return userRole === 'Master_Admin' ||
-      userRole === 'Admin' ||
-      userRole === 'Gerente' ||
-      userRole === 'Supervisor';
+    return normalized === 'admin' ||
+      normalized === 'gerente' ||
+      normalized === 'supervisor';
   }
 
   return true;

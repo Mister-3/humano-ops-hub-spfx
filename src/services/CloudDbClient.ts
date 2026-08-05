@@ -361,7 +361,7 @@ export class CloudDbClient {
           .from('kudos')
           .select('*');
 
-        if (!error && Array.isArray(data)) {
+        if (!error && Array.isArray(data) && data.length > 0) {
           const mappedKudos: IKudoHistorialItem[] = data.map((row: ISupabaseKudoRow, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
             return {
