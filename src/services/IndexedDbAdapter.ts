@@ -15,7 +15,8 @@ export const LOCAL_STORES = {
   publicaciones: 'publicaciones',
   users: 'users',
   sessions: 'sessions',
-  notifications: 'notifications'
+  notifications: 'notifications',
+  metas: 'metas'
 } as const;
 
 export type LocalStoreName =

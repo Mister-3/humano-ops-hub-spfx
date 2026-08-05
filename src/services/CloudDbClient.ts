@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import IndexedDbAdapter, { LOCAL_STORES } from './IndexedDbAdapter';
 import type { IAppUserRecord, AppUserStatus, AppUserRole } from '../auth/AuthModels';
+import type { IHeadcountRow } from './PowerAutomateSyncService';
 import type {
   IFaltaHistorialItem,
   IKudoHistorialItem,
@@ -20,6 +21,19 @@ export interface ISupabaseUserRow {
   is_role_manually_overridden?: boolean;
   fecha_registro?: string;
   password_hash?: string;
+}
+
+export interface ISupabaseHeadcountRow {
+  id?: number | string;
+  email_empleado?: string;
+  nombre_empleado?: string;
+  email_supervisor?: string;
+  supervisor_email?: string;
+  cargo?: string;
+  departamento?: string;
+  estado_activo?: boolean;
+  agente_object_id?: string;
+  rol?: string;
 }
 
 export interface ISupabaseFaltaRow {
@@ -42,6 +56,31 @@ export interface ISupabaseKudoRow {
   motivo?: string;
   puntos?: number;
   fecha?: string;
+}
+
+export interface ISupabaseMetaRow {
+  id?: number | string;
+  email_empleado?: string;
+  email?: string;
+  mes?: number | string;
+  anio?: number | string;
+  year?: number | string;
+  meta_kpis?: number;
+  meta_kudos?: number;
+  fecha_creacion?: string;
+}
+
+export interface IMetaRecord {
+  Id?: number;
+  ID?: string;
+  EmailEmpleado: string;
+  Mes: number;
+  Anio: number;
+  MetaKpis: number;
+  MetaKudos: number;
+  FechaCreacion?: string;
+  SyncStatus?: 'Pendiente' | 'Sincronizado';
+  UpdatedAt?: string;
 }
 
 export const deduplicateKudos = <T extends Partial<IKudoHistorialItem> & {
@@ -301,15 +340,98 @@ export class CloudDbClient {
   }
 
   // ==========================================
-  // FALTAS CRUD
+  // HEADCOUNT CRUD (HeadcountService)
+  // ==========================================
+
+  public async getHeadcount(): Promise<IHeadcountRow[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('headcount')
+          .select('*');
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped: IHeadcountRow[] = data.map((row: ISupabaseHeadcountRow, index: number) => ({
+            Id: typeof row.id === 'number' ? row.id : (index + 1),
+            ID: String(row.id || `HC-${index + 1}`),
+            EmailEmpleado: row.email_empleado || (row as any).email || '',
+            NombreEmpleado: row.nombre_empleado || (row as any).nombre || '',
+            EmailSupervisor: row.email_supervisor || row.supervisor_email || '',
+            Cargo: row.cargo || 'Oficial',
+            Departamento: row.departamento || 'Operaciones',
+            EstadoActivo: row.estado_activo !== false,
+            AgenteObjectID: row.agente_object_id || '',
+            Rol: (row.rol as any) || 'Oficial',
+            SyncStatus: 'Sincronizado'
+          }));
+
+          try {
+            await indexedDb.replaceAll(LOCAL_STORES.headcount, mapped);
+          } catch {
+            // Ignore cache error
+          }
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getHeadcount fallback to IndexedDB:', err);
+      }
+    }
+
+    return indexedDb.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
+  }
+
+  public async getHeadcountBySupervisor(supervisorEmail: string): Promise<IHeadcountRow[]> {
+    const normSupervisor = (supervisorEmail || '').trim().toLowerCase();
+    if (!normSupervisor) return [];
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('headcount')
+          .select('*')
+          .or(`email_supervisor.ilike.${normSupervisor},supervisor_email.ilike.${normSupervisor}`);
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data.map((row: ISupabaseHeadcountRow, index: number) => ({
+            Id: typeof row.id === 'number' ? row.id : (index + 1),
+            ID: String(row.id || `HC-${index + 1}`),
+            EmailEmpleado: row.email_empleado || (row as any).email || '',
+            NombreEmpleado: row.nombre_empleado || (row as any).nombre || '',
+            EmailSupervisor: row.email_supervisor || row.supervisor_email || '',
+            Cargo: row.cargo || 'Oficial',
+            Departamento: row.departamento || 'Operaciones',
+            EstadoActivo: row.estado_activo !== false,
+            AgenteObjectID: row.agente_object_id || '',
+            Rol: (row.rol as any) || 'Oficial',
+            SyncStatus: 'Sincronizado'
+          }));
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getHeadcountBySupervisor fallback to IndexedDB:', err);
+      }
+    }
+
+    const allLocal = await indexedDb.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
+    return allLocal.filter(row => {
+      const sup = (row.EmailSupervisor || (row as any).SupervisorEmail || '').trim().toLowerCase();
+      return sup === normSupervisor;
+    });
+  }
+
+  // ==========================================
+  // FALTAS Y ERRORES CRUD (OperacionalService)
   // ==========================================
 
   public async getFaltas(): Promise<IFaltaHistorialItem[]> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
-          .from('faltas')
-          .select('*');
+        let response = await supabase.from('faltas_errores').select('*');
+        if (response.error || !Array.isArray(response.data) || response.data.length === 0) {
+          response = await supabase.from('faltas').select('*');
+        }
+
+        const data = response.data;
+        const error = response.error;
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const mappedFaltas: IFaltaHistorialItem[] = data.map((row: ISupabaseFaltaRow, index: number) => {
@@ -398,13 +520,13 @@ export class CloudDbClient {
           estado: recordToSave.Estado
         };
 
-        const { data, error } = await supabase
-          .from('faltas')
-          .insert([payload])
-          .select();
+        let res = await supabase.from('faltas_errores').insert([payload]).select();
+        if (res.error) {
+          res = await supabase.from('faltas').insert([payload]).select();
+        }
 
-        if (!error && data && data.length > 0) {
-          const insertedRow = data[0] as ISupabaseFaltaRow;
+        if (!res.error && res.data && res.data.length > 0) {
+          const insertedRow = res.data[0] as ISupabaseFaltaRow;
           if (insertedRow.id && typeof insertedRow.id === 'number') {
             savedLocal.Id = insertedRow.id;
             savedLocal.SyncStatus = 'Sincronizado';
@@ -420,7 +542,7 @@ export class CloudDbClient {
   }
 
   // ==========================================
-  // KUDOS CRUD
+  // KUDOS CRUD (KudosService)
   // ==========================================
 
   public async getKudos(): Promise<IKudoHistorialItem[]> {
@@ -530,7 +652,117 @@ export class CloudDbClient {
 
     return savedLocal;
   }
+
+  // ==========================================
+  // METAS CRUD (AdminService)
+  // ==========================================
+
+  public async getMetas(emailEmpleado?: string): Promise<IMetaRecord[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase.from('metas').select('*');
+        if (emailEmpleado) {
+          query = query.ilike('email_empleado', emailEmpleado.trim());
+        }
+        const { data, error } = await query;
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped: IMetaRecord[] = data.map((row: ISupabaseMetaRow, index: number) => ({
+            Id: typeof row.id === 'number' ? row.id : (index + 1),
+            ID: String(row.id || `META-${index + 1}`),
+            EmailEmpleado: row.email_empleado || row.email || '',
+            Mes: Number(row.mes) || (new Date().getMonth() + 1),
+            Anio: Number(row.anio || row.year) || new Date().getFullYear(),
+            MetaKpis: Number(row.meta_kpis) || 0,
+            MetaKudos: Number(row.meta_kudos) || 0,
+            FechaCreacion: row.fecha_creacion || new Date().toISOString(),
+            SyncStatus: 'Sincronizado'
+          }));
+
+          try {
+            await indexedDb.replaceAll(LOCAL_STORES.metas, mapped);
+          } catch {
+            // Ignore cache error
+          }
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getMetas fallback to IndexedDB:', err);
+      }
+    }
+
+    const localMetas = await indexedDb.getAll<IMetaRecord>(LOCAL_STORES.metas);
+    if (emailEmpleado) {
+      const norm = emailEmpleado.trim().toLowerCase();
+      return localMetas.filter(m => (m.EmailEmpleado || '').trim().toLowerCase() === norm);
+    }
+    return localMetas;
+  }
+
+  public async createMeta(metaData: Partial<IMetaRecord>): Promise<IMetaRecord> {
+    const recordToSave: IMetaRecord = {
+      ID: metaData.ID || `META-${Date.now().toString(36).toUpperCase()}`,
+      EmailEmpleado: metaData.EmailEmpleado || '',
+      Mes: metaData.Mes || (new Date().getMonth() + 1),
+      Anio: metaData.Anio || new Date().getFullYear(),
+      MetaKpis: metaData.MetaKpis || 0,
+      MetaKudos: metaData.MetaKudos || 0,
+      FechaCreacion: metaData.FechaCreacion || new Date().toISOString(),
+      SyncStatus: 'Pendiente',
+      UpdatedAt: new Date().toISOString()
+    };
+
+    const savedLocal = await indexedDb.add<IMetaRecord>(LOCAL_STORES.metas, recordToSave);
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload: ISupabaseMetaRow = {
+          email_empleado: recordToSave.EmailEmpleado,
+          mes: recordToSave.Mes,
+          anio: recordToSave.Anio,
+          meta_kpis: recordToSave.MetaKpis,
+          meta_kudos: recordToSave.MetaKudos,
+          fecha_creacion: recordToSave.FechaCreacion
+        };
+
+        const { data, error } = await supabase.from('metas').insert([payload]).select();
+        if (!error && data && data.length > 0) {
+          const insertedRow = data[0] as ISupabaseMetaRow;
+          if (insertedRow.id && typeof insertedRow.id === 'number') {
+            savedLocal.Id = insertedRow.id;
+            savedLocal.SyncStatus = 'Sincronizado';
+            await indexedDb.put(LOCAL_STORES.metas, savedLocal);
+          }
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.createMeta error inserting to Supabase:', err);
+      }
+    }
+
+    return savedLocal;
+  }
 }
 
 export const cloudDbClient = new CloudDbClient();
+
+export const HeadcountService = {
+  getHeadcount: () => cloudDbClient.getHeadcount(),
+  getHeadcountBySupervisor: (supervisorEmail: string) => cloudDbClient.getHeadcountBySupervisor(supervisorEmail)
+};
+
+export const KudosService = {
+  getKudos: () => cloudDbClient.getKudos(),
+  createKudo: (data: IRegistrarKudoData | Partial<IKudoHistorialItem>) => cloudDbClient.createKudo(data)
+};
+
+export const OperacionalService = {
+  getFaltas: () => cloudDbClient.getFaltas(),
+  createFalta: (data: IRegistrarFaltaData | Partial<IFaltaHistorialItem>) => cloudDbClient.createFalta(data)
+};
+
+export const AdminService = {
+  getMetas: (email?: string) => cloudDbClient.getMetas(email),
+  createMeta: (data: Partial<IMetaRecord>) => cloudDbClient.createMeta(data)
+};
+
 export default cloudDbClient;
