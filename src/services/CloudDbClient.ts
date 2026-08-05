@@ -231,6 +231,47 @@ export class CloudDbClient {
     }
   }
 
+  public async updateUsuarioRole(
+    identifier: number | string,
+    newRole: AppUserRole | string
+  ): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase.from('usuarios').update({ rol: newRole });
+        if (typeof identifier === 'number') {
+          query = query.eq('id', identifier);
+        } else {
+          query = query.eq('email', identifier);
+        }
+
+        await query;
+      } catch (err) {
+        console.warn('CloudDbClient.updateUsuarioRole Supabase error:', err);
+      }
+    }
+
+    // Update IndexedDB
+    try {
+      const users = await indexedDb.getAll<IAppUserRecord>(LOCAL_STORES.users);
+      const target = users.find(u =>
+        typeof identifier === 'number'
+          ? u.Id === identifier
+          : u.Email.toLowerCase() === identifier.toLowerCase()
+      );
+
+      if (target && target.Id) {
+        await indexedDb.put(LOCAL_STORES.users, {
+          ...target,
+          Id: target.Id,
+          Rol: newRole as AppUserRole,
+          SyncStatus: 'Pendiente'
+        });
+      }
+    } catch (err) {
+      console.warn('CloudDbClient.updateUsuarioRole IndexedDB error:', err);
+    }
+  }
+
   // ==========================================
   // FALTAS CRUD
   // ==========================================

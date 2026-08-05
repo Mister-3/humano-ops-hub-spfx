@@ -11,7 +11,8 @@ import {
   PrimaryButton,
   SelectionMode,
   Spinner,
-  SpinnerSize
+  SpinnerSize,
+  Stack
 } from '@fluentui/react';
 
 import { useAuth } from '../../../../auth/AuthProvider';
@@ -20,21 +21,15 @@ import type {
   AppUserRole,
   IAppUserRecord
 } from '../../../../auth/AuthModels';
+import { cloudDbClient } from '../../../../services/CloudDbClient';
 import styles from './UserAdminPanel.module.scss';
 
-type AssignableRole = Extract<
-  AppUserRole,
-  'Admin' | 'Supervisor' | 'Asistente'
->;
-
 const roleOptions: IDropdownOption[] = [
+  { key: 'Asistente', text: 'Agente / Asistente' },
   { key: 'Supervisor', text: 'Supervisor' },
-  { key: 'Asistente', text: 'Asistente' },
-  { key: 'Admin', text: 'Admin' }
+  { key: 'Admin', text: 'Admin' },
+  { key: 'Master_Admin', text: 'Master Admin' }
 ];
-
-const isAssignableRole = (value: string): value is AssignableRole =>
-  roleOptions.some((option) => option.key === value);
 
 const isMasterAdminRole = (role?: string): boolean => {
   if (!role) return false;
@@ -47,14 +42,25 @@ const isMasterAdminRole = (role?: string): boolean => {
   );
 };
 
+const formatStatusText = (status: string): string => {
+  switch (status) {
+    case 'Active':
+      return 'Activo';
+    case 'Disabled':
+      return 'Deshabilitado';
+    case 'Pending_Admin_Approval':
+    case 'Pending_Validation':
+    default:
+      return 'Pendiente de Aprobación';
+  }
+};
+
 const UserAdminPanel: React.FC = () => {
-  const { currentUser, listUsers, authorizeUser } = useAuth();
+  const { currentUser, listUsers } = useAuth();
   const [users, setUsers] = React.useState<Array<IAppUserRecord & { Id: number }>>([]);
-  const [selectedRoles, setSelectedRoles] = React.useState<Record<number, AssignableRole>>({});
+  const [selectedRoles, setSelectedRoles] = React.useState<Record<number, AppUserRole>>({});
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [processingId, setProcessingId] = React.useState<number>();
-  const [provisionalPasswords, setProvisionalPasswords] =
-    React.useState<Record<number, string>>({});
   const [message, setMessage] = React.useState<{ type: MessageBarType; text: string }>();
 
   const loadUsers = React.useCallback(async (): Promise<void> => {
@@ -62,10 +68,9 @@ const UserAdminPanel: React.FC = () => {
     try {
       const loaded = await listUsers();
       setUsers(loaded);
-      setSelectedRoles((current) => loaded.reduce<Record<number, AssignableRole>>(
+      setSelectedRoles((current) => loaded.reduce<Record<number, AppUserRole>>(
         (result, user) => {
-          const role = isAssignableRole(user.Rol) ? user.Rol : 'Asistente';
-          result[user.Id] = current[user.Id] || role;
+          result[user.Id] = current[user.Id] || user.Rol || 'Asistente';
           return result;
         },
         {}
@@ -84,20 +89,16 @@ const UserAdminPanel: React.FC = () => {
     void loadUsers();
   }, [loadUsers]);
 
-  const approve = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
-    const role = selectedRoles[user.Id] || 'Asistente';
+  const approveUser = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
+    const role = selectedRoles[user.Id] || user.Rol || 'Asistente';
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
-      const result = await authorizeUser(user.Id, role);
-      setProvisionalPasswords((current) => ({
-        ...current,
-        [user.Id]: result.provisionalPassword
-      }));
+      await cloudDbClient.updateUsuarioStatus(user.Id, 'Active', role, true);
       await loadUsers();
       setMessage({
         type: MessageBarType.success,
-        text: `${user.Nombre} fue activado con el rol ${role}. Copia y entrega su clave provisional por un canal seguro.`
+        text: `${user.Nombre} fue aprobado exitosamente con el rol ${role}.`
       });
     } catch (error: unknown) {
       setMessage({
@@ -109,25 +110,44 @@ const UserAdminPanel: React.FC = () => {
     }
   };
 
-  const copyProvisionalPassword = async (
-    userId: number
-  ): Promise<void> => {
-    const password = provisionalPasswords[userId];
-    if (!password) {
-      return;
-    }
-
+  const updateUserRole = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
+    const role = selectedRoles[user.Id] || user.Rol || 'Asistente';
+    setProcessingId(user.Id);
+    setMessage(undefined);
     try {
-      await navigator.clipboard.writeText(password);
+      await cloudDbClient.updateUsuarioRole(user.Id, role);
+      await loadUsers();
       setMessage({
         type: MessageBarType.success,
-        text: 'Clave provisional copiada. Compártela únicamente por un canal seguro.'
+        text: `El rol de ${user.Nombre} fue actualizado a ${role}.`
       });
-    } catch {
+    } catch (error: unknown) {
+      setMessage({
+        type: MessageBarType.error,
+        text: error instanceof Error ? error.message : String(error)
+      });
+    } finally {
+      setProcessingId(undefined);
+    }
+  };
+
+  const disableUser = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
+    setProcessingId(user.Id);
+    setMessage(undefined);
+    try {
+      await cloudDbClient.updateUsuarioStatus(user.Id, 'Disabled');
+      await loadUsers();
       setMessage({
         type: MessageBarType.warning,
-        text: 'El navegador bloqueó el portapapeles. Selecciona y copia la clave manualmente.'
+        text: `${user.Nombre} fue deshabilitado.`
       });
+    } catch (error: unknown) {
+      setMessage({
+        type: MessageBarType.error,
+        text: error instanceof Error ? error.message : String(error)
+      });
+    } finally {
+      setProcessingId(undefined);
     }
   };
 
@@ -135,8 +155,8 @@ const UserAdminPanel: React.FC = () => {
     {
       key: 'identity',
       name: 'Usuario',
-      minWidth: 210,
-      maxWidth: 300,
+      minWidth: 200,
+      maxWidth: 280,
       onRender: (item: IAppUserRecord & { Id: number }) => (
         <div className={styles.identityCell}>
           <strong>{item.Nombre}</strong>
@@ -147,7 +167,7 @@ const UserAdminPanel: React.FC = () => {
     {
       key: 'state',
       name: 'Estado',
-      minWidth: 145,
+      minWidth: 160,
       onRender: (item: IAppUserRecord) => (
         <span className={`${styles.statusBadge} ${
           item.Estado === 'Active'
@@ -156,14 +176,14 @@ const UserAdminPanel: React.FC = () => {
               ? styles.statusDisabled
               : styles.statusPending
         }`}>
-          {item.Estado}
+          {formatStatusText(item.Estado)}
         </span>
       )
     },
     {
       key: 'validation',
       name: 'Validación PA',
-      minWidth: 145,
+      minWidth: 120,
       onRender: (item: IAppUserRecord) => (
         <span className={`${styles.validationBadge} ${
           item.IsProfileValidatedByPA
@@ -175,55 +195,63 @@ const UserAdminPanel: React.FC = () => {
       )
     },
     {
-      key: 'approval',
-      name: 'Rol y autorización',
-      minWidth: 300,
-      maxWidth: 430,
+      key: 'roleDropdown',
+      name: 'Rol asignado',
+      minWidth: 170,
+      onRender: (item: IAppUserRecord & { Id: number }) => {
+        const isMaster = isMasterAdminRole(item.Rol);
+        return (
+          <Dropdown
+            ariaLabel={`Rol para ${item.Nombre}`}
+            disabled={isMaster || processingId === item.Id}
+            onChange={(_, option) => {
+              const value = String(option?.key || '') as AppUserRole;
+              if (value) {
+                setSelectedRoles((current) => ({ ...current, [item.Id]: value }));
+              }
+            }}
+            options={roleOptions}
+            selectedKey={selectedRoles[item.Id] || item.Rol || 'Asistente'}
+          />
+        );
+      }
+    },
+    {
+      key: 'actions',
+      name: 'Acciones de administración',
+      minWidth: 260,
       onRender: (item: IAppUserRecord & { Id: number }) => {
         const isMaster = isMasterAdminRole(item.Rol);
         const isActive = item.Estado === 'Active';
-        const provisionalPassword = provisionalPasswords[item.Id];
-        return (
-          <div className={styles.approvalCell}>
-            <div className={styles.roleEditor}>
-              <Dropdown
-                ariaLabel={`Rol para ${item.Nombre}`}
-                disabled={isMaster || processingId === item.Id}
-                onChange={(_, option) => {
-                  const value = String(option?.key || '');
-                  if (isAssignableRole(value)) {
-                    setSelectedRoles((current) => ({ ...current, [item.Id]: value }));
-                  }
-                }}
-                options={roleOptions}
-                selectedKey={selectedRoles[item.Id] || 'Asistente'}
-              />
-              <PrimaryButton
-                disabled={isMaster || processingId === item.Id}
-                onClick={() => void approve(item)}
-                text={isActive ? 'Actualizar rol' : 'Autorizar'}
-              />
-            </div>
+        const isDisabled = item.Estado === 'Disabled';
+        const isProcessing = processingId === item.Id;
 
-            {provisionalPassword && (
-              <div
-                aria-live="polite"
-                className={styles.provisionalPassword}
-              >
-                <span>Clave provisional (visible solo en esta sesión)</span>
-                <code>{provisionalPassword}</code>
-                <DefaultButton
-                  iconProps={{ iconName: 'Copy' }}
-                  onClick={() => void copyProvisionalPassword(item.Id)}
-                  text="Copiar Clave Provisional"
-                />
-              </div>
+        return (
+          <Stack horizontal tokens={{ childrenGap: 6 }}>
+            {!isActive && (
+              <PrimaryButton
+                disabled={isMaster || isProcessing}
+                onClick={() => void approveUser(item)}
+                text="Aprobar"
+              />
             )}
-          </div>
+            <DefaultButton
+              disabled={isMaster || isProcessing}
+              onClick={() => void updateUserRole(item)}
+              text="Guardar Rol"
+            />
+            {!isDisabled && !isMaster && (
+              <DefaultButton
+                disabled={isProcessing}
+                onClick={() => void disableUser(item)}
+                text="Deshabilitar"
+              />
+            )}
+          </Stack>
         );
       }
     }
-  ], [processingId, provisionalPasswords, selectedRoles]);
+  ], [processingId, selectedRoles]);
 
   if (!isMasterAdminRole(currentUser?.role)) {
     return (
@@ -240,7 +268,7 @@ const UserAdminPanel: React.FC = () => {
           <div>
             <h3 className={styles.title}>Administración de Usuarios</h3>
             <p className={styles.description}>
-              Autoriza cuentas validadas por Power Automate y asigna su rol operativo.
+              Gestiona el estado y rol de todos los usuarios del sistema. Autoriza solicitudes pendientes y actualiza asignaciones de rol en tiempo real.
             </p>
             <p className={styles.adminRecipient}>
               Alertas administrativas: <a href={`mailto:${ADMIN_NOTIFICATION_EMAIL}`}>{ADMIN_NOTIFICATION_EMAIL}</a>
@@ -265,7 +293,7 @@ const UserAdminPanel: React.FC = () => {
 
       <div className={styles.tableCard}>
         {isLoading ? (
-          <Spinner label="Cargando usuarios locales..." size={SpinnerSize.large} />
+          <Spinner label="Cargando usuarios..." size={SpinnerSize.large} />
         ) : users.length === 0 ? (
           <div className={styles.emptyState}>No existen usuarios registrados.</div>
         ) : (
