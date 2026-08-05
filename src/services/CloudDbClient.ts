@@ -17,6 +17,7 @@ export interface ISupabaseUserRow {
   rol?: string;
   estado?: string;
   is_profile_validated_pa?: boolean;
+  is_role_manually_overridden?: boolean;
   fecha_registro?: string;
   password_hash?: string;
 }
@@ -102,6 +103,7 @@ export class CloudDbClient {
               Rol: (row.rol as AppUserRole) || 'Agente',
               Estado: (row.estado as AppUserStatus) || 'Pending_Admin_Approval',
               IsProfileValidatedByPA: Boolean(row.is_profile_validated_pa),
+              IsRoleManuallyOverridden: Boolean(row.is_role_manually_overridden),
               FechaRegistro: row.fecha_registro || new Date().toISOString(),
               FechaAprobacion: '',
               PasswordHash: row.password_hash || '',
@@ -182,12 +184,20 @@ export class CloudDbClient {
     identifier: number | string,
     estado: AppUserStatus,
     rol?: AppUserRole,
-    isProfileValidatedByPA?: boolean
+    isProfileValidatedByPA?: boolean,
+    isManualOverride?: boolean
   ): Promise<void> {
     if (isSupabaseConfigured()) {
       try {
         const updatePayload: Record<string, unknown> = { estado };
-        if (rol) updatePayload.rol = rol;
+        if (rol) {
+          updatePayload.rol = rol;
+        }
+        if (typeof isManualOverride === 'boolean') {
+          updatePayload.is_role_manually_overridden = isManualOverride;
+        } else if (rol) {
+          updatePayload.is_role_manually_overridden = true;
+        }
         if (typeof isProfileValidatedByPA === 'boolean') {
           updatePayload.is_profile_validated_pa = isProfileValidatedByPA;
         }
@@ -215,6 +225,9 @@ export class CloudDbClient {
       );
 
       if (target && target.Id) {
+        const nextOverride = typeof isManualOverride === 'boolean'
+          ? isManualOverride
+          : (rol ? true : Boolean(target.IsRoleManuallyOverridden));
         await indexedDb.put(LOCAL_STORES.users, {
           ...target,
           Id: target.Id,
@@ -223,6 +236,7 @@ export class CloudDbClient {
           IsProfileValidatedByPA: typeof isProfileValidatedByPA === 'boolean'
             ? isProfileValidatedByPA
             : target.IsProfileValidatedByPA,
+          IsRoleManuallyOverridden: nextOverride,
           SyncStatus: 'Pendiente'
         });
       }
@@ -237,7 +251,10 @@ export class CloudDbClient {
   ): Promise<void> {
     if (isSupabaseConfigured()) {
       try {
-        let query = supabase.from('usuarios').update({ rol: newRole });
+        let query = supabase.from('usuarios').update({
+          rol: newRole,
+          is_role_manually_overridden: true
+        });
         if (typeof identifier === 'number') {
           query = query.eq('id', identifier);
         } else {
@@ -264,6 +281,7 @@ export class CloudDbClient {
           ...target,
           Id: target.Id,
           Rol: newRole as AppUserRole,
+          IsRoleManuallyOverridden: true,
           SyncStatus: 'Pendiente'
         });
       }

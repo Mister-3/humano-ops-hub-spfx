@@ -43,6 +43,7 @@ export interface IUsuarioExcelRow {
   PasswordHash: string;
   Nombre: string;
   Rol: AppUserRole;
+  CalculatedRol?: AppUserRole | string;
   Estado: AppUserStatus;
   IsProfileValidatedByPA: boolean;
   FechaRegistro: string;
@@ -667,6 +668,9 @@ export class PowerAutomateSyncService {
     const byEmail = new Map(
       existing.map((item) => [normalizeEmail(item.Email), item])
     );
+    const cloudUsers = await cloudDbClient.getUsuarios();
+    const cloudUserMap = new Map(cloudUsers.map(u => [normalizeEmail(u.Email), u]));
+
     const directoryNamesByEmail = new Map(
       headcountRows
         .map((item) => [
@@ -679,7 +683,10 @@ export class PowerAutomateSyncService {
     for (const row of rows) {
       const email = normalizeEmail(row.Email);
       if (!email) continue;
-      const current = byEmail.get(email);
+      const currentLocal = byEmail.get(email);
+      const currentCloud = cloudUserMap.get(email);
+      const current = currentCloud || currentLocal;
+
       const importedStatus = isAppUserStatus(row.Estado)
         ? row.Estado
         : 'Pending_Validation';
@@ -690,32 +697,50 @@ export class PowerAutomateSyncService {
       const validatedDirectoryName = validated
         ? directoryNamesByEmail.get(email) || toText(row.Nombre)
         : '';
+
+      const rawCalculatedRol = toText(row.CalculatedRol || row.Rol);
+      const calculatedRol: AppUserRole = isAppUserRole(rawCalculatedRol)
+        ? (rawCalculatedRol as AppUserRole)
+        : 'Agente';
+
+      const currentRole = current?.Rol;
+      const isRoleOverridden = Boolean(current?.IsRoleManuallyOverridden);
+      const isAdminOrMaster = currentRole === 'Master_Admin' || (currentRole as string) === 'Master Admin' || currentRole === 'Admin';
+
+      let finalRole: AppUserRole;
+      if ((isRoleOverridden || isAdminOrMaster) && currentRole) {
+        finalRole = currentRole;
+      } else {
+        finalRole = calculatedRol;
+      }
+
       const imported: IAppUserRecord = {
         ID: toText(row.ID),
         Email: email,
         PasswordHash: toText(row.PasswordHash) || current?.PasswordHash || '',
         Nombre: validatedDirectoryName || toText(row.Nombre) || current?.Nombre || email,
-        Rol: isAppUserRole(row.Rol) ? row.Rol : current?.Rol || 'Asistente',
+        Rol: finalRole,
         Estado: status,
         IsProfileValidatedByPA: validated,
+        IsRoleManuallyOverridden: isRoleOverridden,
         FechaRegistro: toText(row.FechaRegistro),
         FechaAprobacion: toText(row.FechaAprobacion),
         SyncStatus: 'Sincronizado',
         UpdatedAt: new Date().toISOString()
       };
 
-      if (current?.Id) {
+      if (currentLocal?.Id) {
         await this.database.put(LOCAL_STORES.users, {
-          ...current,
+          ...currentLocal,
           ...imported,
-          Id: current.Id,
+          Id: currentLocal.Id,
           SyncStatus: 'Sincronizado'
         });
       } else {
         const added = await this.database.add(LOCAL_STORES.users, imported);
         byEmail.set(email, added);
       }
-      await cloudDbClient.updateUsuarioStatus(email, imported.Estado, imported.Rol, imported.IsProfileValidatedByPA);
+      await cloudDbClient.updateUsuarioStatus(email, imported.Estado, imported.Rol, imported.IsProfileValidatedByPA, false);
     }
   }
 

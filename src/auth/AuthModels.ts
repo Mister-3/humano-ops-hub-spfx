@@ -25,6 +25,7 @@ export interface IAppUserRecord extends ILocalEntity {
   Rol: AppUserRole;
   Estado: AppUserStatus;
   IsProfileValidatedByPA: boolean;
+  IsRoleManuallyOverridden?: boolean;
   FechaRegistro: string;
   FechaAprobacion: string;
 }

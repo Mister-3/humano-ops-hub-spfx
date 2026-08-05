@@ -115,7 +115,7 @@ const UserAdminPanel: React.FC = () => {
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
-      await cloudDbClient.updateUsuarioStatus(user.Id, 'Active', role, true);
+      await cloudDbClient.updateUsuarioStatus(user.Id, 'Active', role, true, true);
       await loadUsers();
       setMessage({
         type: MessageBarType.success,
