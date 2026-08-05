@@ -25,7 +25,7 @@ import { cloudDbClient } from '../../../../services/CloudDbClient';
 import styles from './UserAdminPanel.module.scss';
 
 const roleOptions: IDropdownOption[] = [
-  { key: 'Asistente', text: 'Agente / Asistente' },
+  { key: 'Agente', text: 'Agente' },
   { key: 'Supervisor', text: 'Supervisor' },
   { key: 'Admin', text: 'Admin' },
   { key: 'Master_Admin', text: 'Master Admin' }
@@ -91,7 +91,7 @@ const UserAdminPanel: React.FC = () => {
       setUsers(loaded);
       setSelectedRoles((current) => loaded.reduce<Record<number, AppUserRole>>(
         (result, user) => {
-          result[user.Id] = current[user.Id] || user.Rol || 'Asistente';
+          result[user.Id] = current[user.Id] || user.Rol || 'Agente';
           return result;
         },
         {}
@@ -111,7 +111,7 @@ const UserAdminPanel: React.FC = () => {
   }, [loadUsers]);
 
   const approveUser = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
-    const role = selectedRoles[user.Id] || user.Rol || 'Asistente';
+    const role = selectedRoles[user.Id] || user.Rol || 'Agente';
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
@@ -132,7 +132,7 @@ const UserAdminPanel: React.FC = () => {
   };
 
   const updateUserRole = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
-    const role = selectedRoles[user.Id] || user.Rol || 'Asistente';
+    const role = selectedRoles[user.Id] || user.Rol || 'Agente';
     setProcessingId(user.Id);
     setMessage(undefined);
     try {
@@ -232,7 +232,7 @@ const UserAdminPanel: React.FC = () => {
               }
             }}
             options={roleOptions}
-            selectedKey={selectedRoles[item.Id] || item.Rol || 'Asistente'}
+            selectedKey={selectedRoles[item.Id] || item.Rol || 'Agente'}
           />
         );
       }

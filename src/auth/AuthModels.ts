@@ -7,6 +7,7 @@ export type AppUserRole =
   | 'Supervisor'
   | 'Analista'
   | 'Asistente'
+  | 'Agente'
   | 'Oficial';
 
 export type AppUserStatus =

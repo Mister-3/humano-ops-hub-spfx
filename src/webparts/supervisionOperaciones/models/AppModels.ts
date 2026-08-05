@@ -5,6 +5,7 @@ export type RoleType =
   | 'Supervisor'
   | 'Analista'
   | 'Asistente'
+  | 'Agente'
   | 'Oficial';
 
 export type FaltaApprovalStatus =

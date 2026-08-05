@@ -260,7 +260,7 @@ export class AuthService {
       Email: email,
       PasswordHash: await hashPassword(input.password),
       Nombre: name,
-      Rol: isMasterAdmin ? 'Master_Admin' : 'Asistente',
+      Rol: isMasterAdmin ? 'Master_Admin' : 'Agente',
       Estado: isMasterAdmin ? 'Active' : 'Pending_Admin_Approval',
       IsProfileValidatedByPA: isMasterAdmin,
       FechaRegistro: now,
