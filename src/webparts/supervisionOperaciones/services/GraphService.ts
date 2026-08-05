@@ -1,6 +1,7 @@
 import IndexedDbAdapter, {
   LOCAL_STORES
 } from '../../../services/IndexedDbAdapter';
+import { cloudDbClient } from '../../../services/CloudDbClient';
 import type { IHeadcountRow } from '../../../services/PowerAutomateSyncService';
 
 export interface IDirectReport {
@@ -217,9 +218,14 @@ export default class GraphService {
   }
 
   private async getHeadcount(): Promise<IHeadcountRow[]> {
-    let rows = await this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
+    let rows: IHeadcountRow[] = [];
+    try {
+      rows = await cloudDbClient.getHeadcount();
+    } catch {
+      rows = await this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
+    }
 
-    if (rows.length === 0) {
+    if (!rows || rows.length === 0) {
       for (const seed of DEFAULT_HEADCOUNT) {
         await this.database.add(LOCAL_STORES.headcount, seed);
       }
@@ -227,6 +233,6 @@ export default class GraphService {
       rows = await this.database.getAll<IHeadcountRow>(LOCAL_STORES.headcount);
     }
 
-    return rows.filter((row) => row.EstadoActivo !== false && row.Activo !== false);
+    return rows.filter((row) => row.EstadoActivo !== false && (row as any).Activo !== false);
   }
 }

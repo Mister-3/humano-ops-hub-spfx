@@ -803,9 +803,52 @@ export class CloudDbClient {
 
 export const cloudDbClient = new CloudDbClient();
 
+export async function fetchHeadcountBySupervisor(supervisorEmail: string) {
+  if (!supervisorEmail) return [];
+  const normSupervisor = supervisorEmail.trim().toLowerCase();
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('headcount')
+        .select('*')
+        .or(`supervisor_email.ilike.${normSupervisor},email_supervisor.ilike.${normSupervisor}`);
+
+      if (error) {
+        console.error('Error al obtener headcount:', error);
+        return [];
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
+        return data.map((row: ISupabaseHeadcountRow) => ({
+          member_name: row.member_name || row.nombre_empleado || (row as any).nombre || '',
+          member_email: row.member_email || row.email_empleado || (row as any).email || '',
+          member_puesto: row.member_puesto || row.cargo || 'Oficial',
+          member_area: row.member_area || row.departamento || 'Operaciones',
+          supervisor_email: row.supervisor_email || row.email_supervisor || normSupervisor,
+          estado_activo: row.estado_activo !== false
+        }));
+      }
+    } catch (err) {
+      console.error('Error al obtener headcount:', err);
+    }
+  }
+
+  const localRows = await cloudDbClient.getHeadcountBySupervisor(normSupervisor);
+  return localRows.map((row) => ({
+    member_name: row.NombreEmpleado,
+    member_email: row.EmailEmpleado,
+    member_puesto: row.Cargo,
+    member_area: row.Departamento,
+    supervisor_email: row.EmailSupervisor,
+    estado_activo: row.EstadoActivo !== false
+  }));
+}
+
 export const HeadcountService = {
   getHeadcount: () => cloudDbClient.getHeadcount(),
-  getHeadcountBySupervisor: (supervisorEmail: string) => cloudDbClient.getHeadcountBySupervisor(supervisorEmail)
+  getHeadcountBySupervisor: (supervisorEmail: string) => cloudDbClient.getHeadcountBySupervisor(supervisorEmail),
+  fetchHeadcountBySupervisor: (supervisorEmail: string) => fetchHeadcountBySupervisor(supervisorEmail)
 };
 
 export const KudosService = {
