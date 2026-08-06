@@ -4,6 +4,7 @@ import type { IAppUserRecord, AppUserStatus, AppUserRole } from '../auth/AuthMod
 import type { IHeadcountRow } from './PowerAutomateSyncService';
 import type {
   IFaltaHistorialItem,
+  IFaltaAprobacionItem,
   IKudoHistorialItem,
   IRegistrarFaltaData,
   IRegistrarKudoData
@@ -869,6 +870,132 @@ export class CloudDbClient {
       } catch (err) {
         console.warn('Error al guardar configuraciones_sistema:', err);
       }
+    }
+  }
+
+  // ==========================================
+  // COLA DE APROBACIÓN DE FALTAS
+  // ==========================================
+
+  public async getFaltasPendientes(
+    allowedAuthorEmails?: ReadonlyArray<string>
+  ): Promise<IFaltaAprobacionItem[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let { data, error } = await supabase
+          .from('faltas_errores')
+          .select('*')
+          .in('estado_aprobacion', ['Pendiente_Aprobacion', 'Pendiente']);
+
+        if (error || !Array.isArray(data)) {
+          const res = await supabase
+            .from('faltas')
+            .select('*')
+            .in('estado_aprobacion', ['Pendiente_Aprobacion', 'Pendiente']);
+          data = res.data;
+          error = res.error;
+        }
+
+        if (!error && Array.isArray(data)) {
+          const allowed = allowedAuthorEmails === undefined
+            ? undefined
+            : new Set(allowedAuthorEmails.map((e) => (e || '').trim().toLowerCase()).filter(Boolean));
+
+          const mapped: IFaltaAprobacionItem[] = data
+            .map((row: ISupabaseFaltaRow, index: number) => {
+              const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+              const emailEmpleado = row.email_empleado || '';
+              return {
+                Id: numericId,
+                Title: emailEmpleado,
+                AgenteEmail: emailEmpleado,
+                FechaFalta: row.fecha || new Date().toISOString(),
+                Categoria: row.motivo || '',
+                CasoRef: row.id_caso_helpdesk || '',
+                IdCasoHelpdesk: row.id_caso_helpdesk || '',
+                HorasPerdidas: row.horas_perdidas || 0,
+                MinutosTardanza: row.minutos_tardanza || 0,
+                Impacto: row.impacto || 'Bajo',
+                Estado: (row.estado as any) || 'Borrador',
+                EstadoAprobacion: 'Pendiente_Aprobacion' as any,
+                RolOriginador: 'Asistente' as any,
+                AuditID: row.audit_id || row.id_auditoria || '',
+                Author: { EMail: emailEmpleado, Title: emailEmpleado },
+                AttachmentFiles: row.evidencia_url || row.url_evidencia ? [{
+                  FileName: 'Evidencia',
+                  ServerRelativeUrl: row.evidencia_url || row.url_evidencia || ''
+                }] : [],
+                SyncStatus: 'Sincronizado'
+              };
+            })
+            .filter((item) =>
+              !allowed ||
+              allowed.has((item.AgenteEmail || '').trim().toLowerCase()) ||
+              allowed.has((item.Author?.EMail || '').trim().toLowerCase())
+            )
+            .sort((left, right) => right.FechaFalta.localeCompare(left.FechaFalta));
+
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getFaltasPendientes fallback to IndexedDB:', err);
+      }
+    }
+
+    const items = await indexedDb.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas);
+    const allowed = allowedAuthorEmails === undefined
+      ? undefined
+      : new Set(allowedAuthorEmails.map((e) => (e || '').trim().toLowerCase()).filter(Boolean));
+
+    return items
+      .filter((item) =>
+        (item.EstadoAprobacion === 'Pendiente_Aprobacion' || item.EstadoAprobacion === 'Pendiente') &&
+        (!allowed || allowed.has((item.AgenteEmail || '').trim().toLowerCase()) || allowed.has((item.Author?.EMail || '').trim().toLowerCase()))
+      )
+      .map((item): IFaltaAprobacionItem => ({
+        ...item,
+        Id: item.Id,
+        EstadoAprobacion: 'Pendiente_Aprobacion',
+        AttachmentFiles: (item as any).AttachmentData ? ((item as any).AttachmentData || []).map((att: any) => ({
+          FileName: att.name,
+          ServerRelativeUrl: URL.createObjectURL(att.content)
+        })) : []
+      }))
+      .sort((left, right) => right.FechaFalta.localeCompare(left.FechaFalta));
+  }
+
+  public async actualizarEstadoAprobacion(
+    id: number,
+    nuevoEstado: 'Aprobado' | 'Rechazado'
+  ): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const estadoRegistro = nuevoEstado === 'Aprobado' ? 'Aprobado' : 'Rechazado';
+        let { error } = await supabase
+          .from('faltas_errores')
+          .update({ estado_aprobacion: nuevoEstado, estado: estadoRegistro })
+          .eq('id', id);
+
+        if (error) {
+          await supabase
+            .from('faltas')
+            .update({ estado_aprobacion: nuevoEstado, estado: estadoRegistro })
+            .eq('id', id);
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.actualizarEstadoAprobacion error:', err);
+      }
+    }
+
+    try {
+      const localItem = await indexedDb.getById<IFaltaHistorialItem>(LOCAL_STORES.faltas, id);
+      if (localItem) {
+        localItem.EstadoAprobacion = nuevoEstado as any;
+        localItem.Estado = nuevoEstado === 'Aprobado' ? 'Aprobado' : 'Rechazado';
+        await indexedDb.put(LOCAL_STORES.faltas, localItem);
+      }
+    } catch {
+      // Ignore local error
     }
   }
 }

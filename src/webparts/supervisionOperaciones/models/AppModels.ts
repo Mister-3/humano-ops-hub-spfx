@@ -10,6 +10,8 @@ export type RoleType =
 
 export type FaltaApprovalStatus =
   | 'Pendiente'
+  | 'Pendiente_Aprobacion'
+  | 'Registrado'
   | 'Aprobado'
   | 'Rechazado';
 

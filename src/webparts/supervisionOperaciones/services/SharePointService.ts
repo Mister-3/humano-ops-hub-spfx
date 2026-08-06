@@ -772,49 +772,14 @@ export class SharePointService {
   public async getFaltasPendientes(
     allowedAuthorEmails?: ReadonlyArray<string>
   ): Promise<IFaltaAprobacionItem[]> {
-    const allowed = allowedAuthorEmails === undefined
-      ? undefined
-      : new Set(allowedAuthorEmails.map(normalizeEmail).filter(Boolean));
-
-    if (allowed && allowed.size === 0) {
-      return [];
-    }
-
-    const items = await this.database.getAll<ILocalFaltaRecord>(LOCAL_STORES.faltas);
-
-    return items
-      .filter((item) =>
-        item.EstadoAprobacion === 'Pendiente' &&
-        (!allowed || allowed.has(normalizeEmail(item.Author?.EMail)))
-      )
-      .map((item): IFaltaAprobacionItem => ({
-        ...item,
-        Id: item.Id,
-        EstadoAprobacion: 'Pendiente',
-        AttachmentFiles: (item.AttachmentData || []).map((attachment) => ({
-          FileName: attachment.name,
-          ServerRelativeUrl: URL.createObjectURL(attachment.content)
-        }))
-      }))
-      .sort((left, right) => right.FechaFalta.localeCompare(left.FechaFalta));
+    return cloudDbClient.getFaltasPendientes(allowedAuthorEmails);
   }
 
   public async actualizarEstadoAprobacion(
     id: number,
     estado: Extract<FaltaApprovalStatus, 'Aprobado' | 'Rechazado'>
   ): Promise<void> {
-    const item = await this.database.getById<ILocalFaltaRecord>(LOCAL_STORES.faltas, id);
-
-    if (!item) {
-      throw new Error('No se encontró la falta indicada.');
-    }
-
-    await this.database.put(LOCAL_STORES.faltas, {
-      ...item,
-      Id: id,
-      EstadoAprobacion: estado,
-      SyncStatus: 'Pendiente'
-    });
+    return cloudDbClient.actualizarEstadoAprobacion(id, estado);
   }
 
   public async getCapacitacionesPeriodo(
