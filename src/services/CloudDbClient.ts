@@ -6,6 +6,10 @@ import type {
   IFaltaHistorialItem,
   IFaltaAprobacionItem,
   IKudoHistorialItem,
+  ICatalogoItem,
+  CatalogCategory,
+  IProductividadHistorialItem,
+  IRegistrarProductividadData,
   IRegistrarFaltaData,
   IRegistrarKudoData
 } from '../webparts/supervisionOperaciones/services/SharePointService';
@@ -997,6 +1001,213 @@ export class CloudDbClient {
     } catch {
       // Ignore local error
     }
+  }
+
+  // ==========================================
+  // CATÁLOGOS (tabla: catalogos)
+  // ==========================================
+
+  public async getCatalogos(categoria?: CatalogCategory): Promise<ICatalogoItem[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase.from('catalogos').select('*');
+        if (categoria) {
+          query = query.or(`categoria.eq.${categoria},title.eq.${categoria},Title.eq.${categoria}`);
+        }
+        const { data, error } = await query;
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped: ICatalogoItem[] = data.map((row: any, index: number) => ({
+            Id: typeof row.id === 'number' ? row.id : (index + 1),
+            Title: (row.categoria || row.title || row.Title || categoria || 'Falta') as CatalogCategory,
+            Valor: row.valor || row.value || row.Valor || ''
+          }));
+          try {
+            await indexedDb.replaceAll(LOCAL_STORES.catalogos, mapped);
+          } catch {
+            // Ignore cache error
+          }
+          return mapped.sort((a, b) => a.Valor.localeCompare(b.Valor));
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getCatalogos fallback to IndexedDB:', err);
+      }
+    }
+
+    const items = await indexedDb.getAll<ICatalogoItem>(LOCAL_STORES.catalogos);
+    return items
+      .filter((item) => !categoria || item.Title === categoria)
+      .sort((left, right) => left.Valor.localeCompare(right.Valor));
+  }
+
+  public async addCatalogo(categoria: CatalogCategory, valor: string): Promise<void> {
+    const normValue = valor.trim();
+    if (isSupabaseConfigured()) {
+      try {
+        let res = await supabase.from('catalogos').insert([{ categoria, valor: normValue }]).select();
+        if (res.error) {
+          await supabase.from('catalogos').insert([{ title: categoria, valor: normValue }]);
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.addCatalogo error:', err);
+      }
+    }
+
+    try {
+      await indexedDb.add(LOCAL_STORES.catalogos, {
+        Title: categoria,
+        Valor: normValue,
+        SyncStatus: 'Pendiente'
+      });
+    } catch {
+      // Ignore local cache error
+    }
+  }
+
+  public async deleteCatalogo(id: number): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('catalogos').delete().eq('id', id);
+      } catch (err) {
+        console.warn('CloudDbClient.deleteCatalogo error:', err);
+      }
+    }
+
+    try {
+      await indexedDb.remove(LOCAL_STORES.catalogos, id);
+    } catch {
+      // Ignore local cache error
+    }
+  }
+
+  // ==========================================
+  // PRODUCTIVIDAD CRUD (tabla: productividad)
+  // ==========================================
+
+  public async getProductividad(): Promise<IProductividadHistorialItem[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('productividad').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped: IProductividadHistorialItem[] = data.map((row: any, index: number) => {
+            const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+            const email = row.email_empleado || row.agente_email || row.email || '';
+            return {
+              Id: numericId,
+              Title: email,
+              AgenteEmail: email,
+              FechaRegistro: row.created_at || row.fecha_registro || new Date().toISOString(),
+              FechaInicio: row.fecha_inicio || new Date().toISOString(),
+              FechaFin: row.fecha_fin || new Date().toISOString(),
+              Casos: Number(row.casos_atendidos) || 0,
+              CasosAtendidos: Number(row.casos_atendidos) || 0,
+              CasosATiempo: Number(row.casos_a_tiempo) || 0,
+              TieneDatosSLA: true,
+              Emisiones: Number(row.emisiones_tx) || 0,
+              Movimientos: Number(row.movimientos_pg) || 0,
+              EmisionesTx: Number(row.emisiones_tx) || 0,
+              EmisionesPg: Number(row.emisiones_pg) || 0,
+              MovimientosTx: Number(row.movimientos_tx) || 0,
+              MovimientosPg: Number(row.movimientos_pg) || 0,
+              EscaneoTx: Number(row.escaneo_tx) || 0,
+              EscaneoPg: Number(row.escaneo_pg) || 0,
+              AuditID: row.audit_id || row.id_auditoria || ''
+            };
+          });
+
+          try {
+            await indexedDb.replaceAll(LOCAL_STORES.productividad, mapped);
+          } catch {
+            // Ignore cache error
+          }
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getProductividad fallback to IndexedDB:', err);
+      }
+    }
+
+    return indexedDb.getAll<IProductividadHistorialItem>(LOCAL_STORES.productividad);
+  }
+
+  public async createProductividad(data: IRegistrarProductividadData): Promise<void> {
+    const startIso = data.fechaInicio.toISOString();
+    const endIso = data.fechaFin.toISOString();
+    const auditId = generateAuditID();
+    const emailEmpleado = (data.agenteEmail || data.agente || '').trim().toLowerCase();
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          audit_id: auditId,
+          id_auditoria: auditId,
+          email_empleado: emailEmpleado,
+          fecha_inicio: startIso,
+          fecha_fin: endIso,
+          casos_atendidos: data.casosAtendidos || 0,
+          casos_a_tiempo: data.casosATiempo || 0,
+          emisiones_tx: data.emisionesTx || 0,
+          emisiones_pg: data.emisionesPg || 0,
+          movimientos_tx: data.movimientosTx || 0,
+          movimientos_pg: data.movimientosPg || 0,
+          escaneo_tx: data.escaneoTx || 0,
+          escaneo_pg: data.escaneoPg || 0
+        };
+
+        const res = await supabase.from('productividad').insert([payload]).select();
+        if (!res.error && res.data && res.data.length > 0) {
+          const insertedRow = res.data[0];
+          const officialItem: IProductividadHistorialItem = {
+            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            Title: emailEmpleado,
+            AgenteEmail: emailEmpleado,
+            FechaRegistro: new Date().toISOString(),
+            FechaInicio: startIso,
+            FechaFin: endIso,
+            Casos: data.casosAtendidos || 0,
+            CasosAtendidos: data.casosAtendidos || 0,
+            CasosATiempo: data.casosATiempo || 0,
+            TieneDatosSLA: true,
+            Emisiones: data.emisionesTx || 0,
+            Movimientos: data.movimientosPg || 0,
+            EmisionesTx: data.emisionesTx || 0,
+            EmisionesPg: data.emisionesPg || 0,
+            MovimientosTx: data.movimientosTx || 0,
+            MovimientosPg: data.movimientosPg || 0,
+            EscaneoTx: data.escaneoTx || 0,
+            EscaneoPg: data.escaneoPg || 0,
+            AuditID: auditId
+          };
+          try {
+            await indexedDb.add(LOCAL_STORES.productividad, officialItem);
+          } catch {
+            // Ignore cache error
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.createProductividad error inserting to Supabase:', err);
+      }
+    }
+
+    await indexedDb.add(LOCAL_STORES.productividad, {
+      Title: data.agente.trim(),
+      AgenteEmail: emailEmpleado,
+      FechaRegistro: new Date().toISOString(),
+      FechaInicio: startIso,
+      FechaFin: endIso,
+      Casos: data.casosAtendidos,
+      CasosAtendidos: data.casosAtendidos,
+      CasosATiempo: data.casosATiempo,
+      TieneDatosSLA: true,
+      EmisionesTx: data.emisionesTx,
+      EmisionesPg: data.emisionesPg,
+      MovimientosTx: data.movimientosTx,
+      MovimientosPg: data.movimientosPg,
+      EscaneoTx: data.escaneoTx,
+      EscaneoPg: data.escaneoPg,
+      AuditID: auditId,
+      SyncStatus: 'Pendiente'
+    });
   }
 }
 

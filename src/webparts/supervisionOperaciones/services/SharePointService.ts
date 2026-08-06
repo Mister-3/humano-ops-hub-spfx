@@ -882,9 +882,7 @@ export class SharePointService {
   ): Promise<void> {
     const { start, end } = normalizeRange(data.fechaInicio, data.fechaFin);
     const email = normalizeEmail(data.agenteEmail);
-    const existing = await this.database.getAll<IProductividadHistorialItem & ILocalEntity>(
-      LOCAL_STORES.productividad
-    );
+    const existing = await cloudDbClient.getProductividad();
     const hasConflict = existing.some((item) =>
       normalizeEmail(item.AgenteEmail) === email &&
       rangesOverlap(item.FechaInicio, item.FechaFin, start, end)
@@ -894,28 +892,7 @@ export class SharePointService {
       throw new Error(PRODUCTIVITY_OVERLAP_ERROR_MESSAGE);
     }
 
-    await this.database.add(LOCAL_STORES.productividad, {
-      Title: data.agente.trim(),
-      AgenteEmail: email,
-      AgenteObjectID: data.agenteObjectId?.trim() || '',
-      FechaRegistro: new Date().toISOString(),
-      FechaInicio: start.toISOString(),
-      FechaFin: end.toISOString(),
-      Casos: data.casosAtendidos,
-      CasosAtendidos: data.casosAtendidos,
-      CasosATiempo: data.casosATiempo,
-      TieneDatosSLA: true,
-      Emisiones: data.emisiones ?? data.emisionesTx,
-      Movimientos: data.movimientos ?? data.movimientosPg,
-      EmisionesTx: data.emisionesTx,
-      EmisionesPg: data.emisionesPg,
-      MovimientosTx: data.movimientosTx,
-      MovimientosPg: data.movimientosPg,
-      EscaneoTx: data.escaneoTx,
-      EscaneoPg: data.escaneoPg,
-      AuditID: generateAuditID(),
-      SyncStatus: 'Pendiente'
-    });
+    return cloudDbClient.createProductividad(data);
   }
 
   public async getProductividadHistorial(
@@ -931,9 +908,7 @@ export class SharePointService {
     const end = endDate
       ? getDayBoundary(endDate, 'end', 'La fecha de fin')
       : undefined;
-    const items = await this.database.getAll<IProductividadHistorialItem>(
-      LOCAL_STORES.productividad
-    );
+    const items = await cloudDbClient.getProductividad();
 
     return items
       .filter((item) => {
@@ -1108,13 +1083,7 @@ export class SharePointService {
     if (categoria && !isCatalogCategory(categoria)) {
       throw new Error('La categoría de catálogo no es válida.');
     }
-
-    await this.ensureConfiguracionCatalogosList();
-    const items = await this.database.getAll<ICatalogoItem>(LOCAL_STORES.catalogos);
-
-    return items
-      .filter((item) => !categoria || item.Title === categoria)
-      .sort((left, right) => left.Valor.localeCompare(right.Valor));
+    return cloudDbClient.getCatalogos(categoria);
   }
 
   public async addCatalogo(
@@ -1132,15 +1101,11 @@ export class SharePointService {
       throw new Error('La opción ya existe en el catálogo.');
     }
 
-    await this.database.add(LOCAL_STORES.catalogos, {
-      Title: categoria,
-      Valor: normalizedValue,
-      SyncStatus: 'Pendiente'
-    });
+    return cloudDbClient.addCatalogo(categoria, normalizedValue);
   }
 
   public async deleteCatalogo(id: number): Promise<void> {
-    await this.database.remove(LOCAL_STORES.catalogos, id);
+    return cloudDbClient.deleteCatalogo(id);
   }
 
   public async ensureConfiguracionList(): Promise<void> {
