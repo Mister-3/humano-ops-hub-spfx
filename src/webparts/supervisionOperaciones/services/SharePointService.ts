@@ -969,16 +969,7 @@ export class SharePointService {
     if (!data.casoContacto.trim() || !normalizeEmail(data.supervisorEmail)) {
       throw new Error('Caso/contacto y correo del supervisor son obligatorios.');
     }
-
-    await this.database.add(LOCAL_STORES.llamadas, {
-      Title: data.casoContacto.trim(),
-      SupervisorEmail: normalizeEmail(data.supervisorEmail),
-      FechaHora: data.fechaHora.toISOString(),
-      DuracionMinutos: data.duracionMinutos,
-      Comentarios: data.comentarios?.trim() || '',
-      AuditID: generateAuditID(),
-      SyncStatus: 'Pendiente'
-    });
+    return cloudDbClient.createLlamadaFlota(data);
   }
 
   public async getLlamadasFlota(
@@ -988,7 +979,7 @@ export class SharePointService {
   ): Promise<ILlamadaFlotaItem[]> {
     const { start, end } = normalizeRange(startDate, endDate);
     const email = normalizeEmail(supervisorEmail);
-    const items = await this.database.getAll<ILlamadaFlotaItem>(LOCAL_STORES.llamadas);
+    const items = await cloudDbClient.getLlamadasFlota(supervisorEmail);
 
     return items.filter((item) =>
       isDateInRange(item.FechaHora, start, end) &&
@@ -1230,9 +1221,9 @@ export class SharePointService {
     }
 
     const [rawProductividad, rawKudos, rawFaltas, config] = await Promise.all([
-      this.database.getAll<IProductividadHistorialItem>(LOCAL_STORES.productividad),
+      cloudDbClient.getProductividad(),
       cloudDbClient.getKudos(),
-      this.database.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas),
+      cloudDbClient.getFaltas(),
       this.getConfiguracion()
     ]);
 
@@ -1272,8 +1263,8 @@ export class SharePointService {
 
     const [config, productividad, faltas, rawKudos] = await Promise.all([
       this.getConfiguracion(),
-      this.database.getAll<IProductividadHistorialItem>(LOCAL_STORES.productividad),
-      this.database.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas),
+      cloudDbClient.getProductividad(),
+      cloudDbClient.getFaltas(),
       cloudDbClient.getKudos()
     ]);
 

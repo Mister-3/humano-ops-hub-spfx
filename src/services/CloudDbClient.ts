@@ -10,6 +10,8 @@ import type {
   CatalogCategory,
   IProductividadHistorialItem,
   IRegistrarProductividadData,
+  ILlamadaFlotaItem,
+  IRegistrarLlamadaFlotaData,
   IRegistrarFaltaData,
   IRegistrarKudoData
 } from '../webparts/supervisionOperaciones/services/SharePointService';
@@ -1066,8 +1068,12 @@ export class CloudDbClient {
   public async getProductividad(): Promise<IProductividadHistorialItem[]> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.from('productividad').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        const { data, error } = await supabase
+          .from('productividad')
+          .select('*')
+          .order('fecha_inicio', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
           const mapped: IProductividadHistorialItem[] = data.map((row: any, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
             const email = row.email_empleado || row.agente_email || row.email || '';
@@ -1185,6 +1191,97 @@ export class CloudDbClient {
       MovimientosPg: data.movimientosPg,
       EscaneoTx: data.escaneoTx,
       EscaneoPg: data.escaneoPg,
+      AuditID: auditId,
+      SyncStatus: 'Pendiente'
+    });
+  }
+
+  // ==========================================
+  // OCUPACIÓN / LLAMADAS CRUD (tabla: ocupacion_llamadas)
+  // ==========================================
+
+  public async getLlamadasFlota(supervisorEmail?: string): Promise<ILlamadaFlotaItem[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase
+          .from('ocupacion_llamadas')
+          .select('*')
+          .order('fecha_hora', { ascending: false });
+        if (supervisorEmail) {
+          query = query.ilike('supervisor_email', supervisorEmail.trim());
+        }
+        const { data, error } = await query;
+        if (!error && Array.isArray(data)) {
+          const mapped: ILlamadaFlotaItem[] = data.map((row: any, index: number) => ({
+            Id: typeof row.id === 'number' ? row.id : (index + 1),
+            Title: row.caso_contacto || row.title || '',
+            SupervisorEmail: row.supervisor_email || row.email_supervisor || '',
+            FechaHora: row.fecha_hora || row.created_at || new Date().toISOString(),
+            DuracionMinutos: Number(row.duracion_minutos) || 0,
+            Comentarios: row.comentarios || '',
+            AuditID: row.audit_id || row.id_auditoria || ''
+          }));
+          try {
+            await indexedDb.replaceAll(LOCAL_STORES.llamadas, mapped);
+          } catch {
+            // Ignore cache error
+          }
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getLlamadasFlota fallback to IndexedDB:', err);
+      }
+    }
+
+    return indexedDb.getAll<ILlamadaFlotaItem>(LOCAL_STORES.llamadas);
+  }
+
+  public async createLlamadaFlota(data: IRegistrarLlamadaFlotaData): Promise<void> {
+    const auditId = generateAuditID();
+    const supervisorEmail = (data.supervisorEmail || '').trim().toLowerCase();
+    const fechaHoraIso = data.fechaHora.toISOString();
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          audit_id: auditId,
+          supervisor_email: supervisorEmail,
+          caso_contacto: data.casoContacto.trim(),
+          fecha_hora: fechaHoraIso,
+          duracion_minutos: data.duracionMinutos || 0,
+          comentarios: data.comentarios?.trim() || ''
+        };
+
+        const res = await supabase.from('ocupacion_llamadas').insert([payload]).select();
+        if (!res.error && res.data && res.data.length > 0) {
+          const insertedRow = res.data[0];
+          const officialItem: ILlamadaFlotaItem = {
+            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            Title: data.casoContacto.trim(),
+            SupervisorEmail: supervisorEmail,
+            FechaHora: fechaHoraIso,
+            DuracionMinutos: data.duracionMinutos,
+            Comentarios: data.comentarios?.trim() || '',
+            AuditID: auditId
+          };
+          try {
+            await indexedDb.add(LOCAL_STORES.llamadas, officialItem);
+          } catch {
+            // Ignore cache error
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.createLlamadaFlota error inserting to Supabase:', err);
+      }
+    }
+
+    await indexedDb.add(LOCAL_STORES.llamadas, {
+      Title: data.casoContacto.trim(),
+      SupervisorEmail: supervisorEmail,
+      FechaHora: fechaHoraIso,
+      DuracionMinutos: data.duracionMinutos,
+      Comentarios: data.comentarios?.trim() || '',
       AuditID: auditId,
       SyncStatus: 'Pendiente'
     });
