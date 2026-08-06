@@ -992,7 +992,7 @@ export class CloudDbClient {
           const mapped: ICatalogoItem[] = data.map((row: any, index: number) => ({
             Id: typeof row.id === 'number' ? row.id : (index + 1),
             Title: (row.categoria || row.title || categoria || 'Falta') as CatalogCategory,
-            Valor: row.valor || row.value || ''
+            Valor: row.valor || row.title || row.nombre || row.descripcion || row.value || ''
           }));
           try {
             await indexedDb.replaceAll(LOCAL_STORES.catalogos, mapped);
@@ -1016,7 +1016,13 @@ export class CloudDbClient {
     const normValue = valor.trim();
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('catalogos').insert([{ categoria, valor: normValue }]);
+        let res = await supabase.from('catalogos').insert([{ categoria, valor: normValue }]).select();
+        if (res.error) {
+          res = await supabase.from('catalogos').insert([{ categoria, title: normValue }]).select();
+          if (res.error) {
+            await supabase.from('catalogos').insert([{ categoria, nombre: normValue }]);
+          }
+        }
       } catch (err) {
         console.warn('CloudDbClient.addCatalogo error:', err);
       }
