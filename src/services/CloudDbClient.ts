@@ -1068,10 +1068,20 @@ export class CloudDbClient {
   public async getProductividad(): Promise<IProductividadHistorialItem[]> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        let res = await supabase
           .from('productividad')
           .select('*')
-          .order('fecha_inicio', { ascending: false });
+          .order('fecha_inicio', { ascending: false, nullsFirst: false });
+
+        if (res.error) {
+          res = await supabase
+            .from('productividad')
+            .select('*')
+            .order('created_at', { ascending: false, nullsFirst: false });
+        }
+
+        const data = res.data;
+        const error = res.error;
 
         if (!error && Array.isArray(data)) {
           const mapped: IProductividadHistorialItem[] = data.map((row: any, index: number) => {
