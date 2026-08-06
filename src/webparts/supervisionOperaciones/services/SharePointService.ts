@@ -14,7 +14,7 @@ import IndexedDbAdapter, {
   type ILocalEntity,
   type IOperationalFaltaFields
 } from '../../../services/IndexedDbAdapter';
-import { cloudDbClient, deduplicateKudos } from '../../../services/CloudDbClient';
+import { cloudDbClient, deduplicateKudos, uploadEvidenciaToSupabase } from '../../../services/CloudDbClient';
 export { deduplicateKudos } from '../../../services/CloudDbClient';
 
 export const PRODUCTIVITY_OVERLAP_ERROR_MESSAGE =
@@ -363,6 +363,7 @@ export interface IRegistrarFaltaData {
   impacto: string;
   estado: IFalta['estado'];
   rolOriginador: RoleType;
+  evidenciaUrl?: string;
 }
 
 export interface IRegistrarKudoData {
@@ -688,6 +689,16 @@ export class SharePointService {
       throw new Error('El agente y la fecha de la falta son obligatorios.');
     }
 
+    let publicUrl = faltaData.evidenciaUrl || '';
+    if (file && !publicUrl) {
+      publicUrl = await uploadEvidenciaToSupabase(file, 'evidencias');
+    }
+
+    const faltaConEvidencia: IRegistrarFaltaData = {
+      ...faltaData,
+      evidenciaUrl: publicUrl
+    };
+
     const author = getLocalAuthor();
     const auditId = generateAuditID();
     const record: Omit<ILocalFaltaRecord, 'Id'> = {
@@ -721,7 +732,7 @@ export class SharePointService {
     };
 
     await this.database.add(LOCAL_STORES.faltas, record);
-    await cloudDbClient.createFalta(faltaData);
+    await cloudDbClient.createFalta(faltaConEvidencia);
   }
 
   public async getFaltasHistorial(
@@ -836,6 +847,12 @@ export class SharePointService {
         throw new Error(`El archivo ${file.name} no es PDF, JPG, JPEG o PNG.`);
       }
     });
+
+    const uploadedUrls: string[] = [];
+    for (const file of files) {
+      const url = await uploadEvidenciaToSupabase(file, 'evidencias');
+      if (url) uploadedUrls.push(url);
+    }
 
     const record: Omit<ILocalKudoRecord, 'Id'> = {
       Title: kudoData.agente.trim(),

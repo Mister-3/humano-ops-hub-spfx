@@ -51,6 +51,8 @@ export interface ISupabaseFaltaRow {
   impacto?: string;
   estado?: string;
   estado_aprobacion?: string;
+  evidencia_url?: string;
+  url_evidencia?: string;
 }
 
 export interface ISupabaseKudoRow {
@@ -565,6 +567,10 @@ export class CloudDbClient {
 
     const savedLocal = await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, recordToSave as IFaltaHistorialItem);
 
+    const evidenciaUrl = isRegistrarData
+      ? (faltaData.evidenciaUrl || '')
+      : ((faltaData as any).evidencia_url || (faltaData as any).evidenciaUrl || '');
+
     if (isSupabaseConfigured()) {
       try {
         const payload: ISupabaseFaltaRow = {
@@ -575,7 +581,9 @@ export class CloudDbClient {
           minutos_tardanza: minutosTardanza,
           fecha: fechaISO,
           impacto: recordToSave.Impacto,
-          estado: recordToSave.Estado
+          estado: recordToSave.Estado,
+          evidencia_url: evidenciaUrl,
+          url_evidencia: evidenciaUrl
         };
 
         let res = await supabase.from('faltas_errores').insert([payload]).select();
@@ -865,5 +873,7 @@ export const AdminService = {
   getMetas: (email?: string) => cloudDbClient.getMetas(email),
   createMeta: (data: Partial<IMetaRecord>) => cloudDbClient.createMeta(data)
 };
+
+export { uploadEvidenciaToSupabase, uploadFileToSupabase } from './uploadFileToSupabase';
 
 export default cloudDbClient;
