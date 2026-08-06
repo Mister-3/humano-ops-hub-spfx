@@ -731,7 +731,6 @@ export class SharePointService {
       UpdatedAt: new Date().toISOString()
     };
 
-    await this.database.add(LOCAL_STORES.faltas, record);
     await cloudDbClient.createFalta(faltaConEvidencia);
   }
 

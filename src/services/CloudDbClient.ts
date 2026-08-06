@@ -565,8 +565,6 @@ export class CloudDbClient {
       UpdatedAt: new Date().toISOString()
     };
 
-    const savedLocal = await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, recordToSave as IFaltaHistorialItem);
-
     const evidenciaUrl = isRegistrarData
       ? (faltaData.evidenciaUrl || '')
       : ((faltaData as any).evidencia_url || (faltaData as any).evidenciaUrl || '');
@@ -593,17 +591,24 @@ export class CloudDbClient {
 
         if (!res.error && res.data && res.data.length > 0) {
           const insertedRow = res.data[0] as ISupabaseFaltaRow;
-          if (insertedRow.id && typeof insertedRow.id === 'number') {
-            savedLocal.Id = insertedRow.id;
-            savedLocal.SyncStatus = 'Sincronizado';
-            await indexedDb.put(LOCAL_STORES.faltas, savedLocal);
+          const officialItem: IFaltaHistorialItem = {
+            ...recordToSave,
+            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            SyncStatus: 'Sincronizado'
+          };
+          try {
+            await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, officialItem);
+          } catch {
+            // Ignore cache error
           }
+          return officialItem;
         }
       } catch (err) {
         console.warn('CloudDbClient.createFalta error inserting to Supabase:', err);
       }
     }
 
+    const savedLocal = await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, recordToSave as IFaltaHistorialItem);
     return savedLocal;
   }
 
@@ -686,8 +691,6 @@ export class CloudDbClient {
       UpdatedAt: new Date().toISOString()
     };
 
-    const savedLocal = await indexedDb.add<IKudoHistorialItem>(LOCAL_STORES.kudos, recordToSave as IKudoHistorialItem);
-
     if (isSupabaseConfigured()) {
       try {
         const payload: ISupabaseKudoRow = {
@@ -705,17 +708,24 @@ export class CloudDbClient {
 
         if (!error && data && data.length > 0) {
           const insertedRow = data[0] as ISupabaseKudoRow;
-          if (insertedRow.id && typeof insertedRow.id === 'number') {
-            savedLocal.Id = insertedRow.id;
-            savedLocal.SyncStatus = 'Sincronizado';
-            await indexedDb.put(LOCAL_STORES.kudos, savedLocal);
+          const officialItem: IKudoHistorialItem = {
+            ...recordToSave,
+            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            SyncStatus: 'Sincronizado'
+          };
+          try {
+            await indexedDb.add<IKudoHistorialItem>(LOCAL_STORES.kudos, officialItem);
+          } catch {
+            // Ignore cache error
           }
+          return officialItem;
         }
       } catch (err) {
         console.warn('CloudDbClient.createKudo error inserting to Supabase:', err);
       }
     }
 
+    const savedLocal = await indexedDb.add<IKudoHistorialItem>(LOCAL_STORES.kudos, recordToSave as IKudoHistorialItem);
     return savedLocal;
   }
 
@@ -778,8 +788,6 @@ export class CloudDbClient {
       UpdatedAt: new Date().toISOString()
     };
 
-    const savedLocal = await indexedDb.add<IMetaRecord>(LOCAL_STORES.metas, recordToSave);
-
     if (isSupabaseConfigured()) {
       try {
         const payload: ISupabaseMetaRow = {
@@ -794,17 +802,24 @@ export class CloudDbClient {
         const { data, error } = await supabase.from('metas').insert([payload]).select();
         if (!error && data && data.length > 0) {
           const insertedRow = data[0] as ISupabaseMetaRow;
-          if (insertedRow.id && typeof insertedRow.id === 'number') {
-            savedLocal.Id = insertedRow.id;
-            savedLocal.SyncStatus = 'Sincronizado';
-            await indexedDb.put(LOCAL_STORES.metas, savedLocal);
+          const officialItem: IMetaRecord = {
+            ...recordToSave,
+            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            SyncStatus: 'Sincronizado'
+          };
+          try {
+            await indexedDb.add<IMetaRecord>(LOCAL_STORES.metas, officialItem);
+          } catch {
+            // Ignore cache error
           }
+          return officialItem;
         }
       } catch (err) {
         console.warn('CloudDbClient.createMeta error inserting to Supabase:', err);
       }
     }
 
+    const savedLocal = await indexedDb.add<IMetaRecord>(LOCAL_STORES.metas, recordToSave);
     return savedLocal;
   }
 }
