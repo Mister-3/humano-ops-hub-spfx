@@ -1135,7 +1135,6 @@ export class CloudDbClient {
       try {
         const payload = {
           audit_id: auditId,
-          id_auditoria: auditId,
           email_empleado: emailEmpleado,
           fecha_inicio: startIso,
           fecha_fin: endIso,
