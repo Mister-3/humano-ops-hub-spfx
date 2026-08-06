@@ -815,12 +815,25 @@ const KudosForm: React.FC<IKudosFormProps> = ({
     event: React.ChangeEvent<HTMLInputElement>
   ): void => {
     const selectedFiles = Array.from(event.currentTarget.files || []);
-    const rejectedFiles = selectedFiles.filter(
-      (file) => !isAllowedEvidenceFile(file)
+    const MAX_FILE_SIZE_MB = 50;
+    const oversizedFiles = selectedFiles.filter(
+      (file) => file.size > MAX_FILE_SIZE_MB * 1024 * 1024
     );
 
     setSuccessMessage('');
     setErrorMessage('');
+
+    if (oversizedFiles.length > 0) {
+      alert(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+      setEvidenciaFiles([]);
+      setEvidenciaError(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+      event.currentTarget.value = '';
+      return;
+    }
+
+    const rejectedFiles = selectedFiles.filter(
+      (file) => !isAllowedEvidenceFile(file)
+    );
 
     if (rejectedFiles.length > 0) {
       setEvidenciaFiles([]);
@@ -1118,6 +1131,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                   />
                 )}
               </Stack>
+
+              <p style={{ fontSize: '12px', color: '#605e5c', margin: '4px 0 0 0' }}>
+                Límite máximo por archivo: 50 MB (Imágenes y PDFs)
+              </p>
 
               {evidenciaError && (
                 <MessageBar messageBarType={MessageBarType.error}>

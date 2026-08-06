@@ -446,6 +446,13 @@ const AdminConfiguration: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const MAX_FILE_SIZE_MB = 50;
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      alert(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+      event.target.value = '';
+      return;
+    }
+
     setIsSyncing(true);
     setSyncSuccessMessage('');
     setSyncErrorMessage('');
@@ -544,6 +551,9 @@ const AdminConfiguration: React.FC = () => {
           {isSyncing && (
             <Spinner label="Sincronizando..." size={SpinnerSize.small} />
           )}
+          <p style={{ fontSize: '12px', color: '#605e5c', margin: '4px 0 0 0' }}>
+            Límite máximo por archivo: 50 MB
+          </p>
         </Stack>
       </Stack>
 

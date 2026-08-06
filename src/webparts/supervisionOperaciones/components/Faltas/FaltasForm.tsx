@@ -937,29 +937,44 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
               selectedKey={isTraining ? NO_PENALTY_IMPACT : nivelImpacto}
             />
 
-            <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
-              <input
-                accept="image/*,.pdf,.msg,.eml"
-                aria-label="Seleccionar archivo de evidencia"
-                disabled={!canSubmit || isSubmitting}
-                onChange={(event) => {
-                  setEvidenciaFile(event.currentTarget.files?.[0] || null);
-                }}
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                type="file"
-              />
-              <DefaultButton
-                disabled={!canSubmit || isSubmitting}
-                onClick={() => fileInputRef.current?.click()}
-                text="Adjuntar Evidencia (Foto/Correo)"
-                type="button"
-              />
-              {evidenciaFile && (
-                <Text className={styles.fileName}>
-                  Archivo seleccionado: {evidenciaFile.name}
-                </Text>
-              )}
+            <Stack verticalAlign="start" tokens={{ childrenGap: 6 }}>
+              <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
+                <input
+                  accept="image/*,.pdf,.msg,.eml"
+                  aria-label="Seleccionar archivo de evidencia"
+                  disabled={!canSubmit || isSubmitting}
+                  onChange={(event) => {
+                    const selectedFile = event.currentTarget.files?.[0] || null;
+                    if (selectedFile) {
+                      const MAX_FILE_SIZE_MB = 50;
+                      if (selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                        alert(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+                        event.currentTarget.value = '';
+                        setEvidenciaFile(null);
+                        return;
+                      }
+                    }
+                    setEvidenciaFile(selectedFile);
+                  }}
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  type="file"
+                />
+                <DefaultButton
+                  disabled={!canSubmit || isSubmitting}
+                  onClick={() => fileInputRef.current?.click()}
+                  text="Adjuntar Evidencia (Foto/Correo)"
+                  type="button"
+                />
+                {evidenciaFile && (
+                  <Text className={styles.fileName}>
+                    Archivo seleccionado: {evidenciaFile.name}
+                  </Text>
+                )}
+              </Stack>
+              <p style={{ fontSize: '12px', color: '#605e5c', margin: '4px 0 0 0' }}>
+                Límite máximo por archivo: 50 MB (Imágenes y PDFs)
+              </p>
             </Stack>
 
             <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
