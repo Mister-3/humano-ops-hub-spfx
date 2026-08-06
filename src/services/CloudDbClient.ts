@@ -9,6 +9,8 @@ import type {
   IRegistrarKudoData
 } from '../webparts/supervisionOperaciones/services/SharePointService';
 
+import { generateAuditID } from '../webparts/supervisionOperaciones/utils/auditUtils';
+
 const indexedDb = new IndexedDbAdapter();
 
 export interface ISupabaseUserRow {
@@ -36,12 +38,13 @@ export interface ISupabaseHeadcountRow {
   member_area?: string;
   departamento?: string;
   estado_activo?: boolean;
-  agente_object_id?: string;
   rol?: string;
 }
 
 export interface ISupabaseFaltaRow {
   id?: number | string;
+  audit_id?: string;
+  id_auditoria?: string;
   email_empleado?: string;
   motivo?: string;
   id_caso_helpdesk?: string;
@@ -366,7 +369,7 @@ export class CloudDbClient {
             Cargo: row.member_puesto || row.cargo || 'Oficial',
             Departamento: row.member_area || row.departamento || 'Operaciones',
             EstadoActivo: row.estado_activo !== false,
-            AgenteObjectID: row.agente_object_id || '',
+            AgenteObjectID: (row as any).agente_object_id || '',
             Rol: (row.rol as any) || 'Oficial',
             SyncStatus: 'Sincronizado'
           }));
@@ -407,7 +410,7 @@ export class CloudDbClient {
             Cargo: row.member_puesto || row.cargo || 'Oficial',
             Departamento: row.member_area || row.departamento || 'Operaciones',
             EstadoActivo: row.estado_activo !== false,
-            AgenteObjectID: row.agente_object_id || '',
+            AgenteObjectID: (row as any).agente_object_id || '',
             Rol: (row.rol as any) || 'Oficial',
             SyncStatus: 'Sincronizado'
           }));
@@ -572,9 +575,15 @@ export class CloudDbClient {
       ? (faltaData.estadoAprobacion || 'Registrado')
       : ((faltaData as any).estado_aprobacion || (faltaData as any).estadoAprobacion || 'Registrado');
 
+    const auditId = isRegistrarData
+      ? ((faltaData as any).auditId || (faltaData as any).audit_id || (faltaData as any).idAuditoria || generateAuditID())
+      : ((faltaData as any).audit_id || (faltaData as any).AuditID || (faltaData as any).IdAuditoria || generateAuditID());
+
     if (isSupabaseConfigured()) {
       try {
         const payload: ISupabaseFaltaRow = {
+          audit_id: auditId,
+          id_auditoria: auditId,
           email_empleado: emailEmpleado,
           motivo,
           id_caso_helpdesk: casoHelpdesk,
@@ -825,6 +834,42 @@ export class CloudDbClient {
 
     const savedLocal = await indexedDb.add<IMetaRecord>(LOCAL_STORES.metas, recordToSave);
     return savedLocal;
+  }
+
+  // ==========================================
+  // CONFIGURACIONES DEL SISTEMA (tabla: configuraciones_sistema)
+  // ==========================================
+
+  public async getConfiguracionSistema(): Promise<Record<string, any>> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('configuraciones_sistema').select('*');
+        if (!error && Array.isArray(data)) {
+          const configMap: Record<string, any> = {};
+          data.forEach((row: any) => {
+            if (row.clave) {
+              configMap[row.clave] = row.valor ?? row.val_num;
+            }
+          });
+          return configMap;
+        }
+      } catch (err) {
+        console.warn('Error al leer configuraciones_sistema:', err);
+      }
+    }
+    return {};
+  }
+
+  public async saveConfiguracionSistema(clave: string, valor: any): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('configuraciones_sistema').upsert([
+          { clave, valor: String(valor) }
+        ], { onConflict: 'clave' });
+      } catch (err) {
+        console.warn('Error al guardar configuraciones_sistema:', err);
+      }
+    }
   }
 }
 

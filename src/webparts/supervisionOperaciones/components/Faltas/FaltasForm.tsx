@@ -493,7 +493,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
 
     if (requiresApproval && !casoRef.trim()) {
       setErrorMessage(
-        'El ID Caso Helpdesk / Calidad es obligatorio para registros creados por el Asistente'
+        'El ID Relacionado es obligatorio para registros enviados a la cola de aprobación.'
       );
       return;
     }
@@ -710,20 +710,6 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
               selectedKey={categoria}
             />
 
-            <TextField
-              description={requiresApproval
-                ? 'Requerido para enviar el registro a la cola de aprobación.'
-                : 'Opcional para registros con aprobación directa.'}
-              disabled={!canSubmit || isSubmitting}
-              label="ID Caso Helpdesk / Calidad"
-              onChange={(_, value) => setCasoRef(value || '')}
-              placeholder={requiresApproval
-                ? 'Ingrese el ID del caso'
-                : 'Opcional'}
-              required={requiresApproval}
-              value={casoRef}
-            />
-
             {isTraining && (
               <Stack className={styles.conditionalSection} tokens={{ childrenGap: 15 }}>
                 <MessageBar messageBarType={MessageBarType.info}>
@@ -800,6 +786,19 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   placeholder="Seleccione el origen del error"
                   required
                   selectedKey={origenError || undefined}
+                />
+                <TextField
+                  description={requiresApproval
+                    ? 'Requerido para enviar el registro a la cola de aprobación.'
+                    : 'Opcional para registros con aprobación directa.'}
+                  disabled={!canSubmit || isSubmitting}
+                  label="ID Relacionado"
+                  onChange={(_, value) => setCasoRef(value || '')}
+                  placeholder={requiresApproval
+                    ? 'Ingrese el ID del caso o referencia'
+                    : 'Opcional'}
+                  required={requiresApproval}
+                  value={casoRef}
                 />
                 <Dropdown
                   disabled={!canSubmit || isSubmitting || isLoadingCatalogs}

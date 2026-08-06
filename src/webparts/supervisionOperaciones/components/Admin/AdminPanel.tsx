@@ -15,6 +15,7 @@ import {
   TextField
 } from '@fluentui/react';
 import PowerAutomateSyncService from '../../../../services/PowerAutomateSyncService';
+import { cloudDbClient } from '../../../../services/CloudDbClient';
 
 import type { RoleType } from '../../models/AppModels';
 import SharePointService, {
@@ -131,6 +132,7 @@ const AdminConfiguration: React.FC = () => {
   const [penalidadBaja, setPenalidadBaja] = React.useState<number>(5);
   const [penalidadMedia, setPenalidadMedia] = React.useState<number>(15);
   const [penalidadCritica, setPenalidadCritica] = React.useState<number>(50);
+  const [limiteDiaPublicacion, setLimiteDiaPublicacion] = React.useState<number>(5);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
@@ -167,6 +169,7 @@ const AdminConfiguration: React.FC = () => {
     const loadConfiguration = async (): Promise<void> => {
       try {
         const configuration = await sharePointService.getConfiguracion();
+        const sysConfig = await cloudDbClient.getConfiguracionSistema();
 
         if (isMounted) {
           setConfigurationId(configuration.Id);
@@ -185,6 +188,10 @@ const AdminConfiguration: React.FC = () => {
           setPenalidadBaja(configuration.PenalidadBaja);
           setPenalidadMedia(configuration.PenalidadMedia);
           setPenalidadCritica(configuration.PenalidadCritica);
+          const limite = sysConfig.limite_dia_publicacion
+            ? Number(sysConfig.limite_dia_publicacion)
+            : (configuration.LimiteDiaPublicacion ?? 5);
+          setLimiteDiaPublicacion(limite);
         }
       } catch (error: unknown) {
         if (isMounted) {
@@ -321,10 +328,12 @@ const AdminConfiguration: React.FC = () => {
         PuntosPorKudo: puntosPorKudo,
         PenalidadBaja: penalidadBaja,
         PenalidadMedia: penalidadMedia,
-        PenalidadCritica: penalidadCritica
+        PenalidadCritica: penalidadCritica,
+        LimiteDiaPublicacion: limiteDiaPublicacion
       };
 
       await sharePointService.actualizarConfiguracion(configurationId, data);
+      await cloudDbClient.saveConfiguracionSistema('limite_dia_publicacion', limiteDiaPublicacion);
       setSuccessMessage('Configuración guardada correctamente.');
     } catch (error: unknown) {
       const detail = error instanceof Error
@@ -701,9 +710,17 @@ const AdminConfiguration: React.FC = () => {
 
         <section className={`${styles.metricsSection} ${styles.section}`}>
           <div className={styles.sectionHeading}>
-            <Text variant="xLarge">Reconocimientos</Text>
+            <Text variant="xLarge">Publicación y Reconocimientos</Text>
           </div>
           <div className={styles.metricGrid}>
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Día Límite de Publicación (Mes)"
+              max={31}
+              onValueChange={setLimiteDiaPublicacion}
+              step={1}
+              value={limiteDiaPublicacion}
+            />
             <NumericConfigurationField
               disabled={isSubmitting}
               label="Puntos por Kudo"

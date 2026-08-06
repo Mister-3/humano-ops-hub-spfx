@@ -17,6 +17,7 @@ import {
   TextField
 } from '@fluentui/react';
 
+import { cloudDbClient } from '../../../../services/CloudDbClient';
 import SharePointService, {
   deduplicateKudos,
   isFaltaApprovedForScoring,
@@ -572,9 +573,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   );
   const canAccessPublication =
     userRole === 'Supervisor' || userRole === 'Admin' || userRole === 'Master_Admin';
+  const [limiteDiaPublicacion, setLimiteDiaPublicacion] = React.useState<number>(5);
   const currentDay = currentDate.getDate();
   const isPublicationWindowOpen =
-    userRole === 'Admin' || userRole === 'Master_Admin' || (currentDay >= 1 && currentDay <= 5);
+    userRole === 'Admin' || userRole === 'Master_Admin' || (currentDay >= 1 && currentDay <= limiteDiaPublicacion);
   const scopedAgents = availableAgents;
   const isLoadingTeam = isLoadingAgents;
 
@@ -587,6 +589,15 @@ const KudosForm: React.FC<IKudosFormProps> = ({
 
     const loadKudoCatalog = async (): Promise<void> => {
       try {
+        const configuration = await sharePointService.getConfiguracion();
+        const sysConfig = await cloudDbClient.getConfiguracionSistema();
+        if (isMounted) {
+          const limite = sysConfig.limite_dia_publicacion
+            ? Number(sysConfig.limite_dia_publicacion)
+            : (configuration.LimiteDiaPublicacion ?? 5);
+          setLimiteDiaPublicacion(limite);
+        }
+
         const catalogItems: ReadonlyArray<{ Valor: string }> =
           await sharePointService.getCatalogos('Kudo');
 

@@ -117,7 +117,8 @@ const DEFAULT_CONFIG: IConfiguracionMetricas = {
   PuntosPorKudo: 10,
   PenalidadBaja: 5,
   PenalidadMedia: 15,
-  PenalidadCritica: 50
+  PenalidadCritica: 50,
+  LimiteDiaPublicacion: 5
 };
 
 interface ILocalAttachment {
@@ -624,6 +625,7 @@ export interface IConfiguracionMetricas {
   PenalidadBaja: number;
   PenalidadMedia: number;
   PenalidadCritica: number;
+  LimiteDiaPublicacion?: number;
 }
 
 export type PublicacionEmpleadoMesEstado = 'Borrador' | 'Publicado';
@@ -670,7 +672,7 @@ export type IConfiguracionMetricasUpdate = Pick<
   | 'PenalidadCritica'
 > & Partial<Pick<
   IConfiguracionMetricas,
-  'PesoEmisiones' | 'PesoMovimientos' | 'MetaDiaria'
+  'PesoEmisiones' | 'PesoMovimientos' | 'MetaDiaria' | 'LimiteDiaPublicacion'
 >>;
 
 export class SharePointService {
