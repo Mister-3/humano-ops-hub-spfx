@@ -568,6 +568,9 @@ export class CloudDbClient {
     const evidenciaUrl = isRegistrarData
       ? (faltaData.evidenciaUrl || '')
       : ((faltaData as any).evidencia_url || (faltaData as any).evidenciaUrl || '');
+    const estadoAprobacion = isRegistrarData
+      ? (faltaData.estadoAprobacion || 'Registrado')
+      : ((faltaData as any).estado_aprobacion || (faltaData as any).estadoAprobacion || 'Registrado');
 
     if (isSupabaseConfigured()) {
       try {
@@ -580,6 +583,7 @@ export class CloudDbClient {
           fecha: fechaISO,
           impacto: recordToSave.Impacto,
           estado: recordToSave.Estado,
+          estado_aprobacion: estadoAprobacion,
           evidencia_url: evidenciaUrl,
           url_evidencia: evidenciaUrl
         };

@@ -364,6 +364,7 @@ export interface IRegistrarFaltaData {
   estado: IFalta['estado'];
   rolOriginador: RoleType;
   evidenciaUrl?: string;
+  estadoAprobacion?: string;
 }
 
 export interface IRegistrarKudoData {

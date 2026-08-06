@@ -265,6 +265,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   const [arrivalPeriod, setArrivalPeriod] =
     React.useState<ArrivalPeriod>('AM');
   const [nivelImpacto, setNivelImpacto] = React.useState<string>('');
+  const [estadoAprobacion, setEstadoAprobacion] = React.useState<string>(
+    isAssistant ? 'Pendiente_Aprobacion' : 'Registrado'
+  );
   const [evidenciaFile, setEvidenciaFile] = React.useState<File | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
@@ -532,7 +535,8 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const estado: IFalta['estado'] = requiresApproval
+      const finalEstadoAprobacion = isAssistant ? 'Pendiente_Aprobacion' : estadoAprobacion;
+      const estado: IFalta['estado'] = (requiresApproval || finalEstadoAprobacion === 'Pendiente_Aprobacion')
         ? 'Borrador'
         : 'Aprobado';
       const faltaData: IRegistrarFaltaData = {
@@ -544,6 +548,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
         categoria,
         impacto: isTraining ? NO_PENALTY_IMPACT : nivelImpacto,
         estado,
+        estadoAprobacion: finalEstadoAprobacion,
         rolOriginador: userRole,
         subcategoria: isProcessError || isEthicsViolation ? subcategoria : '',
         casoRef: casoRef.trim(),
@@ -936,6 +941,20 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
               required={!isTraining}
               selectedKey={isTraining ? NO_PENALTY_IMPACT : nivelImpacto}
             />
+
+            {!isAssistant && (
+              <Dropdown
+                disabled={!canSubmit || isSubmitting}
+                label="Estado de Registro / Aprobación"
+                onChange={(_, option) => setEstadoAprobacion(String(option?.key || 'Registrado'))}
+                options={[
+                  { key: 'Registrado', text: 'Registro Definitivo' },
+                  { key: 'Pendiente_Aprobacion', text: 'Enviar a Cola de Aprobación' }
+                ]}
+                required
+                selectedKey={estadoAprobacion}
+              />
+            )}
 
             <Stack verticalAlign="start" tokens={{ childrenGap: 6 }}>
               <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
