@@ -991,6 +991,7 @@ export class CloudDbClient {
         if (!error && Array.isArray(data)) {
           const mapped: ICatalogoItem[] = data.map((row: any, index: number) => ({
             Id: typeof row.id === 'number' ? row.id : (index + 1),
+            rawId: row.id || row.id_catalogo || (index + 1),
             Title: (row.categoria || row.title || categoria || 'Falta') as CatalogCategory,
             Valor: row.valor || row.title || row.nombre || row.descripcion || row.value || ''
           }));
@@ -1039,7 +1040,7 @@ export class CloudDbClient {
     }
   }
 
-  public async deleteCatalogo(id: number): Promise<void> {
+  public async deleteCatalogo(id: number | string): Promise<void> {
     if (isSupabaseConfigured()) {
       try {
         await supabase.from('catalogos').delete().eq('id', id);
@@ -1049,7 +1050,10 @@ export class CloudDbClient {
     }
 
     try {
-      await indexedDb.remove(LOCAL_STORES.catalogos, id);
+      const numericId = typeof id === 'number' ? id : Number(id);
+      if (!isNaN(numericId)) {
+        await indexedDb.remove(LOCAL_STORES.catalogos, numericId);
+      }
     } catch {
       // Ignore local cache error
     }

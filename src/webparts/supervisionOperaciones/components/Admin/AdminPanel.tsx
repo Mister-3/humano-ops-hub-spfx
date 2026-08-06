@@ -413,7 +413,8 @@ const AdminConfiguration: React.FC = () => {
     setDeletingCatalogId(item.Id);
 
     try {
-      await sharePointService.deleteCatalogo(item.Id);
+      const targetId = item.rawId ?? item.Id;
+      await sharePointService.deleteCatalogo(targetId);
       const updatedItems = await sharePointService.getCatalogos();
 
       setCatalogItems(updatedItems);

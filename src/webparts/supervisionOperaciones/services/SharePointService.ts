@@ -600,6 +600,7 @@ export interface IAgenteIdentityFilter {
 
 export interface ICatalogoItem {
   Id: number;
+  rawId?: string | number;
   Title: CatalogCategory;
   Valor: string;
 }
@@ -1104,7 +1105,7 @@ export class SharePointService {
     return cloudDbClient.addCatalogo(categoria, normalizedValue);
   }
 
-  public async deleteCatalogo(id: number): Promise<void> {
+  public async deleteCatalogo(id: number | string): Promise<void> {
     return cloudDbClient.deleteCatalogo(id);
   }
 
