@@ -49,7 +49,6 @@ export interface ISupabaseHeadcountRow {
 export interface ISupabaseFaltaRow {
   id?: number | string;
   audit_id?: string;
-  id_auditoria?: string;
   email_empleado?: string;
   motivo?: string;
   id_caso_helpdesk?: string;
@@ -60,7 +59,6 @@ export interface ISupabaseFaltaRow {
   estado?: string;
   estado_aprobacion?: string;
   evidencia_url?: string;
-  url_evidencia?: string;
 }
 
 export interface ISupabaseKudoRow {
@@ -493,15 +491,11 @@ export class CloudDbClient {
   public async getFaltas(): Promise<IFaltaHistorialItem[]> {
     if (isSupabaseConfigured()) {
       try {
-        let response = await supabase.from('faltas_errores').select('*');
-        if (response.error || !Array.isArray(response.data) || response.data.length === 0) {
-          response = await supabase.from('faltas').select('*');
-        }
-
+        const response = await supabase.from('faltas_errores').select('*');
         const data = response.data;
         const error = response.error;
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mappedFaltas: IFaltaHistorialItem[] = data.map((row: ISupabaseFaltaRow, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
             return {
@@ -588,7 +582,6 @@ export class CloudDbClient {
       try {
         const payload: ISupabaseFaltaRow = {
           audit_id: auditId,
-          id_auditoria: auditId,
           email_empleado: emailEmpleado,
           motivo,
           id_caso_helpdesk: casoHelpdesk,
@@ -598,14 +591,10 @@ export class CloudDbClient {
           impacto: recordToSave.Impacto,
           estado: recordToSave.Estado,
           estado_aprobacion: estadoAprobacion,
-          evidencia_url: evidenciaUrl,
-          url_evidencia: evidenciaUrl
+          evidencia_url: evidenciaUrl
         };
 
-        let res = await supabase.from('faltas_errores').insert([payload]).select();
-        if (res.error) {
-          res = await supabase.from('faltas').insert([payload]).select();
-        }
+        const res = await supabase.from('faltas_errores').insert([payload]).select();
 
         if (!res.error && res.data && res.data.length > 0) {
           const insertedRow = res.data[0] as ISupabaseFaltaRow;
@@ -886,19 +875,10 @@ export class CloudDbClient {
   ): Promise<IFaltaAprobacionItem[]> {
     if (isSupabaseConfigured()) {
       try {
-        let { data, error } = await supabase
+        const { data, error } = await supabase
           .from('faltas_errores')
           .select('*')
           .in('estado_aprobacion', ['Pendiente_Aprobacion', 'Pendiente']);
-
-        if (error || !Array.isArray(data)) {
-          const res = await supabase
-            .from('faltas')
-            .select('*')
-            .in('estado_aprobacion', ['Pendiente_Aprobacion', 'Pendiente']);
-          data = res.data;
-          error = res.error;
-        }
 
         if (!error && Array.isArray(data)) {
           const allowed = allowedAuthorEmails === undefined
@@ -923,11 +903,11 @@ export class CloudDbClient {
                 Estado: (row.estado as any) || 'Borrador',
                 EstadoAprobacion: 'Pendiente_Aprobacion' as any,
                 RolOriginador: 'Asistente' as any,
-                AuditID: row.audit_id || row.id_auditoria || '',
+                AuditID: row.audit_id || '',
                 Author: { EMail: emailEmpleado, Title: emailEmpleado },
-                AttachmentFiles: row.evidencia_url || row.url_evidencia ? [{
+                AttachmentFiles: row.evidencia_url ? [{
                   FileName: 'Evidencia',
-                  ServerRelativeUrl: row.evidencia_url || row.url_evidencia || ''
+                  ServerRelativeUrl: row.evidencia_url
                 }] : [],
                 SyncStatus: 'Sincronizado'
               };
@@ -975,17 +955,10 @@ export class CloudDbClient {
     if (isSupabaseConfigured()) {
       try {
         const estadoRegistro = nuevoEstado === 'Aprobado' ? 'Aprobado' : 'Rechazado';
-        let { error } = await supabase
+        await supabase
           .from('faltas_errores')
           .update({ estado_aprobacion: nuevoEstado, estado: estadoRegistro })
           .eq('id', id);
-
-        if (error) {
-          await supabase
-            .from('faltas')
-            .update({ estado_aprobacion: nuevoEstado, estado: estadoRegistro })
-            .eq('id', id);
-        }
       } catch (err) {
         console.warn('CloudDbClient.actualizarEstadoAprobacion error:', err);
       }
@@ -1012,14 +985,14 @@ export class CloudDbClient {
       try {
         let query = supabase.from('catalogos').select('*');
         if (categoria) {
-          query = query.or(`categoria.eq.${categoria},title.eq.${categoria},Title.eq.${categoria}`);
+          query = query.eq('categoria', categoria);
         }
         const { data, error } = await query;
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: ICatalogoItem[] = data.map((row: any, index: number) => ({
             Id: typeof row.id === 'number' ? row.id : (index + 1),
-            Title: (row.categoria || row.title || row.Title || categoria || 'Falta') as CatalogCategory,
-            Valor: row.valor || row.value || row.Valor || ''
+            Title: (row.categoria || row.title || categoria || 'Falta') as CatalogCategory,
+            Valor: row.valor || row.value || ''
           }));
           try {
             await indexedDb.replaceAll(LOCAL_STORES.catalogos, mapped);
@@ -1043,10 +1016,7 @@ export class CloudDbClient {
     const normValue = valor.trim();
     if (isSupabaseConfigured()) {
       try {
-        let res = await supabase.from('catalogos').insert([{ categoria, valor: normValue }]).select();
-        if (res.error) {
-          await supabase.from('catalogos').insert([{ title: categoria, valor: normValue }]);
-        }
+        await supabase.from('catalogos').insert([{ categoria, valor: normValue }]);
       } catch (err) {
         console.warn('CloudDbClient.addCatalogo error:', err);
       }
