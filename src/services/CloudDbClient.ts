@@ -1086,7 +1086,7 @@ export class CloudDbClient {
         if (!error && Array.isArray(data)) {
           const mapped: IProductividadHistorialItem[] = data.map((row: any, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
-            const email = row.email_empleado || row.agente_email || row.email || '';
+            const email = row.email_empleado || row.email || '';
             return {
               Id: numericId,
               Title: email,
