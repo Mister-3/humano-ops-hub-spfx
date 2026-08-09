@@ -12,6 +12,9 @@ import type {
   IRegistrarProductividadData,
   ILlamadaFlotaItem,
   IRegistrarLlamadaFlotaData,
+  IAusenciaItem,
+  IRegistrarAusenciaData,
+  AusenciaType,
   IRegistrarFaltaData,
   IRegistrarKudoData
 } from '../webparts/supervisionOperaciones/services/SharePointService';
@@ -1300,6 +1303,132 @@ export class CloudDbClient {
       SupervisorEmail: supervisorEmail,
       FechaHora: fechaHoraIso,
       DuracionMinutos: data.duracionMinutos,
+      Comentarios: data.comentarios?.trim() || '',
+      AuditID: auditId,
+      SyncStatus: 'Pendiente'
+    });
+  }
+
+  // ==========================================
+  // AUSENCIAS Y VACACIONES CRUD (tabla: ausencias)
+  // ==========================================
+
+  public async getAusencias(startDate?: Date, endDate?: Date): Promise<IAusenciaItem[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('ausencias')
+          .select('*')
+          .order('fecha_inicio', { ascending: false, nullsFirst: false });
+
+        if (!error && Array.isArray(data)) {
+          const mapped: IAusenciaItem[] = data.map((row: any, index: number) => {
+            const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+            const email = row.email_empleado || row.agente_email || row.colaborador_email || '';
+            const nombre = row.colaborador_nombre || row.agente_nombre || row.title || email;
+            return {
+              Id: numericId,
+              Title: nombre,
+              AgenteEmail: email,
+              AgenteObjectID: row.agente_object_id || '',
+              TipoAusencia: row.tipo_ausencia as AusenciaType,
+              FechaInicio: row.fecha_inicio || new Date().toISOString(),
+              FechaFin: row.fecha_fin || new Date().toISOString(),
+              Comentarios: row.comentarios || '',
+              AuditID: row.audit_id || ''
+            };
+          });
+
+          try {
+            await indexedDb.replaceAll(LOCAL_STORES.ausencias, mapped);
+          } catch {
+            // Ignore cache error
+          }
+
+          if (startDate || endDate) {
+            const startMs = startDate ? startDate.getTime() : 0;
+            const endMs = endDate ? endDate.getTime() : Infinity;
+            return mapped.filter((item) => {
+              const itemStart = new Date(item.FechaInicio).getTime();
+              const itemEnd = new Date(item.FechaFin).getTime();
+              return itemStart <= endMs && itemEnd >= startMs;
+            });
+          }
+
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getAusencias fallback to IndexedDB:', err);
+      }
+    }
+
+    const items = await indexedDb.getAll<IAusenciaItem>(LOCAL_STORES.ausencias);
+    if (startDate || endDate) {
+      const startMs = startDate ? startDate.getTime() : 0;
+      const endMs = endDate ? endDate.getTime() : Infinity;
+      return items.filter((item) => {
+        const itemStart = new Date(item.FechaInicio).getTime();
+        const itemEnd = new Date(item.FechaFin).getTime();
+        return itemStart <= endMs && itemEnd >= startMs;
+      });
+    }
+    return items;
+  }
+
+  public async createAusencia(data: IRegistrarAusenciaData): Promise<void> {
+    const auditId = generateAuditID();
+    const emailEmpleado = (data.agenteEmail || data.agente || '').trim().toLowerCase();
+    const startIso = data.fechaInicio.toISOString();
+    const endIso = data.fechaFin.toISOString();
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          audit_id: auditId,
+          email_empleado: emailEmpleado,
+          agente_email: emailEmpleado,
+          colaborador_nombre: data.agente.trim(),
+          agente_nombre: data.agente.trim(),
+          agente_object_id: data.agenteObjectId || '',
+          tipo_ausencia: data.tipoAusencia,
+          fecha_inicio: startIso,
+          fecha_fin: endIso,
+          comentarios: data.comentarios?.trim() || ''
+        };
+
+        const res = await supabase.from('ausencias').insert([payload]).select();
+        if (!res.error && res.data && res.data.length > 0) {
+          const insertedRow = res.data[0];
+          const officialItem: IAusenciaItem = {
+            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            Title: data.agente.trim(),
+            AgenteEmail: emailEmpleado,
+            AgenteObjectID: data.agenteObjectId || '',
+            TipoAusencia: data.tipoAusencia,
+            FechaInicio: startIso,
+            FechaFin: endIso,
+            Comentarios: data.comentarios?.trim() || '',
+            AuditID: auditId
+          };
+          try {
+            await indexedDb.add(LOCAL_STORES.ausencias, officialItem);
+          } catch {
+            // Ignore cache error
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.createAusencia error inserting to Supabase:', err);
+      }
+    }
+
+    await indexedDb.add(LOCAL_STORES.ausencias, {
+      Title: data.agente.trim(),
+      AgenteEmail: emailEmpleado,
+      AgenteObjectID: data.agenteObjectId || '',
+      TipoAusencia: data.tipoAusencia,
+      FechaInicio: startIso,
+      FechaFin: endIso,
       Comentarios: data.comentarios?.trim() || '',
       AuditID: auditId,
       SyncStatus: 'Pendiente'

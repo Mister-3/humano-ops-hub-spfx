@@ -928,23 +928,10 @@ export class SharePointService {
   }
 
   public async registrarAusencia(data: IRegistrarAusenciaData): Promise<void> {
-    const { start, end } = normalizeRange(data.fechaInicio, data.fechaFin);
-
     if (!isAusenciaType(data.tipoAusencia)) {
       throw new Error('El tipo de ausencia no es válido.');
     }
-
-    await this.database.add(LOCAL_STORES.ausencias, {
-      Title: data.agente.trim(),
-      AgenteEmail: normalizeEmail(data.agenteEmail),
-      AgenteObjectID: data.agenteObjectId?.trim() || '',
-      TipoAusencia: data.tipoAusencia,
-      FechaInicio: start.toISOString(),
-      FechaFin: end.toISOString(),
-      Comentarios: data.comentarios?.trim() || '',
-      AuditID: generateAuditID(),
-      SyncStatus: 'Pendiente'
-    });
+    return cloudDbClient.createAusencia(data);
   }
 
   public async getAusencias(
@@ -952,11 +939,7 @@ export class SharePointService {
     endDate: Date
   ): Promise<IAusenciaItem[]> {
     const { start, end } = normalizeRange(startDate, endDate);
-    const items = await this.database.getAll<IAusenciaItem>(LOCAL_STORES.ausencias);
-
-    return items
-      .filter((item) => rangesOverlap(item.FechaInicio, item.FechaFin, start, end))
-      .sort((left, right) => left.FechaInicio.localeCompare(right.FechaInicio));
+    return cloudDbClient.getAusencias(start, end);
   }
 
   public async ensureRegistroOcupacionLlamadasList(): Promise<void> {
