@@ -17,7 +17,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
 }) => {
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
-  // Form selections
+  // Form selections (Cascada: Aplicativo -> Módulo -> Pantalla)
   const [selectedAplicativoItem, setSelectedAplicativoItem] = React.useState<ICatalogoItem | null>(null);
   const [selectedModuloItem, setSelectedModuloItem] = React.useState<ICatalogoItem | null>(null);
   const [selectedPantallaItem, setSelectedPantallaItem] = React.useState<ICatalogoItem | null>(null);
@@ -28,7 +28,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
   const [paraBeneficio, setParaBeneficio] = React.useState<string>('');
   const [criteriosAceptacion, setCriteriosAceptacion] = React.useState<string>('');
 
-  // Catalog items loaded from Database (STRICT ZERO MOCK DATA)
+  // Catalog items loaded dynamically from Database (ZERO MOCK DATA)
   const [aplicativos, setAplicativos] = React.useState<ICatalogoItem[]>([]);
   const [modulos, setModulos] = React.useState<ICatalogoItem[]>([]);
   const [pantallas, setPantallas] = React.useState<ICatalogoItem[]>([]);
@@ -82,9 +82,8 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       .getCatalogos('modulos')
       .then((allItems: ICatalogoItem[]) => {
         if (isMounted) {
-          // Filtrar por parent_id
           const filtered = (allItems || []).filter((item) => {
-            if (!item.parent_id) return true; // Si no tiene parent_id asignado, incluirlo
+            if (!item.parent_id) return true;
             const pId = String(item.parent_id);
             return (
               pId === parentKey ||
@@ -125,9 +124,8 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       .getCatalogos('pantallas')
       .then((allItems: ICatalogoItem[]) => {
         if (isMounted) {
-          // Filtrar por parent_id
           const filtered = (allItems || []).filter((item) => {
-            if (!item.parent_id) return true; // Si no tiene parent_id asignado, incluirlo
+            if (!item.parent_id) return true;
             const pId = String(item.parent_id);
             return (
               pId === parentKey ||
@@ -152,7 +150,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
     };
   }, [sharePointService, selectedModuloItem]);
 
-  // Manejar cambio en Aplicativo (Resetea Módulo y Pantalla)
+  // Reset casada al cambiar Aplicativo
   const handleAplicativoChange = (val: string) => {
     const found = aplicativos.find((a) => String(a.rawId ?? a.Id ?? a.Valor) === val || a.Valor === val);
     setSelectedAplicativoItem(found || null);
@@ -160,14 +158,14 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
     setSelectedPantallaItem(null);
   };
 
-  // Manejar cambio en Módulo (Resetea Pantalla)
+  // Reset cascada al cambiar Módulo
   const handleModuloChange = (val: string) => {
     const found = modulos.find((m) => String(m.rawId ?? m.Id ?? m.Valor) === val || m.Valor === val);
     setSelectedModuloItem(found || null);
     setSelectedPantallaItem(null);
   };
 
-  // Manejar cambio en Pantalla
+  // Cambiar Pantalla
   const handlePantallaChange = (val: string) => {
     const found = pantallas.find((p) => String(p.rawId ?? p.Id ?? p.Valor) === val || p.Valor === val);
     setSelectedPantallaItem(found || null);
@@ -179,6 +177,29 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
     }
     return `Como ${comoRol.trim() || '[Rol]'}, quiero ${quieroFuncionalidad.trim() || '[Funcionalidad]'}, para ${paraBeneficio.trim() || '[Beneficio]'}.`;
   }, [comoRol, quieroFuncionalidad, paraBeneficio]);
+
+  // Validación: Pantalla es OBLIGATORIA
+  const isFormValid = React.useMemo(() => {
+    return (
+      Boolean(selectedAplicativoItem) &&
+      Boolean(selectedModuloItem) &&
+      Boolean(selectedPantallaItem) &&
+      Boolean(titulo.trim()) &&
+      Boolean(comoRol.trim()) &&
+      Boolean(quieroFuncionalidad.trim()) &&
+      Boolean(paraBeneficio.trim()) &&
+      Boolean(criteriosAceptacion.trim())
+    );
+  }, [
+    selectedAplicativoItem,
+    selectedModuloItem,
+    selectedPantallaItem,
+    titulo,
+    comoRol,
+    quieroFuncionalidad,
+    paraBeneficio,
+    criteriosAceptacion
+  ]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -192,6 +213,11 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
 
     if (!selectedModuloItem) {
       setErrorMessage('Seleccione el módulo objetivo.');
+      return;
+    }
+
+    if (!selectedPantallaItem) {
+      setErrorMessage('Seleccione la pantalla objetivo (Campo obligatorio).');
       return;
     }
 
@@ -218,7 +244,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
         autor_email: currentUserEmail,
         aplicativo: selectedAplicativoItem.Valor,
         modulo_afectado: selectedModuloItem.Valor,
-        pantalla_afectada: selectedPantallaItem ? selectedPantallaItem.Valor : '',
+        pantalla_afectada: selectedPantallaItem.Valor,
         titulo: titulo.trim(),
         descripcion: userStoryDescription,
         criterios_aceptacion: criteriosAceptacion.trim()
@@ -244,18 +270,9 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
 
   return (
     <form
-      className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md flex flex-col gap-6"
+      className="flex flex-col gap-6"
       onSubmit={(e) => void handleSubmit(e)}
     >
-      <div className="flex flex-col gap-1">
-        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-          <span>💡</span> Proponer Nueva Iniciativa o Historia de Usuario
-        </h3>
-        <p className="text-sm text-slate-400">
-          Seleccione en cascada el Aplicativo, Módulo y Pantalla origen, e ingrese los bloques estructurados de su solicitud.
-        </p>
-      </div>
-
       {successMessage && (
         <MessageBar messageBarType={MessageBarType.success}>
           {successMessage}
@@ -268,209 +285,239 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
         </MessageBar>
       )}
 
-      {/* Grid de 3 Columnas para Selección de Origen en Cascada */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. Aplicativo */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-slate-200">
-            1. Aplicativo <span className="text-rose-500">*</span>
-          </label>
-          <select
-            disabled={isSubmitting || isLoadingAplicativos}
-            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
-            value={selectedAplicativoItem ? String(selectedAplicativoItem.rawId ?? selectedAplicativoItem.Id ?? selectedAplicativoItem.Valor) : ''}
-            onChange={(e) => handleAplicativoChange(e.target.value)}
-            required
-          >
-            <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
-              {isLoadingAplicativos ? 'Cargando aplicativos...' : aplicativos.length === 0 ? 'Sin opciones disponibles (Configurar en Admin)' : 'Seleccione el aplicativo...'}
-            </option>
-            {aplicativos.map((app) => {
-              const key = String(app.rawId ?? app.Id ?? app.Valor);
-              return (
-                <option key={key} value={key} className="bg-slate-900 text-white py-2">
-                  {app.Valor}
-                </option>
-              );
-            })}
-          </select>
+      {/* SECCIÓN 1: Ubicación y Alcance del Sistema */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md flex flex-col gap-5">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-800/80 text-lg font-bold text-white">
+          <Icon iconName="Layers" className="text-blue-400 text-xl" />
+          <span>1. Ubicación de la Mejora</span>
         </div>
 
-        {/* 2. Módulo (Solo si hay Aplicativo seleccionado) */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-slate-200">
-            2. Módulo <span className="text-rose-500">*</span>
-          </label>
-          <select
-            disabled={isSubmitting || !selectedAplicativoItem || isLoadingModulos}
-            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
-            value={selectedModuloItem ? String(selectedModuloItem.rawId ?? selectedModuloItem.Id ?? selectedModuloItem.Valor) : ''}
-            onChange={(e) => handleModuloChange(e.target.value)}
-            required
-          >
-            <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
-              {!selectedAplicativoItem
-                ? '👈 Seleccione un aplicativo primero'
-                : isLoadingModulos
-                ? 'Cargando módulos...'
-                : modulos.length === 0
-                ? 'Sin opciones disponibles (Configurar en Admin)'
-                : 'Seleccione el módulo...'}
-            </option>
-            {modulos.map((mod) => {
-              const key = String(mod.rawId ?? mod.Id ?? mod.Valor);
-              return (
-                <option key={key} value={key} className="bg-slate-900 text-white py-2">
-                  {mod.Valor}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-
-        {/* 3. Pantalla (Solo si hay Módulo seleccionado) */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-slate-200">
-            3. Pantalla / Sección
-          </label>
-          <select
-            disabled={isSubmitting || !selectedModuloItem || isLoadingPantallas}
-            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
-            value={selectedPantallaItem ? String(selectedPantallaItem.rawId ?? selectedPantallaItem.Id ?? selectedPantallaItem.Valor) : ''}
-            onChange={(e) => handlePantallaChange(e.target.value)}
-          >
-            <option value="" className="bg-slate-900 text-slate-400 py-2">
-              {!selectedModuloItem
-                ? '👈 Seleccione un módulo primero'
-                : isLoadingPantallas
-                ? 'Cargando pantallas...'
-                : pantallas.length === 0
-                ? 'Sin opciones disponibles (Configurar en Admin)'
-                : '(Opcional) Seleccione pantalla...'}
-            </option>
-            {pantallas.map((pan) => {
-              const key = String(pan.rawId ?? pan.Id ?? pan.Valor);
-              return (
-                <option key={key} value={key} className="bg-slate-900 text-white py-2">
-                  {pan.Valor}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      </div>
-
-      {/* Título Full Width */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-semibold text-slate-200">
-          Título de la Iniciativa <span className="text-rose-500">*</span>
-        </label>
-        <input
-          type="text"
-          disabled={isSubmitting}
-          className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium"
-          placeholder="Ej: Exportación optimizada de reportes mensuales a Excel"
-          value={titulo}
-          onChange={(e) => setTitulo(e.target.value)}
-          required
-        />
-      </div>
-
-      {/* Historia de Usuario (Estructura Guiada) */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
-        <div className="flex items-center gap-2 font-semibold text-blue-400 text-sm">
-          <Icon iconName="BookOpen" className="text-blue-400" />
-          <span>Plantilla Guiada de Historia de Usuario</span>
-        </div>
+        <p className="text-xs text-slate-400 -mt-2">
+          Seleccione en cascada el Aplicativo, Módulo y Pantalla específica donde se aplicará la iniciativa.
+        </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold tracking-wider uppercase text-blue-400 flex items-center gap-1">
-              <span>👤</span> 1. ¿Como...? (Rol de usuario)
+          {/* 1. Aplicativo */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-slate-200">
+              Aplicativo <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="text"
-              disabled={isSubmitting}
-              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
-              placeholder="Ej: Supervisor de Llamadas"
-              value={comoRol}
-              onChange={(e) => setComoRol(e.target.value)}
+            <select
+              disabled={isSubmitting || isLoadingAplicativos}
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
+              value={selectedAplicativoItem ? String(selectedAplicativoItem.rawId ?? selectedAplicativoItem.Id ?? selectedAplicativoItem.Valor) : ''}
+              onChange={(e) => handleAplicativoChange(e.target.value)}
               required
-            />
+            >
+              <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
+                {isLoadingAplicativos ? 'Cargando aplicativos...' : aplicativos.length === 0 ? 'Sin opciones disponibles (Configurar en Admin)' : 'Seleccione el aplicativo...'}
+              </option>
+              {aplicativos.map((app) => {
+                const key = String(app.rawId ?? app.Id ?? app.Valor);
+                return (
+                  <option key={key} value={key} className="bg-slate-900 text-slate-100 py-2">
+                    {app.Valor}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold tracking-wider uppercase text-blue-400 flex items-center gap-1">
-              <span>✨</span> 2. ¿Quiero...? (Acción / Funcionalidad)
+          {/* 2. Módulo */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-slate-200">
+              Módulo <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="text"
-              disabled={isSubmitting}
-              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
-              placeholder="Ej: Filtrar los datos en tiempo real por período"
-              value={quieroFuncionalidad}
-              onChange={(e) => setQuieroFuncionalidad(e.target.value)}
+            <select
+              disabled={isSubmitting || !selectedAplicativoItem || isLoadingModulos}
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
+              value={selectedModuloItem ? String(selectedModuloItem.rawId ?? selectedModuloItem.Id ?? selectedModuloItem.Valor) : ''}
+              onChange={(e) => handleModuloChange(e.target.value)}
               required
-            />
+            >
+              <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
+                {!selectedAplicativoItem
+                  ? '👈 Seleccione aplicativo primero'
+                  : isLoadingModulos
+                  ? 'Cargando módulos...'
+                  : modulos.length === 0
+                  ? 'Sin opciones disponibles (Configurar en Admin)'
+                  : 'Seleccione el módulo...'}
+              </option>
+              {modulos.map((mod) => {
+                const key = String(mod.rawId ?? mod.Id ?? mod.Valor);
+                return (
+                  <option key={key} value={key} className="bg-slate-900 text-slate-100 py-2">
+                    {mod.Valor}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold tracking-wider uppercase text-blue-400 flex items-center gap-1">
-              <span>🎯</span> 3. ¿Para...? (Beneficio de negocio)
+          {/* 3. Pantalla (OBLIGATORIA) */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-slate-200">
+              Pantalla / Sección <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="text"
-              disabled={isSubmitting}
-              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
-              placeholder="Ej: Reducir el tiempo de preparación de la auditoría"
-              value={paraBeneficio}
-              onChange={(e) => setParaBeneficio(e.target.value)}
+            <select
+              disabled={isSubmitting || !selectedModuloItem || isLoadingPantallas}
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
+              value={selectedPantallaItem ? String(selectedPantallaItem.rawId ?? selectedPantallaItem.Id ?? selectedPantallaItem.Valor) : ''}
+              onChange={(e) => handlePantallaChange(e.target.value)}
               required
-            />
+            >
+              <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
+                {!selectedModuloItem
+                  ? '👈 Seleccione módulo primero'
+                  : isLoadingPantallas
+                  ? 'Cargando pantallas...'
+                  : pantallas.length === 0
+                  ? 'Sin opciones disponibles (Configurar en Admin)'
+                  : 'Seleccione la pantalla...'}
+              </option>
+              {pantallas.map((pan) => {
+                const key = String(pan.rawId ?? pan.Id ?? pan.Valor);
+                return (
+                  <option key={key} value={key} className="bg-slate-900 text-slate-100 py-2">
+                    {pan.Valor}
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
+      </div>
 
-        {userStoryDescription && (
-          <div className="bg-slate-950/80 border-l-4 border-blue-500 border-t border-r border-b border-slate-800 rounded-r-xl p-3.5 text-sm italic text-slate-200 shadow-sm">
-            <span className="font-semibold not-italic text-blue-400 block mb-0.5 text-xs">
-              Vista Previa Generada:
+      {/* SECCIÓN 2: Detalle de Historia de Usuario (Estilo Azure DevOps Work Item) */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md flex flex-col gap-5">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-800/80 text-lg font-bold text-white">
+          <Icon iconName="GitGraph" className="text-indigo-400 text-xl" />
+          <span>2. Historia de Usuario (Work Item)</span>
+        </div>
+
+        {/* Título de la Iniciativa (Estilo Work Item Title) */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-slate-200">
+            Título de la Iniciativa <span className="text-rose-500">*</span>
+          </label>
+          <input
+            type="text"
+            disabled={isSubmitting}
+            className="w-full text-lg font-semibold bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all"
+            placeholder="Ej: Exportación optimizada de reportes mensuales a Excel"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            required
+          />
+        </div>
+
+        {/* Campos Guiados de Historia (Estilo Tarjeta DevOps con Badges) */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
+          <div className="flex items-center gap-2 font-semibold text-indigo-400 text-sm">
+            <Icon iconName="BookOpen" className="text-indigo-400" />
+            <span>Plantilla Estructurada de Historia de Usuario</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Como */}
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-950/60 text-blue-400 border border-blue-800/50 uppercase tracking-wider w-fit">
+                <span>👤</span> Como...
+              </span>
+              <input
+                type="text"
+                disabled={isSubmitting}
+                className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
+                placeholder="Rol (Ej: Supervisor de Llamadas)"
+                value={comoRol}
+                onChange={(e) => setComoRol(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Quiero */}
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-950/60 text-indigo-400 border border-indigo-800/50 uppercase tracking-wider w-fit">
+                <span>✨</span> Quiero...
+              </span>
+              <input
+                type="text"
+                disabled={isSubmitting}
+                className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
+                placeholder="Acción (Ej: Filtrar datos por período)"
+                value={quieroFuncionalidad}
+                onChange={(e) => setQuieroFuncionalidad(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Para */}
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-950/60 text-purple-400 border border-purple-800/50 uppercase tracking-wider w-fit">
+                <span>🎯</span> Para...
+              </span>
+              <input
+                type="text"
+                disabled={isSubmitting}
+                className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
+                placeholder="Beneficio (Ej: Reducir tiempo de auditoría)"
+                value={paraBeneficio}
+                onChange={(e) => setParaBeneficio(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {userStoryDescription && (
+            <div className="bg-slate-950/80 border-l-4 border-indigo-500 border-t border-r border-b border-slate-800 rounded-r-xl p-4 text-sm italic text-slate-200 shadow-sm">
+              <span className="font-semibold not-italic text-indigo-400 block mb-1 text-xs">
+                Vista Previa Generada (Work Item):
+              </span>
+              "{userStoryDescription}"
+            </div>
+          )}
+        </div>
+
+        {/* Criterios de Aceptación (Editor amplio) */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-slate-200">
+            Criterios de Aceptación <span className="text-rose-500">*</span>
+          </label>
+          <textarea
+            disabled={isSubmitting}
+            rows={4}
+            className="w-full bg-slate-900/90 border border-blue-900/40 rounded-xl px-4 py-3.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all font-medium text-sm resize-none"
+            placeholder="Especifique los criterios de aceptación requeridos..."
+            value={criteriosAceptacion}
+            onChange={(e) => setCriteriosAceptacion(e.target.value)}
+            required
+          />
+        </div>
+
+        {/* Botón Principal Registrado Estándar del App */}
+        <div className="flex flex-col gap-2 pt-2 items-end">
+          <button
+            type="submit"
+            disabled={isSubmitting || !isFormValid}
+            className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 disabled:active:scale-100"
+          >
+            <Icon iconName="Send" />
+            <span>{isSubmitting ? 'Registrando iniciativa...' : 'Enviar Solicitud de Mejora'}</span>
+          </button>
+
+          {!isFormValid && (
+            <span className="text-xs text-amber-400 flex items-center gap-1 font-medium">
+              <span>⚠️</span> Complete la ubicación (Aplicativo, Módulo y Pantalla) y los campos obligatorios para habilitar el envío.
             </span>
-            "{userStoryDescription}"
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Criterios de Aceptación Full Width */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-semibold text-slate-200">
-          Criterios de Aceptación <span className="text-rose-500">*</span>
-        </label>
-        <textarea
-          disabled={isSubmitting}
-          rows={3}
-          className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm resize-none"
-          placeholder="Ej: 1. El botón de exportación debe incluir columnas A, B y C. 2. La descarga debe realizarse en menos de 3 segundos."
-          value={criteriosAceptacion}
-          onChange={(e) => setCriteriosAceptacion(e.target.value)}
-          required
-        />
-      </div>
-
-      {/* Botón Principal Full Width */}
-      <div className="flex flex-col gap-2 pt-2">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-        >
-          <Icon iconName="Send" />
-          <span>{isSubmitting ? 'Enviando iniciativa...' : 'Enviar Solicitud de Mejora'}</span>
-        </button>
-        {isSubmitting && (
-          <div className="flex justify-center pt-2">
-            <Spinner label="Guardando propuesta..." size={SpinnerSize.small} />
-          </div>
-        )}
+          {isSubmitting && (
+            <div className="flex justify-center pt-2 w-full">
+              <Spinner label="Guardando propuesta..." size={SpinnerSize.small} />
+            </div>
+          )}
+        </div>
       </div>
     </form>
   );
