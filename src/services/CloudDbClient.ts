@@ -498,19 +498,21 @@ export class CloudDbClient {
         const error = response.error;
 
         if (!error && Array.isArray(data)) {
-          const mappedFaltas: IFaltaHistorialItem[] = data.map((row: ISupabaseFaltaRow, index: number) => {
+          const mappedFaltas: IFaltaHistorialItem[] = data.map((row: any, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+            const email = row.email_empleado || row.colaborador_email || '';
+            const motivo = row.motivo || row.tipo_registro || row.descripcion || '';
             return {
               Id: numericId,
-              Title: row.email_empleado || '',
-              AgenteEmail: row.email_empleado || '',
+              Title: email,
+              AgenteEmail: email,
               FechaFalta: row.fecha || new Date().toISOString(),
-              Categoria: row.motivo || '',
+              Categoria: motivo,
               CasoRef: row.id_caso_helpdesk || '',
               IdCasoHelpdesk: row.id_caso_helpdesk || '',
-              HorasPerdidas: row.horas_perdidas || 0,
-              MinutosTardanza: row.minutos_tardanza || 0,
-              Impacto: row.impacto || 'Bajo',
+              HorasPerdidas: Number(row.horas_perdidas) || 0,
+              MinutosTardanza: Number(row.minutos_tardanza) || 0,
+              Impacto: row.impacto || row.categoria_impacto || 'Bajo',
               Estado: (row.estado as IFaltaHistorialItem['Estado']) || 'Aprobado',
               EstadoAprobacion: (row.estado_aprobacion as IFaltaHistorialItem['EstadoAprobacion']) || 'Aprobado',
               RolOriginador: 'Supervisor',
@@ -582,15 +584,21 @@ export class CloudDbClient {
 
     if (isSupabaseConfigured()) {
       try {
-        const payload: ISupabaseFaltaRow = {
+        const payload: Record<string, any> = {
           audit_id: auditId,
           email_empleado: emailEmpleado,
+          colaborador_email: emailEmpleado,
+          colaborador_nombre: isRegistrarData ? faltaData.agente : (faltaData.Title || emailEmpleado),
+          tipo_registro: motivo || 'Error en proceso',
           motivo,
+          supervisor_email: (faltaData as any).supervisorEmail || (faltaData as any).supervisor_email || 'admin@humano.com.do',
           id_caso_helpdesk: casoHelpdesk,
           horas_perdidas: horasPerdidas,
           minutos_tardanza: minutosTardanza,
           fecha: fechaISO,
           impacto: recordToSave.Impacto,
+          categoria_impacto: recordToSave.Impacto,
+          descripcion: motivo,
           estado: recordToSave.Estado,
           estado_aprobacion: estadoAprobacion,
           evidencia_url: evidenciaUrl
@@ -799,13 +807,15 @@ export class CloudDbClient {
 
     if (isSupabaseConfigured()) {
       try {
-        const payload: ISupabaseMetaRow = {
+        const payload: Record<string, any> = {
           email_empleado: recordToSave.EmailEmpleado,
           mes: recordToSave.Mes,
           anio: recordToSave.Anio,
           meta_kpis: recordToSave.MetaKpis,
           meta_kudos: recordToSave.MetaKudos,
-          fecha_creacion: recordToSave.FechaCreacion
+          fecha_creacion: recordToSave.FechaCreacion,
+          titulo: `Meta ${recordToSave.Mes}/${recordToSave.Anio} - ${recordToSave.EmailEmpleado}`,
+          meta_objetivo: recordToSave.MetaKpis || 0
         };
 
         const { data, error } = await supabase.from('metas').insert([payload]).select();
