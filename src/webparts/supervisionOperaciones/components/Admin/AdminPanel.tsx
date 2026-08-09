@@ -458,7 +458,7 @@ const AdminConfiguration: React.FC = () => {
 
     const MAX_FILE_SIZE_MB = 50;
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      alert(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+      setSyncErrorMessage(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
       event.target.value = '';
       return;
     }

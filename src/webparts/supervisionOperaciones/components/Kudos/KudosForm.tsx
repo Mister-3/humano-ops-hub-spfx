@@ -835,7 +835,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
     setErrorMessage('');
 
     if (oversizedFiles.length > 0) {
-      alert(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+      setErrorMessage(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
       setEvidenciaFiles([]);
       setEvidenciaError(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
       event.currentTarget.value = '';

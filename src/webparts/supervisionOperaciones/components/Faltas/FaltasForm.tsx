@@ -966,7 +966,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                     if (selectedFile) {
                       const MAX_FILE_SIZE_MB = 50;
                       if (selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-                        alert(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
+                        setErrorMessage(`El archivo excede el límite permitido de ${MAX_FILE_SIZE_MB} MB.`);
                         event.currentTarget.value = '';
                         setEvidenciaFile(null);
                         return;

@@ -32,6 +32,7 @@ import {
 import AgentComboBox, {
   type IAgentComboBoxScopeOption
 } from '../AgentSelector/AgentComboBox';
+import DeleteConfirmModal from '../Common/DeleteConfirmModal';
 import { SkeletonLoader } from '../Common/SkeletonLoader';
 import styles from './HistorialView.module.scss';
 
@@ -847,9 +848,12 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
   const [isLoadingQuery, setIsLoadingQuery] = React.useState<boolean>(false);
   const [hasSearched, setHasSearched] = React.useState<boolean>(false);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
+  const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [catalogWarning, setCatalogWarning] = React.useState<string>('');
   const [categoryDetailWarning, setCategoryDetailWarning] =
     React.useState<string>('');
+  const [itemToDelete, setItemToDelete] = React.useState<IProductividadHistorialItem | null>(null);
+  const [isDeletingRecord, setIsDeletingRecord] = React.useState<boolean>(false);
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
   const isAdministrator = userRole === 'Admin' || userRole === 'Master_Admin';
@@ -1061,19 +1065,30 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
   }, [moduleType, selectedCategory, sharePointService]);
 
   const handleDeleteProductividadRecord = React.useCallback(
-    async (item: IProductividadHistorialItem): Promise<void> => {
-      if (confirm('¿Está seguro de que desea eliminar este registro de productividad?')) {
-        try {
-          const rawId = (item as any).rawId ?? item.Id;
-          await sharePointService.deleteProductividad(rawId);
-          queryRecords().catch(() => undefined);
-        } catch (err) {
-          console.error('Error al eliminar registro de productividad:', err);
-        }
-      }
+    (item: IProductividadHistorialItem): void => {
+      setItemToDelete(item);
     },
-    [sharePointService]
+    []
   );
+
+  const confirmDeleteProductividad = React.useCallback(async (): Promise<void> => {
+    if (!itemToDelete) return;
+    setIsDeletingRecord(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+    try {
+      const rawId = (itemToDelete as any).rawId ?? itemToDelete.Id;
+      await sharePointService.deleteProductividad(rawId);
+      setItemToDelete(null);
+      setSuccessMessage('El registro de productividad seleccionado fue removido permanentemente.');
+      queryRecords().catch(() => undefined);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar el registro.';
+      setErrorMessage(msg);
+    } finally {
+      setIsDeletingRecord(false);
+    }
+  }, [itemToDelete, sharePointService]);
 
   const columns = React.useMemo((): IColumn[] => {
     switch (moduleType) {
@@ -1491,6 +1506,12 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
         </Text>
       </Stack>
 
+      {successMessage && (
+        <MessageBar messageBarType={MessageBarType.success}>
+          {successMessage}
+        </MessageBar>
+      )}
+
       {errorMessage && (
         <MessageBar messageBarType={MessageBarType.error}>
           {errorMessage}
@@ -1666,6 +1687,15 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
           <Text variant="large">Defina los filtros y seleccione “Consultar Registros”.</Text>
         </Stack>
       )}
+
+      <DeleteConfirmModal
+        isOpen={Boolean(itemToDelete)}
+        isDeleting={isDeletingRecord}
+        title="¿Eliminar registro de productividad?"
+        description="Esta acción no se puede deshacer. El registro de productividad seleccionado será removido permanentemente de Supabase."
+        onConfirm={confirmDeleteProductividad}
+        onCancel={() => setItemToDelete(null)}
+      />
     </Stack>
   );
 };
