@@ -1102,6 +1102,7 @@ export class CloudDbClient {
             const email = row.email_empleado || row.email || '';
             return {
               Id: numericId,
+              rawId: row.id ? String(row.id) : (row.audit_id || row.id_auditoria || undefined),
               Title: email,
               AgenteEmail: email,
               FechaRegistro: row.created_at || row.fecha_registro || new Date().toISOString(),
@@ -1176,6 +1177,7 @@ export class CloudDbClient {
           const insertedRow = res.data[0];
           const officialItem: IProductividadHistorialItem = {
             Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+            rawId: insertedRow.id ? String(insertedRow.id) : auditId,
             Title: emailEmpleado,
             AgenteEmail: emailEmpleado,
             FechaRegistro: new Date().toISOString(),
@@ -1239,9 +1241,21 @@ export class CloudDbClient {
   }
 
   public async deleteProductividad(id: number | string): Promise<void> {
+    const idStr = String(id);
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('productividad').delete().eq('id', id);
+        if (idStr.includes('-')) {
+          const { error } = await supabase.from('productividad').delete().eq('id', idStr);
+          if (error) {
+            console.warn('Error deleting by UUID id, retrying by audit_id:', error);
+            await supabase.from('productividad').delete().eq('audit_id', idStr);
+          }
+        } else {
+          const { error } = await supabase.from('productividad').delete().eq('id', id);
+          if (error) {
+            await supabase.from('productividad').delete().eq('audit_id', idStr);
+          }
+        }
       } catch (err) {
         console.warn('CloudDbClient.deleteProductividad error:', err);
       }

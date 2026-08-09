@@ -1077,8 +1077,8 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     setErrorMessage('');
     setSuccessMessage('');
     try {
-      const rawId = (itemToDelete as any).rawId ?? itemToDelete.Id;
-      await sharePointService.deleteProductividad(rawId);
+      const recordId = itemToDelete.rawId || itemToDelete.AuditID || itemToDelete.Id;
+      await sharePointService.deleteProductividad(recordId);
       setItemToDelete(null);
       setSuccessMessage('El registro de productividad seleccionado fue removido permanentemente.');
       queryRecords().catch(() => undefined);

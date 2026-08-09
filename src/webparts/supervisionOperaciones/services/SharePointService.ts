@@ -515,6 +515,7 @@ export interface IKudoHistorialItem extends ILocalEntity {
 
 export interface IProductividadHistorialItem {
   Id: number;
+  rawId?: string;
   Title: string;
   AgenteEmail?: string;
   AgenteObjectID?: string;
