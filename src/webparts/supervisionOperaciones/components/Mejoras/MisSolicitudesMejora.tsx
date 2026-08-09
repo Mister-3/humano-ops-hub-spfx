@@ -71,21 +71,21 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
     switch (estado) {
       case 'Aprobada':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/50">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/30 text-emerald-400 border border-emerald-800/50">
             <Icon iconName="CheckMark" className="text-xs" />
             <span>Aprobada</span>
           </span>
         );
       case 'Declinada':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800/50">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/30 text-rose-400 border border-rose-800/50">
             <Icon iconName="Cancel" className="text-xs" />
             <span>Declinada</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/50">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/30 text-amber-400 border border-amber-800/50">
             <Icon iconName="Clock" className="text-xs" />
             <span>Pendiente de Aprobación</span>
           </span>
@@ -96,10 +96,10 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <h3 className="text-xl font-bold text-white flex items-center gap-2">
           <span>📋</span> Mis Solicitudes Registradas
         </h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-400">
           Consulte la evolución de sus propuestas y la retroalimentación emitida por los supervisores.
         </p>
       </div>
@@ -119,7 +119,7 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
           {solicitudes.map((item) => (
             <div
               key={item.id || item.audit_id || item.created_at}
-              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-4"
+              className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md flex flex-col gap-4"
             >
               {/* Header card */}
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -128,17 +128,17 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
                     {getInitials(item.autor_nombre)}
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                    <h4 className="text-base font-bold text-white">
                       {item.titulo}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-slate-400">
                       {item.autor_nombre} • {formatDateRelative(item.created_at)}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
                     📌 {item.modulo_afectado}
                   </span>
                   {renderStatusBadge(item.estado)}
@@ -146,8 +146,8 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
               </div>
 
               {/* User Story Quote */}
-              <div className="bg-slate-50 dark:bg-slate-950/60 border-l-4 border-blue-500 p-4 rounded-r-xl text-sm italic text-slate-800 dark:text-slate-200">
-                <span className="font-semibold not-italic text-blue-600 dark:text-blue-400 block mb-1 text-xs">
+              <div className="bg-slate-950/80 border-l-4 border-blue-500 border-t border-r border-b border-slate-800 p-4 rounded-r-xl text-sm italic text-slate-200">
+                <span className="font-semibold not-italic text-blue-400 block mb-1 text-xs">
                   📖 Historia de Usuario:
                 </span>
                 "{item.descripcion}"
@@ -155,19 +155,19 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
 
               {/* Acceptance Criteria */}
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span className="text-xs font-bold text-slate-300">
                   ✅ Criterios de Aceptación:
                 </span>
-                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
+                <p className="text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">
                   {item.criterios_aceptacion}
                 </p>
               </div>
 
               {/* Supervisor Feedback */}
               {item.estado !== 'Pendiente_Aprobacion' && item.comentario_supervisor && (
-                <div className="bg-blue-50/50 dark:bg-blue-950/20 border-l-4 border-blue-600 p-4 rounded-r-xl text-sm text-slate-800 dark:text-slate-200 flex flex-col gap-1.5">
+                <div className="bg-slate-950/80 border-l-4 border-blue-600 border-t border-r border-b border-slate-800 p-4 rounded-r-xl text-sm text-slate-200 flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                    <span className="font-semibold text-xs text-blue-300 flex items-center gap-1.5">
                       💬 Retroalimentación de Supervisión ({item.supervisor_nombre || item.supervisor_email || 'Supervisor'}):
                     </span>
                     <span className="text-xs text-slate-400">

@@ -26,23 +26,23 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
     userRole === 'Master_Admin';
 
   return (
-    <div className="min-h-screen p-6 space-y-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
-      {/* Module Header Card - Cloned from Reconocimientos / Productividad Header Pattern */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+    <div className="min-h-screen p-6 space-y-6 bg-slate-950 text-slate-100 transition-colors">
+      {/* Module Header Card - Standard Dark Theme */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl shadow-inner flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-blue-950/50 text-blue-400 flex items-center justify-center text-2xl shadow-inner flex-shrink-0">
             💡
           </div>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              <h1 className="text-2xl font-bold tracking-tight text-white">
                 Iniciativas & Mejoras
               </h1>
-              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-900/40 text-blue-300 border border-blue-800">
                 Módulo Activo
               </span>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1">
               Proponga, evalúe y dé seguimiento a las historias de usuario para la optimización continua de la plataforma.
             </p>
           </div>
@@ -50,7 +50,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
       </div>
 
       {/* Tabs Navigation Wrapper */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md">
         <Pivot
           className={styles.modulePivot}
           onLinkClick={(item) => setSelectedTab(item?.props.itemKey || 'nueva')}

@@ -124,10 +124,10 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <h3 className="text-xl font-bold text-white flex items-center gap-2">
           <span>⏳</span> Cola de Aprobación de Iniciativas & Mejoras
         </h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-400">
           Revise las propuestas enviadas por el equipo, valide los criterios de aceptación y emita su decisión con comentarios.
         </p>
       </div>
@@ -153,7 +153,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
           {queueItems.map((item) => (
             <div
               key={item.id || item.audit_id || item.created_at}
-              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-4"
+              className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md flex flex-col gap-4"
             >
               {/* Header card */}
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -162,20 +162,20 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                     {getInitials(item.autor_nombre)}
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                    <h4 className="text-base font-bold text-white">
                       {item.titulo}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-slate-400">
                       Solicitante: <strong>{item.autor_nombre}</strong> ({item.autor_email}) • {formatDateRelative(item.created_at)}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
                     📌 {item.modulo_afectado}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/50">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/30 text-amber-400 border border-amber-800/50">
                     <Icon iconName="Clock" className="text-xs" />
                     <span>Pendiente de Revisión</span>
                   </span>
@@ -183,8 +183,8 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
               </div>
 
               {/* User Story Quote */}
-              <div className="bg-slate-50 dark:bg-slate-950/60 border-l-4 border-blue-500 p-4 rounded-r-xl text-sm italic text-slate-800 dark:text-slate-200">
-                <span className="font-semibold not-italic text-blue-600 dark:text-blue-400 block mb-1 text-xs">
+              <div className="bg-slate-950/80 border-l-4 border-blue-500 border-t border-r border-b border-slate-800 p-4 rounded-r-xl text-sm italic text-slate-200">
+                <span className="font-semibold not-italic text-blue-400 block mb-1 text-xs">
                   📖 Historia de Usuario propuesta:
                 </span>
                 "{item.descripcion}"
@@ -192,10 +192,10 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
 
               {/* Acceptance Criteria */}
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span className="text-xs font-bold text-slate-300">
                   ✅ Criterios de Aceptación Requeridos:
                 </span>
-                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
+                <p className="text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">
                   {item.criterios_aceptacion}
                 </p>
               </div>
@@ -205,7 +205,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                 <button
                   type="button"
                   onClick={() => openResponseModal(item, 'Aprobada')}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl px-5 py-2.5 shadow-sm hover:shadow transition-all inline-flex items-center gap-2 text-sm cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl px-5 py-2.5 shadow-sm transition-all inline-flex items-center gap-2 text-sm cursor-pointer"
                 >
                   <Icon iconName="CheckMark" />
                   <span>Aprobar Iniciativa</span>
@@ -213,7 +213,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                 <button
                   type="button"
                   onClick={() => openResponseModal(item, 'Declinada')}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl px-5 py-2.5 shadow-sm hover:shadow transition-all inline-flex items-center gap-2 text-sm cursor-pointer"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl px-5 py-2.5 shadow-sm transition-all inline-flex items-center gap-2 text-sm cursor-pointer"
                 >
                   <Icon iconName="Cancel" />
                   <span>Declinar Iniciativa</span>
@@ -231,41 +231,41 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
       {/* Modal Estilizado Patrón DeleteConfirmModal */}
       {targetItem && targetAction && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={isSubmittingResponse ? undefined : closeResponseModal}
         >
           <div
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full flex flex-col gap-5 animate-slideUp"
+            className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full flex flex-col gap-5 animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
               <div
                 className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 ${
                   targetAction === 'Aprobada'
-                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
-                    : 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400'
+                    ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-800/50'
+                    : 'bg-rose-950/50 text-rose-400 border border-rose-800/50'
                 }`}
               >
                 <Icon iconName={targetAction === 'Aprobada' ? 'CheckMark' : 'Cancel'} />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3 className="text-lg font-bold text-white">
                   {targetAction === 'Aprobada' ? 'Aprobar Iniciativa de Mejora' : 'Declinar Iniciativa de Mejora'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-400">
                   Propuesta: "{targetItem.titulo}" por {targetItem.autor_nombre}
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <label className="text-sm font-semibold text-slate-200">
                 Comentario / Retroalimentación de Revisión <span className="text-rose-500">*</span>
               </label>
               <textarea
                 disabled={isSubmittingResponse}
                 rows={4}
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-sm outline-none resize-none"
+                className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all resize-none"
                 placeholder="Ingrese sus observaciones o justificante para el solicitante..."
                 value={comentarioRevision}
                 onChange={(e) => setComentarioRevision(e.target.value)}
@@ -273,12 +273,12 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
               />
 
               <div className="flex justify-between items-center text-xs">
-                <span className={comentarioRevision.trim().length >= 10 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-rose-500'}>
+                <span className={comentarioRevision.trim().length >= 10 ? 'text-emerald-400 font-medium' : 'text-rose-400'}>
                   {comentarioRevision.trim().length < 10
                     ? `Faltan ${10 - comentarioRevision.trim().length} caracteres`
                     : '✓ Longitud mínima completada'}
                 </span>
-                <span className="text-slate-400">
+                <span className="text-slate-500">
                   {comentarioRevision.trim().length} / 10
                 </span>
               </div>
@@ -289,7 +289,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                 type="button"
                 disabled={isSubmittingResponse}
                 onClick={closeResponseModal}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-sm transition-all cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 font-medium text-sm transition-all cursor-pointer"
               >
                 Cancelar
               </button>
