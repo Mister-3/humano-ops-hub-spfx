@@ -1428,6 +1428,83 @@ export class CloudDbClient {
     return items;
   }
 
+  public async createEmpleadoMesAward(data: {
+    email_empleado: string;
+    nombre_empleado?: string;
+    mes: number;
+    anio: number;
+  }): Promise<void> {
+    const normEmail = data.email_empleado.trim().toLowerCase();
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          email_empleado: normEmail,
+          nombre_empleado: data.nombre_empleado || '',
+          mes: data.mes,
+          anio: data.anio,
+          dia_libre_reclamado: false
+        };
+        await supabase.from('empleado_del_mes').insert([payload]);
+      } catch (err) {
+        console.warn('CloudDbClient.createEmpleadoMesAward error:', err);
+      }
+    }
+  }
+
+  public async getPremiosEmpleadoMesPendientes(email: string): Promise<Array<{
+    id?: number | string;
+    email_empleado: string;
+    nombre_empleado?: string;
+    mes: number;
+    anio: number;
+    dia_libre_reclamado?: boolean;
+    fecha_reclamado?: string;
+  }>> {
+    if (!email) return [];
+    const normEmail = email.trim().toLowerCase();
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('empleado_del_mes')
+          .select('*')
+          .eq('email_empleado', normEmail)
+          .eq('dia_libre_reclamado', false);
+
+        if (!error && Array.isArray(data)) {
+          return data.map((row: any) => ({
+            id: row.id,
+            email_empleado: row.email_empleado,
+            nombre_empleado: row.nombre_empleado,
+            mes: Number(row.mes) || 1,
+            anio: Number(row.anio) || new Date().getFullYear(),
+            dia_libre_reclamado: Boolean(row.dia_libre_reclamado),
+            fecha_reclamado: row.fecha_reclamado
+          }));
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getPremiosEmpleadoMesPendientes error:', err);
+      }
+    }
+    return [];
+  }
+
+  public async marcarPremioEmpleadoMesReclamado(premioId: string | number, fechaReclamado?: string): Promise<void> {
+    if (isSupabaseConfigured() && premioId) {
+      try {
+        const nowIso = fechaReclamado || new Date().toISOString();
+        await supabase
+          .from('empleado_del_mes')
+          .update({
+            dia_libre_reclamado: true,
+            fecha_reclamado: nowIso
+          })
+          .eq('id', premioId);
+      } catch (err) {
+        console.warn('CloudDbClient.marcarPremioEmpleadoMesReclamado error:', err);
+      }
+    }
+  }
+
   public async createAusencia(data: IRegistrarAusenciaData): Promise<void> {
     const auditId = generateAuditID();
     const emailEmpleado = (data.agenteEmail || data.agente || '').trim().toLowerCase();
@@ -1436,7 +1513,7 @@ export class CloudDbClient {
 
     if (isSupabaseConfigured()) {
       try {
-        const payload = {
+        const payload: Record<string, any> = {
           audit_id: auditId,
           email_empleado: emailEmpleado,
           agente_email: emailEmpleado,
@@ -1446,10 +1523,17 @@ export class CloudDbClient {
           tipo_ausencia: data.tipoAusencia,
           fecha_inicio: startIso,
           fecha_fin: endIso,
-          comentarios: data.comentarios?.trim() || ''
+          comentarios: data.comentarios?.trim() || '',
+          periodo_anio: data.periodoAnio || new Date().getFullYear(),
+          premio_empleado_mes_id: data.premioEmpleadoMesId || null
         };
 
         const res = await supabase.from('ausencias').insert([payload]).select();
+
+        if (data.premioEmpleadoMesId) {
+          await this.marcarPremioEmpleadoMesReclamado(data.premioEmpleadoMesId, startIso);
+        }
+
         if (!res.error && res.data && res.data.length > 0) {
           const insertedRow = res.data[0];
           const officialItem: IAusenciaItem = {
@@ -1461,7 +1545,9 @@ export class CloudDbClient {
             FechaInicio: startIso,
             FechaFin: endIso,
             Comentarios: data.comentarios?.trim() || '',
-            AuditID: auditId
+            AuditID: auditId,
+            PeriodoAnio: data.periodoAnio,
+            PremioEmpleadoMesID: data.premioEmpleadoMesId
           };
           try {
             await indexedDb.add(LOCAL_STORES.ausencias, officialItem);
@@ -1475,6 +1561,10 @@ export class CloudDbClient {
       }
     }
 
+    if (data.premioEmpleadoMesId) {
+      await this.marcarPremioEmpleadoMesReclamado(data.premioEmpleadoMesId, startIso);
+    }
+
     await indexedDb.add(LOCAL_STORES.ausencias, {
       Title: data.agente.trim(),
       AgenteEmail: emailEmpleado,
@@ -1484,6 +1574,8 @@ export class CloudDbClient {
       FechaFin: endIso,
       Comentarios: data.comentarios?.trim() || '',
       AuditID: auditId,
+      PeriodoAnio: data.periodoAnio,
+      PremioEmpleadoMesID: data.premioEmpleadoMesId,
       SyncStatus: 'Pendiente'
     });
   }

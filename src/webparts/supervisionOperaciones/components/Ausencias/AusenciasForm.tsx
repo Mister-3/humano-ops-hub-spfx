@@ -13,6 +13,7 @@ import {
   TextField
 } from '@fluentui/react';
 
+import { cloudDbClient } from '../../../../services/CloudDbClient';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   type AusenciaType,
@@ -41,6 +42,23 @@ const ABSENCE_TYPE_OPTIONS: ReadonlyArray<IDropdownOption> = [
     key: 'Licencia / Incapacidad',
     text: 'Licencia'
   }
+];
+
+const NOMBRES_MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+const getNombreMes = (mes: number): string =>
+  NOMBRES_MESES[mes - 1] || `Mes ${mes}`;
+
+const currentYear = new Date().getFullYear();
+const YEAR_OPTIONS: ReadonlyArray<IDropdownOption> = [
+  { key: currentYear - 2, text: String(currentYear - 2) },
+  { key: currentYear - 1, text: String(currentYear - 1) },
+  { key: currentYear, text: String(currentYear) },
+  { key: currentYear + 1, text: String(currentYear + 1) },
+  { key: currentYear + 2, text: String(currentYear + 2) }
 ];
 
 const normalizeIdentity = (value?: string): string =>
@@ -80,9 +98,52 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
   const [fechaInicio, setFechaInicio] = React.useState<Date>(new Date());
   const [fechaFin, setFechaFin] = React.useState<Date>(new Date());
   const [comentarios, setComentarios] = React.useState<string>('');
+  const [periodoAnio, setPeriodoAnio] = React.useState<number>(currentYear);
+  const [pendingAwards, setPendingAwards] = React.useState<Array<{
+    id?: number | string;
+    email_empleado: string;
+    nombre_empleado?: string;
+    mes: number;
+    anio: number;
+    dia_libre_reclamado?: boolean;
+    fecha_reclamado?: string;
+  }>>([]);
+  const [isLoadingAwards, setIsLoadingAwards] = React.useState<boolean>(false);
+  const [selectedAwardId, setSelectedAwardId] = React.useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
+
+  React.useEffect(() => {
+    let isMounted = true;
+    if (tipoAusencia === 'Día Libre Empleado del Mes' && selectedAgent?.email) {
+      setIsLoadingAwards(true);
+      setSelectedAwardId(undefined);
+      cloudDbClient
+        .getPremiosEmpleadoMesPendientes(selectedAgent.email)
+        .then((awards: any[]) => {
+          if (isMounted) {
+            setPendingAwards(awards);
+            if (awards.length > 0) {
+              setSelectedAwardId(String(awards[0].id));
+            }
+          }
+        })
+        .catch((err: unknown) => {
+          console.warn('Error loading pending awards:', err);
+          if (isMounted) setPendingAwards([]);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingAwards(false);
+        });
+    } else {
+      setPendingAwards([]);
+      setSelectedAwardId(undefined);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [tipoAusencia, selectedAgent]);
 
   const agentOptions = React.useMemo(() => {
     const optionsByIdentity = new Map<
@@ -126,6 +187,17 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
       return;
     }
 
+    if (tipoAusencia === 'Día Libre Empleado del Mes') {
+      if (pendingAwards.length === 0) {
+        setErrorMessage('El colaborador no tiene días libres pendientes por Empleado del Mes.');
+        return;
+      }
+      if (!selectedAwardId) {
+        setErrorMessage('Seleccione el premio de Empleado del Mes a reclamar.');
+        return;
+      }
+    }
+
     if (
       Number.isNaN(fechaInicio.getTime()) ||
       Number.isNaN(fechaFin.getTime())
@@ -151,7 +223,9 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
         tipoAusencia,
         fechaInicio,
         fechaFin,
-        comentarios: comentarios.trim()
+        comentarios: comentarios.trim(),
+        periodoAnio: tipoAusencia === 'Vacaciones' ? periodoAnio : undefined,
+        premioEmpleadoMesId: tipoAusencia === 'Día Libre Empleado del Mes' ? selectedAwardId : undefined
       };
 
       await sharePointService.registrarAusencia(data);
@@ -161,6 +235,8 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
       setFechaInicio(new Date());
       setFechaFin(new Date());
       setComentarios('');
+      setSelectedAwardId(undefined);
+      setPendingAwards([]);
       setSuccessMessage('Ausencia registrada correctamente.');
       onSaved?.();
     } catch (error: unknown) {
@@ -257,6 +333,43 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
             required
             selectedKey={tipoAusencia}
           />
+
+          {tipoAusencia === 'Vacaciones' && (
+            <Dropdown
+              disabled={isSubmitting}
+              label="Año del Período Correspondiente"
+              onChange={(_, option) => setPeriodoAnio(Number(option?.key))}
+              options={[...YEAR_OPTIONS]}
+              placeholder="Seleccione el año del período"
+              required
+              selectedKey={periodoAnio}
+            />
+          )}
+
+          {tipoAusencia === 'Día Libre Empleado del Mes' && (
+            <React.Fragment>
+              {isLoadingAwards ? (
+                <Spinner label="Buscando premios pendientes de Empleado del Mes..." size={SpinnerSize.small} />
+              ) : pendingAwards.length === 0 ? (
+                <MessageBar messageBarType={MessageBarType.warning}>
+                  El colaborador no tiene días libres pendientes por Empleado del Mes.
+                </MessageBar>
+              ) : (
+                <Dropdown
+                  disabled={isSubmitting}
+                  label="Premio Empleado del Mes a Reclamar"
+                  onChange={(_, option) => setSelectedAwardId(String(option?.key || ''))}
+                  options={pendingAwards.map((award) => ({
+                    key: String(award.id),
+                    text: `Día Libre por Premiación de ${getNombreMes(award.mes)} ${award.anio}`
+                  }))}
+                  placeholder="Seleccione el premio a reclamar"
+                  required
+                  selectedKey={selectedAwardId}
+                />
+              )}
+            </React.Fragment>
+          )}
 
           <Stack horizontal wrap tokens={{ childrenGap: 18 }}>
             <Stack.Item className={styles.dateField} grow>

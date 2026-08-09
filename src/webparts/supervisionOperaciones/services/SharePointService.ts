@@ -291,6 +291,27 @@ const getLocalAuthor = (): { Title: string; EMail: string } => {
   }
 };
 
+const MONTH_NAMES_MAP: Record<string, number> = {
+  enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+  julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
+};
+
+const parseMesAnioText = (text: string): { mes: number; anio: number } => {
+  const parts = text.trim().toLowerCase().split(/\s+/);
+  let mes = new Date().getMonth() + 1;
+  let anio = new Date().getFullYear();
+
+  parts.forEach((p) => {
+    if (MONTH_NAMES_MAP[p]) {
+      mes = MONTH_NAMES_MAP[p];
+    } else if (/^\d{4}$/.test(p)) {
+      anio = Number(p);
+    }
+  });
+
+  return { mes, anio };
+};
+
 const toAttachment = (file: File): ILocalAttachment => ({
   name: file.name,
   type: file.type,
@@ -418,6 +439,8 @@ export interface IRegistrarAusenciaData {
   fechaInicio: Date;
   fechaFin: Date;
   comentarios?: string;
+  periodoAnio?: number;
+  premioEmpleadoMesId?: string | number;
 }
 
 export interface IAusenciaItem {
@@ -430,6 +453,8 @@ export interface IAusenciaItem {
   FechaFin: string;
   Comentarios: string;
   AuditID?: string;
+  PeriodoAnio?: number;
+  PremioEmpleadoMesID?: string | number;
 }
 
 export interface IRegistrarLlamadaFlotaData {
@@ -1188,6 +1213,18 @@ export class SharePointService {
       });
     } else {
       await this.database.add(LOCAL_STORES.publicaciones, record);
+    }
+
+    try {
+      const parsed = parseMesAnioText(mesAno);
+      await cloudDbClient.createEmpleadoMesAward({
+        email_empleado: normalizeEmail(data.agenteEmail),
+        nombre_empleado: data.agenteNombre.trim(),
+        mes: parsed.mes,
+        anio: parsed.anio
+      });
+    } catch (err) {
+      console.warn('SharePointService.publicarEmpleadoMes award insert error:', err);
     }
   }
 
