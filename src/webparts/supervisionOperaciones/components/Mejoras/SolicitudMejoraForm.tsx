@@ -56,7 +56,10 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       .getCatalogos('modulos_pantallas')
       .then((items: any[]) => {
         if (isMounted && items && items.length > 0) {
-          const loaded = items.map((it: any) => ({ key: String(it.Valor || it.title || ''), text: String(it.Valor || it.title || '') }));
+          const loaded = items.map((it: any) => ({
+            key: String(it.Valor || it.title || ''),
+            text: String(it.Valor || it.title || '')
+          }));
           setModuleOptions(loaded);
         }
       })
@@ -79,22 +82,22 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
     setErrorMessage('');
 
     if (!titulo.trim()) {
-      setErrorMessage('Ingrese un título para la solicitud de mejora.');
+      setErrorMessage('Ingrese un título descriptivo para la solicitud de mejora.');
       return;
     }
 
     if (!moduloAfectado) {
-      setErrorMessage('Seleccione el módulo o pantalla afectada.');
+      setErrorMessage('Seleccione el módulo o pantalla objetivo.');
       return;
     }
 
     if (!comoRol.trim() || !quieroFuncionalidad.trim() || !paraBeneficio.trim()) {
-      setErrorMessage('Complete todos los campos de la plantilla de Historia de Usuario (Como, Quiero, Para).');
+      setErrorMessage('Complete todos los bloques de la plantilla de Historia de Usuario.');
       return;
     }
 
     if (!criteriosAceptacion.trim()) {
-      setErrorMessage('Especifique los criterios de aceptación requeridos.');
+      setErrorMessage('Especifique los criterios de aceptación indispensables.');
       return;
     }
 
@@ -116,7 +119,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       setQuieroFuncionalidad('');
       setParaBeneficio('');
       setCriteriosAceptacion('');
-      setSuccessMessage('Solicitud de mejora enviada exitosamente a la cola de aprobación.');
+      setSuccessMessage('¡Iniciativa enviada exitosamente! Su propuesta ya está registrada en la cola de revisión.');
       onSaved?.();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al enviar la solicitud.';
@@ -128,13 +131,13 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
 
   return (
     <form className={styles.card} onSubmit={(e) => void handleSubmit(e)}>
-      <Stack tokens={{ childrenGap: 16 }}>
-        <Stack tokens={{ childrenGap: 2 }}>
-          <Text className={styles.title} variant="xLarge">
-            💡 Proponer Nueva Iniciativa o Mejora
+      <Stack tokens={{ childrenGap: 20 }}>
+        <Stack tokens={{ childrenGap: 4 }}>
+          <Text className={styles.headerTitle}>
+            ✍️ Registrar Nueva Iniciativa de Mejora
           </Text>
-          <Text className={styles.description}>
-            Estructure su propuesta en formato de Historia de Usuario para facilitar la evaluación y aprobación del equipo de supervisión.
+          <Text className={styles.headerSubtitle}>
+            Complete la estructura guiada de Historia de Usuario para sustentar su propuesta ante el equipo evaluador.
           </Text>
         </Stack>
 
@@ -150,80 +153,90 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
           </MessageBar>
         )}
 
-        <TextField
-          disabled={isSubmitting}
-          label="Título de la Mejora"
-          onChange={(_, value) => setTitulo(value || '')}
-          placeholder="Ej: Exportación rápida de métricas semanales de llamadas"
-          required
-          value={titulo}
-        />
+        <div className={styles.formGrid}>
+          <TextField
+            disabled={isSubmitting}
+            label="Título de la Mejora"
+            onChange={(_, value) => setTitulo(value || '')}
+            placeholder="Ej: Filtro rápido por fecha en el reporte mensual de llamadas"
+            required
+            value={titulo}
+          />
 
-        <Dropdown
-          disabled={isSubmitting}
-          label="Módulo o Pantalla Afectada"
-          onChange={(_, option) => setModuloAfectado(String(option?.key || ''))}
-          options={moduleOptions}
-          placeholder="Seleccione el módulo objetivo"
-          required
-          selectedKey={moduloAfectado}
-        />
+          <Dropdown
+            disabled={isSubmitting}
+            label="Módulo / Pantalla Objetivo"
+            onChange={(_, option) => setModuloAfectado(String(option?.key || ''))}
+            options={moduleOptions}
+            placeholder="Seleccione el módulo afectado"
+            required
+            selectedKey={moduloAfectado}
+          />
 
-        <div className={styles.userStoryBox}>
-          <Text style={{ fontWeight: 600 }}>📖 Plantilla de Historia de Usuario</Text>
-          <Stack tokens={{ childrenGap: 10 }}>
-            <TextField
-              disabled={isSubmitting}
-              label="Como... (Rol del usuario)"
-              onChange={(_, value) => setComoRol(value || '')}
-              placeholder="Ej: Supervisor de llamadas / Analista de Operaciones"
-              required
-              value={comoRol}
-            />
-            <TextField
-              disabled={isSubmitting}
-              label="Quiero... (Funcionalidad / Cambio solicitado)"
-              onChange={(_, value) => setQuieroFuncionalidad(value || '')}
-              placeholder="Ej: Filtrar los registros por estado activo e inactive en tiempo real"
-              required
-              value={quieroFuncionalidad}
-            />
-            <TextField
-              disabled={isSubmitting}
-              label="Para... (Beneficio o impacto esperado)"
-              onChange={(_, value) => setParaBeneficio(value || '')}
-              placeholder="Ej: Reducir el tiempo de consolidación de reportes a la gerencia"
-              required
-              value={paraBeneficio}
-            />
-          </Stack>
-
-          {userStoryDescription && (
-            <div className={styles.previewText}>
-              <strong>Vista previa:</strong> "{userStoryDescription}"
+          <div className={`${styles.userStoryCard} ${styles.fullWidth}`}>
+            <div className={styles.userStoryHeader}>
+              <span>📖</span>
+              <span>Plantilla Guiada de Historia de Usuario</span>
             </div>
-          )}
+
+            <div className={styles.formGrid}>
+              <TextField
+                disabled={isSubmitting}
+                label="1. Como... (Rol del usuario)"
+                onChange={(_, value) => setComoRol(value || '')}
+                placeholder="Ej: Supervisor de Operaciones / Oficial de Línea"
+                required
+                value={comoRol}
+              />
+              <TextField
+                disabled={isSubmitting}
+                label="2. Quiero... (Funcionalidad o cambio solicitado)"
+                onChange={(_, value) => setQuieroFuncionalidad(value || '')}
+                placeholder="Ej: Exportar en formato Excel la lista consolidada de ausencias"
+                required
+                value={quieroFuncionalidad}
+              />
+              <div className={styles.fullWidth}>
+                <TextField
+                  disabled={isSubmitting}
+                  label="3. Para... (Beneficio o impacto esperado en el negocio)"
+                  onChange={(_, value) => setParaBeneficio(value || '')}
+                  placeholder="Ej: Disminuir el tiempo de preparación de la auditoría semanal de la dirección"
+                  required
+                  value={paraBeneficio}
+                />
+              </div>
+            </div>
+
+            {userStoryDescription && (
+              <div className={styles.previewQuote}>
+                <strong>Vista Previa de la Historia:</strong> "{userStoryDescription}"
+              </div>
+            )}
+          </div>
+
+          <div className={styles.fullWidth}>
+            <TextField
+              disabled={isSubmitting}
+              label="Criterios de Aceptación (Requisitos indispensables para dar por completada la historia)"
+              multiline
+              onChange={(_, value) => setCriteriosAceptacion(value || '')}
+              placeholder="Ej: 1. El reporte debe descargar los registros filtrados por rango de fecha. 2. Mostrar columnas A, B y C."
+              required
+              rows={3}
+              value={criteriosAceptacion}
+            />
+          </div>
         </div>
 
-        <TextField
-          disabled={isSubmitting}
-          label="Criterios de Aceptación (Requisitos mínimos para considerar la mejora lista)"
-          multiline
-          onChange={(_, value) => setCriteriosAceptacion(value || '')}
-          placeholder="Ej: 1. El botón de exportación debe incluir columnas A, B y C. 2. Generar el archivo en menos de 3 segundos."
-          required
-          rows={3}
-          value={criteriosAceptacion}
-        />
-
-        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 14 }} style={{ marginTop: 8 }}>
           <PrimaryButton
             disabled={isSubmitting}
             iconProps={{ iconName: 'Send' }}
-            text={isSubmitting ? 'Enviando...' : 'Enviar Solicitud de Mejora'}
+            text={isSubmitting ? 'Enviando iniciativa...' : 'Enviar Solicitud de Mejora'}
             type="submit"
           />
-          {isSubmitting && <Spinner label="Guardando en Supabase..." size={SpinnerSize.small} />}
+          {isSubmitting && <Spinner label="Guardando propuesta..." size={SpinnerSize.small} />}
         </Stack>
       </Stack>
     </form>

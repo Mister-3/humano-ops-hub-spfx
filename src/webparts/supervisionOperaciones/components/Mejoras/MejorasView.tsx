@@ -27,6 +27,18 @@ export const MejorasView: React.FC<IMejorasViewProps> = ({
 
   return (
     <Stack className={styles.container}>
+      <div className={styles.headerBox}>
+        <div className={styles.headerIconWrapper}>
+          💡
+        </div>
+        <div className={styles.headerTextGroup}>
+          <h2 className={styles.headerTitle}>Iniciativas & Mejoras</h2>
+          <p className={styles.headerSubtitle}>
+            Proponga, evalúe y dé seguimiento a las historias de usuario para la optimización continua del portal.
+          </p>
+        </div>
+      </div>
+
       <Pivot
         className={styles.modulePivot}
         onLinkClick={(item) => setSelectedTab(item?.props.itemKey || 'nueva')}
