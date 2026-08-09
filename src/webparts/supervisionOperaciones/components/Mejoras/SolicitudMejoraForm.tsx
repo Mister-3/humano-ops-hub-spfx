@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Icon, MessageBar, MessageBarType, Spinner, SpinnerSize } from '@fluentui/react';
 
 import { cloudDbClient } from '../../../../services/CloudDbClient';
-import SharePointService from '../../services/SharePointService';
+import SharePointService, { ICatalogoItem } from '../../services/SharePointService';
 
 export interface ISolicitudMejoraFormProps {
   currentUserEmail: string;
@@ -10,94 +10,168 @@ export interface ISolicitudMejoraFormProps {
   onSaved?: () => void;
 }
 
-const DEFAULT_APLICATIVOS = [
-  'Humano Ops Hub',
-  'Portal de Operaciones',
-  'Módulo de Gestión SharePoint',
-  'Sistema de Métricas'
-];
-
-const DEFAULT_MODULOS = [
-  'Productividad',
-  'Faltas y Errores Operativos',
-  'Ocupación y Registro de Llamadas',
-  'Reconocimientos y Empleado del Mes',
-  'Planificación Semanal',
-  'Catálogos y Admin'
-];
-
-const DEFAULT_PANTALLAS = [
-  'Formulario de Registro',
-  'Dashboard de Indicadores',
-  'Cola de Aprobación',
-  'Historial de Transacciones',
-  'Panel de Administración',
-  'Vista General / Resumen'
-];
-
 export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
   currentUserEmail,
   currentUserName,
   onSaved
 }) => {
   const sharePointService = React.useMemo(() => new SharePointService(), []);
-  const [aplicativo, setAplicativo] = React.useState<string>('Humano Ops Hub');
-  const [moduloAfectado, setModuloAfectado] = React.useState<string>('');
-  const [pantallaAfectada, setPantallaAfectada] = React.useState<string>('');
+
+  // Form selections
+  const [selectedAplicativoItem, setSelectedAplicativoItem] = React.useState<ICatalogoItem | null>(null);
+  const [selectedModuloItem, setSelectedModuloItem] = React.useState<ICatalogoItem | null>(null);
+  const [selectedPantallaItem, setSelectedPantallaItem] = React.useState<ICatalogoItem | null>(null);
+
   const [titulo, setTitulo] = React.useState<string>('');
   const [comoRol, setComoRol] = React.useState<string>('');
   const [quieroFuncionalidad, setQuieroFuncionalidad] = React.useState<string>('');
   const [paraBeneficio, setParaBeneficio] = React.useState<string>('');
   const [criteriosAceptacion, setCriteriosAceptacion] = React.useState<string>('');
 
-  const [aplicativoOptions, setAplicativoOptions] = React.useState<string[]>(DEFAULT_APLICATIVOS);
-  const [moduloOptions, setModuloOptions] = React.useState<string[]>(DEFAULT_MODULOS);
-  const [pantallaOptions, setPantallaOptions] = React.useState<string[]>(DEFAULT_PANTALLAS);
+  // Catalog items loaded from Database (STRICT ZERO MOCK DATA)
+  const [aplicativos, setAplicativos] = React.useState<ICatalogoItem[]>([]);
+  const [modulos, setModulos] = React.useState<ICatalogoItem[]>([]);
+  const [pantallas, setPantallas] = React.useState<ICatalogoItem[]>([]);
+
+  const [isLoadingAplicativos, setIsLoadingAplicativos] = React.useState<boolean>(true);
+  const [isLoadingModulos, setIsLoadingModulos] = React.useState<boolean>(false);
+  const [isLoadingPantallas, setIsLoadingPantallas] = React.useState<boolean>(false);
 
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
 
+  // 1. Cargar Aplicativos al montar
   React.useEffect(() => {
     let isMounted = true;
-    
-    // Cargar Catálogo de Aplicativos
+    setIsLoadingAplicativos(true);
+
     sharePointService
       .getCatalogos('aplicativos')
-      .then((items: any[]) => {
-        if (isMounted && items && items.length > 0) {
-          const loaded = items.map((it: any) => String(it.Valor || it.title || '')).filter(Boolean);
-          if (loaded.length > 0) setAplicativoOptions(loaded);
+      .then((items: ICatalogoItem[]) => {
+        if (isMounted) {
+          setAplicativos(items || []);
         }
       })
-      .catch(() => undefined);
-
-    // Cargar Catálogo de Módulos
-    sharePointService
-      .getCatalogos('modulos')
-      .then((items: any[]) => {
-        if (isMounted && items && items.length > 0) {
-          const loaded = items.map((it: any) => String(it.Valor || it.title || '')).filter(Boolean);
-          if (loaded.length > 0) setModuloOptions(loaded);
-        }
+      .catch((err) => {
+        console.warn('Error cargando catálogo de aplicativos:', err);
+        if (isMounted) setAplicativos([]);
       })
-      .catch(() => undefined);
-
-    // Cargar Catálogo de Pantallas
-    sharePointService
-      .getCatalogos('pantallas')
-      .then((items: any[]) => {
-        if (isMounted && items && items.length > 0) {
-          const loaded = items.map((it: any) => String(it.Valor || it.title || '')).filter(Boolean);
-          if (loaded.length > 0) setPantallaOptions(loaded);
-        }
-      })
-      .catch(() => undefined);
+      .finally(() => {
+        if (isMounted) setIsLoadingAplicativos(false);
+      });
 
     return () => {
       isMounted = false;
     };
   }, [sharePointService]);
+
+  // 2. Cargar Módulos filtrados al seleccionar un Aplicativo
+  React.useEffect(() => {
+    if (!selectedAplicativoItem) {
+      setModulos([]);
+      setSelectedModuloItem(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingModulos(true);
+    const parentKey = String(selectedAplicativoItem.rawId ?? selectedAplicativoItem.Id ?? selectedAplicativoItem.Valor);
+
+    sharePointService
+      .getCatalogos('modulos')
+      .then((allItems: ICatalogoItem[]) => {
+        if (isMounted) {
+          // Filtrar por parent_id
+          const filtered = (allItems || []).filter((item) => {
+            if (!item.parent_id) return true; // Si no tiene parent_id asignado, incluirlo
+            const pId = String(item.parent_id);
+            return (
+              pId === parentKey ||
+              pId === String(selectedAplicativoItem.Id) ||
+              pId === String(selectedAplicativoItem.rawId) ||
+              pId.toLowerCase() === selectedAplicativoItem.Valor.toLowerCase()
+            );
+          });
+          setModulos(filtered);
+        }
+      })
+      .catch((err) => {
+        console.warn('Error cargando módulos:', err);
+        if (isMounted) setModulos([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingModulos(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sharePointService, selectedAplicativoItem]);
+
+  // 3. Cargar Pantallas filtradas al seleccionar un Módulo
+  React.useEffect(() => {
+    if (!selectedModuloItem) {
+      setPantallas([]);
+      setSelectedPantallaItem(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingPantallas(true);
+    const parentKey = String(selectedModuloItem.rawId ?? selectedModuloItem.Id ?? selectedModuloItem.Valor);
+
+    sharePointService
+      .getCatalogos('pantallas')
+      .then((allItems: ICatalogoItem[]) => {
+        if (isMounted) {
+          // Filtrar por parent_id
+          const filtered = (allItems || []).filter((item) => {
+            if (!item.parent_id) return true; // Si no tiene parent_id asignado, incluirlo
+            const pId = String(item.parent_id);
+            return (
+              pId === parentKey ||
+              pId === String(selectedModuloItem.Id) ||
+              pId === String(selectedModuloItem.rawId) ||
+              pId.toLowerCase() === selectedModuloItem.Valor.toLowerCase()
+            );
+          });
+          setPantallas(filtered);
+        }
+      })
+      .catch((err) => {
+        console.warn('Error cargando pantallas:', err);
+        if (isMounted) setPantallas([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingPantallas(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sharePointService, selectedModuloItem]);
+
+  // Manejar cambio en Aplicativo (Resetea Módulo y Pantalla)
+  const handleAplicativoChange = (val: string) => {
+    const found = aplicativos.find((a) => String(a.rawId ?? a.Id ?? a.Valor) === val || a.Valor === val);
+    setSelectedAplicativoItem(found || null);
+    setSelectedModuloItem(null);
+    setSelectedPantallaItem(null);
+  };
+
+  // Manejar cambio en Módulo (Resetea Pantalla)
+  const handleModuloChange = (val: string) => {
+    const found = modulos.find((m) => String(m.rawId ?? m.Id ?? m.Valor) === val || m.Valor === val);
+    setSelectedModuloItem(found || null);
+    setSelectedPantallaItem(null);
+  };
+
+  // Manejar cambio en Pantalla
+  const handlePantallaChange = (val: string) => {
+    const found = pantallas.find((p) => String(p.rawId ?? p.Id ?? p.Valor) === val || p.Valor === val);
+    setSelectedPantallaItem(found || null);
+  };
 
   const userStoryDescription = React.useMemo(() => {
     if (!comoRol.trim() && !quieroFuncionalidad.trim() && !paraBeneficio.trim()) {
@@ -111,12 +185,12 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
     setSuccessMessage('');
     setErrorMessage('');
 
-    if (!aplicativo) {
+    if (!selectedAplicativoItem) {
       setErrorMessage('Seleccione el aplicativo objetivo.');
       return;
     }
 
-    if (!moduloAfectado) {
+    if (!selectedModuloItem) {
       setErrorMessage('Seleccione el módulo objetivo.');
       return;
     }
@@ -142,17 +216,18 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       await cloudDbClient.createSolicitudMejora({
         autor_nombre: currentUserName || 'Colaborador',
         autor_email: currentUserEmail,
-        aplicativo: aplicativo,
-        modulo_afectado: moduloAfectado,
-        pantalla_afectada: pantallaAfectada,
+        aplicativo: selectedAplicativoItem.Valor,
+        modulo_afectado: selectedModuloItem.Valor,
+        pantalla_afectada: selectedPantallaItem ? selectedPantallaItem.Valor : '',
         titulo: titulo.trim(),
         descripcion: userStoryDescription,
         criterios_aceptacion: criteriosAceptacion.trim()
       });
 
       setTitulo('');
-      setModuloAfectado('');
-      setPantallaAfectada('');
+      setSelectedAplicativoItem(null);
+      setSelectedModuloItem(null);
+      setSelectedPantallaItem(null);
       setComoRol('');
       setQuieroFuncionalidad('');
       setParaBeneficio('');
@@ -177,7 +252,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
           <span>💡</span> Proponer Nueva Iniciativa o Historia de Usuario
         </h3>
         <p className="text-sm text-slate-400">
-          Seleccione el aplicativo, módulo y pantalla origen, e ingrese los bloques estructurados de su solicitud.
+          Seleccione en cascada el Aplicativo, Módulo y Pantalla origen, e ingrese los bloques estructurados de su solicitud.
         </p>
       </div>
 
@@ -193,7 +268,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
         </MessageBar>
       )}
 
-      {/* Grid de 3 Columnas para Selección de Origen */}
+      {/* Grid de 3 Columnas para Selección de Origen en Cascada */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* 1. Aplicativo */}
         <div className="flex flex-col gap-2">
@@ -201,65 +276,86 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
             1. Aplicativo <span className="text-rose-500">*</span>
           </label>
           <select
-            disabled={isSubmitting}
-            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer"
-            value={aplicativo}
-            onChange={(e) => setAplicativo(e.target.value)}
+            disabled={isSubmitting || isLoadingAplicativos}
+            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
+            value={selectedAplicativoItem ? String(selectedAplicativoItem.rawId ?? selectedAplicativoItem.Id ?? selectedAplicativoItem.Valor) : ''}
+            onChange={(e) => handleAplicativoChange(e.target.value)}
             required
           >
             <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
-              Seleccione el aplicativo...
+              {isLoadingAplicativos ? 'Cargando aplicativos...' : aplicativos.length === 0 ? 'Sin opciones disponibles (Configurar en Admin)' : 'Seleccione el aplicativo...'}
             </option>
-            {aplicativoOptions.map((app) => (
-              <option key={app} value={app} className="bg-slate-900 text-white py-2">
-                {app}
-              </option>
-            ))}
+            {aplicativos.map((app) => {
+              const key = String(app.rawId ?? app.Id ?? app.Valor);
+              return (
+                <option key={key} value={key} className="bg-slate-900 text-white py-2">
+                  {app.Valor}
+                </option>
+              );
+            })}
           </select>
         </div>
 
-        {/* 2. Módulo */}
+        {/* 2. Módulo (Solo si hay Aplicativo seleccionado) */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-slate-200">
             2. Módulo <span className="text-rose-500">*</span>
           </label>
           <select
-            disabled={isSubmitting}
-            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer"
-            value={moduloAfectado}
-            onChange={(e) => setModuloAfectado(e.target.value)}
+            disabled={isSubmitting || !selectedAplicativoItem || isLoadingModulos}
+            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
+            value={selectedModuloItem ? String(selectedModuloItem.rawId ?? selectedModuloItem.Id ?? selectedModuloItem.Valor) : ''}
+            onChange={(e) => handleModuloChange(e.target.value)}
             required
           >
             <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
-              Seleccione el módulo...
+              {!selectedAplicativoItem
+                ? '👈 Seleccione un aplicativo primero'
+                : isLoadingModulos
+                ? 'Cargando módulos...'
+                : modulos.length === 0
+                ? 'Sin opciones disponibles (Configurar en Admin)'
+                : 'Seleccione el módulo...'}
             </option>
-            {moduloOptions.map((mod) => (
-              <option key={mod} value={mod} className="bg-slate-900 text-white py-2">
-                {mod}
-              </option>
-            ))}
+            {modulos.map((mod) => {
+              const key = String(mod.rawId ?? mod.Id ?? mod.Valor);
+              return (
+                <option key={key} value={key} className="bg-slate-900 text-white py-2">
+                  {mod.Valor}
+                </option>
+              );
+            })}
           </select>
         </div>
 
-        {/* 3. Pantalla */}
+        {/* 3. Pantalla (Solo si hay Módulo seleccionado) */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-slate-200">
             3. Pantalla / Sección
           </label>
           <select
-            disabled={isSubmitting}
-            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer"
-            value={pantallaAfectada}
-            onChange={(e) => setPantallaAfectada(e.target.value)}
+            disabled={isSubmitting || !selectedModuloItem || isLoadingPantallas}
+            className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium cursor-pointer disabled:opacity-50"
+            value={selectedPantallaItem ? String(selectedPantallaItem.rawId ?? selectedPantallaItem.Id ?? selectedPantallaItem.Valor) : ''}
+            onChange={(e) => handlePantallaChange(e.target.value)}
           >
             <option value="" className="bg-slate-900 text-slate-400 py-2">
-              (Opcional) Seleccione pantalla...
+              {!selectedModuloItem
+                ? '👈 Seleccione un módulo primero'
+                : isLoadingPantallas
+                ? 'Cargando pantallas...'
+                : pantallas.length === 0
+                ? 'Sin opciones disponibles (Configurar en Admin)'
+                : '(Opcional) Seleccione pantalla...'}
             </option>
-            {pantallaOptions.map((pan) => (
-              <option key={pan} value={pan} className="bg-slate-900 text-white py-2">
-                {pan}
-              </option>
-            ))}
+            {pantallas.map((pan) => {
+              const key = String(pan.rawId ?? pan.Id ?? pan.Valor);
+              return (
+                <option key={key} value={key} className="bg-slate-900 text-white py-2">
+                  {pan.Valor}
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>

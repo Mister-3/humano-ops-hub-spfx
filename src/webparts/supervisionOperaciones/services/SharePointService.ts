@@ -666,6 +666,8 @@ export interface ICatalogoItem {
   rawId?: string | number;
   Title: CatalogCategory;
   Valor: string;
+  parent_id?: string | number;
+  activo?: boolean;
 }
 
 export interface IConfiguracionMetricas {
@@ -1120,17 +1122,19 @@ export class SharePointService {
   }
 
   public async getCatalogos(
-    categoria?: CatalogCategory
+    categoria?: CatalogCategory,
+    parentId?: string | number
   ): Promise<ICatalogoItem[]> {
     if (categoria && !isCatalogCategory(categoria)) {
       throw new Error('La categoría de catálogo no es válida.');
     }
-    return cloudDbClient.getCatalogos(categoria);
+    return cloudDbClient.getCatalogos(categoria, parentId);
   }
 
   public async addCatalogo(
     categoria: CatalogCategory,
-    valor: string
+    valor: string,
+    parentId?: string | number
   ): Promise<void> {
     const normalizedValue = valor.trim();
 
@@ -1138,12 +1142,12 @@ export class SharePointService {
       throw new Error('La categoría y el valor son obligatorios.');
     }
 
-    const items = await this.getCatalogos(categoria);
+    const items = await this.getCatalogos(categoria, parentId);
     if (items.some((item) => normalizeText(item.Valor) === normalizeText(normalizedValue))) {
       throw new Error('La opción ya existe en el catálogo.');
     }
 
-    return cloudDbClient.addCatalogo(categoria, normalizedValue);
+    return cloudDbClient.addCatalogo(categoria, normalizedValue, parentId);
   }
 
   public async deleteCatalogo(id: number | string): Promise<void> {

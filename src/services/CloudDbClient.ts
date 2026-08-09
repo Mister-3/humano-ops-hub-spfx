@@ -996,21 +996,29 @@ export class CloudDbClient {
   // CATÁLOGOS (tabla: catalogos)
   // ==========================================
 
-  public async getCatalogos(categoria?: CatalogCategory): Promise<ICatalogoItem[]> {
+  public async getCatalogos(categoria?: CatalogCategory, parentId?: string | number): Promise<ICatalogoItem[]> {
     if (isSupabaseConfigured()) {
       try {
         let query = supabase.from('catalogos').select('*');
         if (categoria) {
           query = query.eq('categoria', categoria);
         }
+        if (parentId !== undefined && parentId !== null && parentId !== '') {
+          const parentIdStr = String(parentId);
+          query = query.or(`parent_id.eq.${parentIdStr},parent_id.eq.${parentId}`);
+        }
         const { data, error } = await query;
         if (!error && Array.isArray(data)) {
-          const mapped: ICatalogoItem[] = data.map((row: any, index: number) => ({
-            Id: typeof row.id === 'number' ? row.id : (index + 1),
-            rawId: row.id || row.id_catalogo || (index + 1),
-            Title: (row.categoria || row.title || categoria || 'Falta') as CatalogCategory,
-            Valor: row.valor || row.title || row.nombre || row.descripcion || row.value || ''
-          }));
+          const mapped: ICatalogoItem[] = data
+            .filter((row: any) => row.activo !== false)
+            .map((row: any, index: number) => ({
+              Id: typeof row.id === 'number' ? row.id : (index + 1),
+              rawId: row.id || row.id_catalogo || (index + 1),
+              Title: (row.categoria || row.title || categoria || 'Falta') as CatalogCategory,
+              Valor: row.valor || row.title || row.nombre || row.descripcion || row.value || '',
+              parent_id: row.parent_id || row.padre_id || undefined,
+              activo: row.activo !== false
+            }));
           try {
             await indexedDb.replaceAll(LOCAL_STORES.catalogos, mapped);
           } catch {
@@ -1025,19 +1033,26 @@ export class CloudDbClient {
 
     const items = await indexedDb.getAll<ICatalogoItem>(LOCAL_STORES.catalogos);
     return items
-      .filter((item) => !categoria || item.Title === categoria)
+      .filter((item) => {
+        if (categoria && item.Title !== categoria) return false;
+        if (parentId !== undefined && parentId !== null && parentId !== '') {
+          return String(item.parent_id) === String(parentId);
+        }
+        return true;
+      })
       .sort((left, right) => left.Valor.localeCompare(right.Valor));
   }
 
-  public async addCatalogo(categoria: CatalogCategory, valor: string): Promise<void> {
+  public async addCatalogo(categoria: CatalogCategory, valor: string, parentId?: string | number): Promise<void> {
     const normValue = valor.trim();
+    const parentVal = parentId !== undefined && parentId !== null && parentId !== '' ? String(parentId) : null;
     if (isSupabaseConfigured()) {
       try {
-        let res = await supabase.from('catalogos').insert([{ categoria, valor: normValue }]).select();
+        let res = await supabase.from('catalogos').insert([{ categoria, valor: normValue, parent_id: parentVal }]).select();
         if (res.error) {
-          res = await supabase.from('catalogos').insert([{ categoria, title: normValue }]).select();
+          res = await supabase.from('catalogos').insert([{ categoria, title: normValue, parent_id: parentVal }]).select();
           if (res.error) {
-            await supabase.from('catalogos').insert([{ categoria, nombre: normValue }]);
+            await supabase.from('catalogos').insert([{ categoria, nombre: normValue, parent_id: parentVal }]);
           }
         }
       } catch (err) {
@@ -1049,6 +1064,7 @@ export class CloudDbClient {
       await indexedDb.add(LOCAL_STORES.catalogos, {
         Title: categoria,
         Valor: normValue,
+        parent_id: parentVal || undefined,
         SyncStatus: 'Pendiente'
       });
     } catch {

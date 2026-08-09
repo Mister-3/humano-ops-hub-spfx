@@ -382,6 +382,8 @@ const AdminConfiguration: React.FC = () => {
     }
   };
 
+  const [catalogParentId, setCatalogParentId] = React.useState<string>('');
+
   const saveCatalogItem = async (): Promise<void> => {
     setCatalogSuccessMessage('');
     setCatalogErrorMessage('');
@@ -393,14 +395,25 @@ const AdminConfiguration: React.FC = () => {
       return;
     }
 
+    if (catalogCategory === 'modulos' && !catalogParentId) {
+      setCatalogErrorMessage('Debe seleccionar el Aplicativo Padre para vincular el módulo.');
+      return;
+    }
+
+    if (catalogCategory === 'pantallas' && !catalogParentId) {
+      setCatalogErrorMessage('Debe seleccionar el Módulo Padre para vincular la pantalla.');
+      return;
+    }
+
     setIsCatalogSubmitting(true);
 
     try {
-      await sharePointService.addCatalogo(catalogCategory, normalizedValue);
+      await sharePointService.addCatalogo(catalogCategory, normalizedValue, catalogParentId || undefined);
       const updatedItems = await sharePointService.getCatalogos();
 
       setCatalogItems(updatedItems);
       setCatalogValue('');
+      setCatalogParentId('');
       setCatalogSuccessMessage(
         `"${normalizedValue}" fue agregado a ${catalogCategoryLabels[catalogCategory]}.`
       );
@@ -912,12 +925,45 @@ const AdminConfiguration: React.FC = () => {
 
                 if (isCatalogCategory(selectedCategory)) {
                   setCatalogCategory(selectedCategory);
+                  setCatalogParentId('');
                 }
               }}
               options={catalogCategoryOptions}
               selectedKey={catalogCategory}
             />
           </Stack.Item>
+
+          {catalogCategory === 'modulos' && (
+            <Stack.Item className={styles.catalogCategoryField}>
+              <Dropdown
+                disabled={isCatalogSubmitting || deletingCatalogId !== undefined}
+                label="Aplicativo Padre *"
+                onChange={(_, option) => setCatalogParentId(String(option?.key || ''))}
+                options={catalogItems
+                  .filter((i) => i.Title === 'aplicativos')
+                  .map((i) => ({ key: String(i.rawId ?? i.Id ?? i.Valor), text: i.Valor }))}
+                placeholder="Seleccione aplicativo..."
+                selectedKey={catalogParentId}
+                required
+              />
+            </Stack.Item>
+          )}
+
+          {catalogCategory === 'pantallas' && (
+            <Stack.Item className={styles.catalogCategoryField}>
+              <Dropdown
+                disabled={isCatalogSubmitting || deletingCatalogId !== undefined}
+                label="Módulo Padre *"
+                onChange={(_, option) => setCatalogParentId(String(option?.key || ''))}
+                options={catalogItems
+                  .filter((i) => i.Title === 'modulos')
+                  .map((i) => ({ key: String(i.rawId ?? i.Id ?? i.Valor), text: i.Valor }))}
+                placeholder="Seleccione módulo..."
+                selectedKey={catalogParentId}
+                required
+              />
+            </Stack.Item>
+          )}
 
           <Stack.Item className={styles.catalogValueField} grow>
             <TextField
