@@ -137,10 +137,20 @@ export const MisSolicitudesMejora: React.FC<IMisSolicitudesMejoraProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {item.aplicativo && (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                      📱 {item.aplicativo}
+                    </span>
+                  )}
                   <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
                     📌 {item.modulo_afectado}
                   </span>
+                  {item.pantalla_afectada && (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                      🖥️ {item.pantalla_afectada}
+                    </span>
+                  )}
                   {renderStatusBadge(item.estado)}
                 </div>
               </div>

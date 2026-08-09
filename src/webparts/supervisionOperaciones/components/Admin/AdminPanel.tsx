@@ -43,7 +43,10 @@ const catalogCategories: ReadonlyArray<CatalogCategory> = [
   'ErrorProceso',
   'CodigoEtica',
   'Kudo',
-  'ProcesoArea'
+  'ProcesoArea',
+  'aplicativos',
+  'modulos',
+  'pantallas'
 ];
 
 const catalogCategoryLabels: Record<CatalogCategory, string> = {
@@ -52,7 +55,10 @@ const catalogCategoryLabels: Record<CatalogCategory, string> = {
   CodigoEtica: 'Subcategorías de Código de Ética',
   Kudo: 'Atributos de Kudos',
   ProcesoArea: 'Procesos del área',
-  modulos_pantallas: 'Módulos y pantallas'
+  modulos_pantallas: 'Módulos y pantallas generales',
+  aplicativos: 'Aplicativos del Sistema',
+  modulos: 'Módulos del Sistema',
+  pantallas: 'Pantallas del Sistema'
 };
 
 const catalogCategoryOptions: IDropdownOption[] = catalogCategories.map(

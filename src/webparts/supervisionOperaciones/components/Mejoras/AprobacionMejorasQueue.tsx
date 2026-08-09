@@ -171,10 +171,20 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {item.aplicativo && (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                      📱 {item.aplicativo}
+                    </span>
+                  )}
                   <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
                     📌 {item.modulo_afectado}
                   </span>
+                  {item.pantalla_afectada && (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                      🖥️ {item.pantalla_afectada}
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/30 text-amber-400 border border-amber-800/50">
                     <Icon iconName="Clock" className="text-xs" />
                     <span>Pendiente de Revisión</span>
@@ -265,7 +275,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
               <textarea
                 disabled={isSubmittingResponse}
                 rows={4}
-                className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all resize-none"
+                className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium resize-none"
                 placeholder="Ingrese sus observaciones o justificante para el solicitante..."
                 value={comentarioRevision}
                 onChange={(e) => setComentarioRevision(e.target.value)}

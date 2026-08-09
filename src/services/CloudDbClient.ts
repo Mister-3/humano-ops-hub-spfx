@@ -1478,6 +1478,7 @@ export class CloudDbClient {
   public async createSolicitudMejora(data: {
     autor_nombre: string;
     autor_email: string;
+    aplicativo?: string;
     modulo_afectado: string;
     pantalla_afectada?: string;
     titulo: string;
@@ -1493,6 +1494,7 @@ export class CloudDbClient {
           audit_id: auditId,
           autor_nombre: data.autor_nombre.trim(),
           autor_email: normEmail,
+          aplicativo: data.aplicativo?.trim() || '',
           modulo_afectado: data.modulo_afectado.trim(),
           pantalla_afectada: data.pantalla_afectada?.trim() || '',
           titulo: data.titulo.trim(),
@@ -1526,6 +1528,7 @@ export class CloudDbClient {
             audit_id: row.audit_id || row.id_auditoria || '',
             autor_nombre: row.autor_nombre || row.colaborador_nombre || '',
             autor_email: row.autor_email || row.email_empleado || '',
+            aplicativo: row.aplicativo || row.app || '',
             modulo_afectado: row.modulo_afectado || row.modulo || '',
             pantalla_afectada: row.pantalla_afectada || '',
             titulo: row.titulo || row.title || '',

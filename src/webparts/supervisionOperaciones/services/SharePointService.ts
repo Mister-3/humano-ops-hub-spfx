@@ -26,7 +26,10 @@ export type CatalogCategory =
   | 'CodigoEtica'
   | 'Kudo'
   | 'ProcesoArea'
-  | 'modulos_pantallas';
+  | 'modulos_pantallas'
+  | 'aplicativos'
+  | 'modulos'
+  | 'pantallas';
 
 export type AusenciaType =
   | 'Vacaciones'
@@ -50,7 +53,10 @@ const CATALOG_CATEGORIES: ReadonlyArray<CatalogCategory> = [
   'CodigoEtica',
   'Kudo',
   'ProcesoArea',
-  'modulos_pantallas'
+  'modulos_pantallas',
+  'aplicativos',
+  'modulos',
+  'pantallas'
 ];
 
 const ABSENCE_TYPES: ReadonlyArray<AusenciaType> = [
@@ -464,6 +470,7 @@ export interface ISolicitudMejora {
   audit_id?: string;
   autor_nombre: string;
   autor_email: string;
+  aplicativo?: string;
   modulo_afectado: string;
   pantalla_afectada?: string;
   titulo: string;
