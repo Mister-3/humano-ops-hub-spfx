@@ -640,7 +640,7 @@ export class CloudDbClient {
           .from('kudos')
           .select('*');
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mappedKudos: IKudoHistorialItem[] = data.map((row: ISupabaseKudoRow, index: number) => {
             const numericId = typeof row.id === 'number' ? row.id : (index + 1);
             return {
@@ -759,7 +759,7 @@ export class CloudDbClient {
         }
         const { data, error } = await query;
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: IMetaRecord[] = data.map((row: ISupabaseMetaRow, index: number) => ({
             Id: typeof row.id === 'number' ? row.id : (index + 1),
             ID: String(row.id || `META-${index + 1}`),
