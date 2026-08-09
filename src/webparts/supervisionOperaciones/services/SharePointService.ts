@@ -25,7 +25,8 @@ export type CatalogCategory =
   | 'ErrorProceso'
   | 'CodigoEtica'
   | 'Kudo'
-  | 'ProcesoArea';
+  | 'ProcesoArea'
+  | 'modulos_pantallas';
 
 export type AusenciaType =
   | 'Vacaciones'
@@ -48,7 +49,8 @@ const CATALOG_CATEGORIES: ReadonlyArray<CatalogCategory> = [
   'ErrorProceso',
   'CodigoEtica',
   'Kudo',
-  'ProcesoArea'
+  'ProcesoArea',
+  'modulos_pantallas'
 ];
 
 const ABSENCE_TYPES: ReadonlyArray<AusenciaType> = [
@@ -455,6 +457,24 @@ export interface IAusenciaItem {
   AuditID?: string;
   PeriodoAnio?: number;
   PremioEmpleadoMesID?: string | number;
+}
+
+export interface ISolicitudMejora {
+  id?: string;
+  audit_id?: string;
+  autor_nombre: string;
+  autor_email: string;
+  modulo_afectado: string;
+  pantalla_afectada?: string;
+  titulo: string;
+  descripcion: string;
+  criterios_aceptacion: string;
+  estado: 'Pendiente_Aprobacion' | 'Aprobada' | 'Declinada';
+  comentario_supervisor?: string;
+  supervisor_email?: string;
+  supervisor_nombre?: string;
+  fecha_revision?: string;
+  created_at?: string;
 }
 
 export interface IRegistrarLlamadaFlotaData {
@@ -1217,11 +1237,14 @@ export class SharePointService {
 
     try {
       const parsed = parseMesAnioText(mesAno);
+      const author = getLocalAuthor();
       await cloudDbClient.createEmpleadoMesAward({
         email_empleado: normalizeEmail(data.agenteEmail),
         nombre_empleado: data.agenteNombre.trim(),
         mes: parsed.mes,
-        anio: parsed.anio
+        anio: parsed.anio,
+        supervisor_email: author.EMail,
+        supervisor_nombre: author.Title
       });
     } catch (err) {
       console.warn('SharePointService.publicarEmpleadoMes award insert error:', err);

@@ -16,7 +16,8 @@ import type {
   IRegistrarAusenciaData,
   AusenciaType,
   IRegistrarFaltaData,
-  IRegistrarKudoData
+  IRegistrarKudoData,
+  ISolicitudMejora
 } from '../webparts/supervisionOperaciones/services/SharePointService';
 
 import { generateAuditID } from '../webparts/supervisionOperaciones/utils/auditUtils';
@@ -1433,6 +1434,8 @@ export class CloudDbClient {
     nombre_empleado?: string;
     mes: number;
     anio: number;
+    supervisor_email?: string;
+    supervisor_nombre?: string;
   }): Promise<void> {
     const normEmail = data.email_empleado.trim().toLowerCase();
     if (isSupabaseConfigured()) {
@@ -1442,11 +1445,132 @@ export class CloudDbClient {
           nombre_empleado: data.nombre_empleado || '',
           mes: data.mes,
           anio: data.anio,
+          supervisor_email: (data.supervisor_email || '').trim().toLowerCase(),
+          supervisor_nombre: data.supervisor_nombre || '',
           dia_libre_reclamado: false
         };
         await supabase.from('empleado_del_mes').insert([payload]);
       } catch (err) {
         console.warn('CloudDbClient.createEmpleadoMesAward error:', err);
+      }
+    }
+  }
+
+  public async getHistorialEmpleadoMes(): Promise<any[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('empleado_del_mes')
+          .select('*')
+          .order('anio', { ascending: false })
+          .order('mes', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getHistorialEmpleadoMes error:', err);
+      }
+    }
+    return [];
+  }
+
+  public async createSolicitudMejora(data: {
+    autor_nombre: string;
+    autor_email: string;
+    modulo_afectado: string;
+    pantalla_afectada?: string;
+    titulo: string;
+    descripcion: string;
+    criterios_aceptacion: string;
+  }): Promise<void> {
+    const auditId = generateAuditID();
+    const normEmail = data.autor_email.trim().toLowerCase();
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          audit_id: auditId,
+          autor_nombre: data.autor_nombre.trim(),
+          autor_email: normEmail,
+          modulo_afectado: data.modulo_afectado.trim(),
+          pantalla_afectada: data.pantalla_afectada?.trim() || '',
+          titulo: data.titulo.trim(),
+          descripcion: data.descripcion.trim(),
+          criterios_aceptacion: data.criterios_aceptacion.trim(),
+          estado: 'Pendiente_Aprobacion'
+        };
+        await supabase.from('solicitudes_mejora').insert([payload]);
+      } catch (err) {
+        console.warn('CloudDbClient.createSolicitudMejora error:', err);
+      }
+    }
+  }
+
+  public async getSolicitudesMejora(emailFilter?: string): Promise<ISolicitudMejora[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase
+          .from('solicitudes_mejora')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (emailFilter) {
+          query = query.ilike('autor_email', emailFilter.trim());
+        }
+
+        const { data, error } = await query;
+        if (!error && Array.isArray(data)) {
+          return data.map((row: any) => ({
+            id: row.id ? String(row.id) : undefined,
+            audit_id: row.audit_id || row.id_auditoria || '',
+            autor_nombre: row.autor_nombre || row.colaborador_nombre || '',
+            autor_email: row.autor_email || row.email_empleado || '',
+            modulo_afectado: row.modulo_afectado || row.modulo || '',
+            pantalla_afectada: row.pantalla_afectada || '',
+            titulo: row.titulo || row.title || '',
+            descripcion: row.descripcion || '',
+            criterios_aceptacion: row.criterios_aceptacion || '',
+            estado: row.estado || 'Pendiente_Aprobacion',
+            comentario_supervisor: row.comentario_supervisor || row.comentarios || '',
+            supervisor_email: row.supervisor_email || '',
+            supervisor_nombre: row.supervisor_nombre || '',
+            fecha_revision: row.fecha_revision || '',
+            created_at: row.created_at || new Date().toISOString()
+          }));
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.getSolicitudesMejora error:', err);
+      }
+    }
+    return [];
+  }
+
+  public async responderSolicitudMejora(
+    id: string,
+    estado: 'Aprobada' | 'Declinada',
+    comentario: string,
+    supervisorEmail: string,
+    supervisorNombre: string
+  ): Promise<void> {
+    if (isSupabaseConfigured() && id) {
+      try {
+        const payload = {
+          estado,
+          comentario_supervisor: comentario.trim(),
+          supervisor_email: supervisorEmail.trim().toLowerCase(),
+          supervisor_nombre: supervisorNombre.trim(),
+          fecha_revision: new Date().toISOString()
+        };
+
+        const isUuid = id.includes('-');
+        if (isUuid) {
+          await supabase.from('solicitudes_mejora').update(payload).eq('id', id);
+        } else {
+          await supabase.from('solicitudes_mejora').update(payload).or(`id.eq.${id},audit_id.eq.${id}`);
+        }
+      } catch (err) {
+        console.warn('CloudDbClient.responderSolicitudMejora error:', err);
       }
     }
   }
@@ -1645,6 +1769,8 @@ export const AdminService = {
   getMetas: (email?: string) => cloudDbClient.getMetas(email),
   createMeta: (data: Partial<IMetaRecord>) => cloudDbClient.createMeta(data)
 };
+
+export const getHistorialEmpleadoMes = async () => cloudDbClient.getHistorialEmpleadoMes();
 
 export { uploadEvidenciaToSupabase, uploadFileToSupabase } from './uploadFileToSupabase';
 

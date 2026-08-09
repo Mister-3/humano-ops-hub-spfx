@@ -50,6 +50,7 @@ import {
 } from '../Dashboard/KudoMedals';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
 import HistorialView from '../Historial/HistorialView';
+import EmpleadoMesHistorialView from './EmpleadoMesHistorialView';
 import styles from './KudosForm.module.scss';
 
 export interface IKudosFormProps {
@@ -1345,6 +1346,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           </Stack>
         </PivotItem>
       )}
+
+      <PivotItem headerText="📜 Histórico Empleado del Mes" itemKey="historicoEmpleadoMes">
+        <EmpleadoMesHistorialView />
+      </PivotItem>
     </Pivot>
   );
 };

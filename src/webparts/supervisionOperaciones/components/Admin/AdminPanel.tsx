@@ -51,7 +51,8 @@ const catalogCategoryLabels: Record<CatalogCategory, string> = {
   ErrorProceso: 'Subcategorías de errores',
   CodigoEtica: 'Subcategorías de Código de Ética',
   Kudo: 'Atributos de Kudos',
-  ProcesoArea: 'Procesos del área'
+  ProcesoArea: 'Procesos del área',
+  modulos_pantallas: 'Módulos y pantallas'
 };
 
 const catalogCategoryOptions: IDropdownOption[] = catalogCategories.map(

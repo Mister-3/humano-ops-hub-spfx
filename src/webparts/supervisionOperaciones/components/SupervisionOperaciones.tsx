@@ -42,6 +42,7 @@ import {
   SidebarNav
 } from './Navigation/SidebarNav';
 import SupervisorTimeView from './Ocupacion/SupervisorTimeView';
+import MejorasView from './Mejoras/MejorasView';
 import ProductividadForm from './Productividad/ProductividadForm';
 import styles from './SupervisionOperaciones.module.scss';
 
@@ -456,6 +457,15 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           <MessageBar messageBarType={MessageBarType.blocked}>
             No tiene permisos para acceder a Ocupación del Supervisor.
           </MessageBar>
+        );
+
+      case 'mejoras':
+        return (
+          <MejorasView
+            currentUserEmail={currentUser.email}
+            currentUserName={currentUser.displayName}
+            userRole={currentUser.rol}
+          />
         );
 
       case 'admin':
