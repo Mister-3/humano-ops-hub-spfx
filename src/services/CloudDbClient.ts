@@ -1115,10 +1115,15 @@ export class CloudDbClient {
               Movimientos: Number(row.movimientos_pg) || 0,
               EmisionesTx: Number(row.emisiones_tx) || 0,
               EmisionesPg: Number(row.emisiones_pg) || 0,
+              DevolucionesEmisiones: Number(row.devoluciones_emisiones) || 0,
               MovimientosTx: Number(row.movimientos_tx) || 0,
               MovimientosPg: Number(row.movimientos_pg) || 0,
+              DevolucionesMovimientos: Number(row.devoluciones_movimientos) || 0,
               EscaneoTx: Number(row.escaneo_tx) || 0,
               EscaneoPg: Number(row.escaneo_pg) || 0,
+              DevolucionesEscaneo: Number(row.devoluciones_escaneo) || 0,
+              CarnetsTx: Number(row.carnets_tx) || 0,
+              CarnetsPg: Number(row.carnets_pg) || 0,
               AuditID: row.audit_id || row.id_auditoria || ''
             };
           });
@@ -1155,10 +1160,15 @@ export class CloudDbClient {
           casos_a_tiempo: data.casosATiempo || 0,
           emisiones_tx: data.emisionesTx || 0,
           emisiones_pg: data.emisionesPg || 0,
+          devoluciones_emisiones: data.devolucionesEmisiones || 0,
           movimientos_tx: data.movimientosTx || 0,
           movimientos_pg: data.movimientosPg || 0,
+          devoluciones_movimientos: data.devolucionesMovimientos || 0,
           escaneo_tx: data.escaneoTx || 0,
-          escaneo_pg: data.escaneoPg || 0
+          escaneo_pg: data.escaneoPg || 0,
+          devoluciones_escaneo: data.devolucionesEscaneo || 0,
+          carnets_tx: data.carnetsTx || 0,
+          carnets_pg: data.carnetsPg || 0
         };
 
         const res = await supabase.from('productividad').insert([payload]).select();
@@ -1179,10 +1189,15 @@ export class CloudDbClient {
             Movimientos: data.movimientosPg || 0,
             EmisionesTx: data.emisionesTx || 0,
             EmisionesPg: data.emisionesPg || 0,
+            DevolucionesEmisiones: data.devolucionesEmisiones || 0,
             MovimientosTx: data.movimientosTx || 0,
             MovimientosPg: data.movimientosPg || 0,
+            DevolucionesMovimientos: data.devolucionesMovimientos || 0,
             EscaneoTx: data.escaneoTx || 0,
             EscaneoPg: data.escaneoPg || 0,
+            DevolucionesEscaneo: data.devolucionesEscaneo || 0,
+            CarnetsTx: data.carnetsTx || 0,
+            CarnetsPg: data.carnetsPg || 0,
             AuditID: auditId
           };
           try {
@@ -1209,13 +1224,37 @@ export class CloudDbClient {
       TieneDatosSLA: true,
       EmisionesTx: data.emisionesTx,
       EmisionesPg: data.emisionesPg,
+      DevolucionesEmisiones: data.devolucionesEmisiones,
       MovimientosTx: data.movimientosTx,
       MovimientosPg: data.movimientosPg,
+      DevolucionesMovimientos: data.devolucionesMovimientos,
       EscaneoTx: data.escaneoTx,
       EscaneoPg: data.escaneoPg,
+      DevolucionesEscaneo: data.devolucionesEscaneo,
+      CarnetsTx: data.carnetsTx,
+      CarnetsPg: data.carnetsPg,
       AuditID: auditId,
       SyncStatus: 'Pendiente'
     });
+  }
+
+  public async deleteProductividad(id: number | string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('productividad').delete().eq('id', id);
+      } catch (err) {
+        console.warn('CloudDbClient.deleteProductividad error:', err);
+      }
+    }
+
+    try {
+      const numericId = typeof id === 'number' ? id : Number(id);
+      if (!isNaN(numericId)) {
+        await indexedDb.remove(LOCAL_STORES.productividad, numericId);
+      }
+    } catch {
+      // Ignore cache error
+    }
   }
 
   // ==========================================

@@ -36,10 +36,15 @@ interface IProductivityMetrics {
   casosATiempo: number;
   emisionesTx: number;
   emisionesPg: number;
+  devolucionesEmisiones: number;
   movimientosTx: number;
   movimientosPg: number;
+  devolucionesMovimientos: number;
   escaneoTx: number;
   escaneoPg: number;
+  devolucionesEscaneo: number;
+  carnetsTx: number;
+  carnetsPg: number;
 }
 
 interface IDailyProductivityGoals {
@@ -55,16 +60,36 @@ const EMPTY_METRICS: IProductivityMetrics = {
   casosATiempo: 0,
   emisionesTx: 0,
   emisionesPg: 0,
+  devolucionesEmisiones: 0,
   movimientosTx: 0,
   movimientosPg: 0,
+  devolucionesMovimientos: 0,
   escaneoTx: 0,
-  escaneoPg: 0
+  escaneoPg: 0,
+  devolucionesEscaneo: 0,
+  carnetsTx: 0,
+  carnetsPg: 0
 };
 
 const DEFAULT_DAILY_GOALS: IDailyProductivityGoals = {
   emisionesTx: 10,
   movimientosPg: 350,
   escaneoPg: 350
+};
+
+const getYesterday = (): Date => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d;
+};
+
+const isSameDayOrFuture = (date: Date | null): boolean => {
+  if (!date) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
+  return checkDate.getTime() >= today.getTime();
 };
 
 const parseNumber = (value: string | undefined): number | undefined => {
@@ -94,8 +119,8 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
   const [selectedAgent, setSelectedAgent] = React.useState<
     IDirectReport | undefined
   >();
-  const [fechaInicio, setFechaInicio] = React.useState<Date | null>(new Date());
-  const [fechaFin, setFechaFin] = React.useState<Date | null>(new Date());
+  const [fechaInicio, setFechaInicio] = React.useState<Date | null>(getYesterday());
+  const [fechaFin, setFechaFin] = React.useState<Date | null>(getYesterday());
   const [metrics, setMetrics] = React.useState<IProductivityMetrics>({
     ...EMPTY_METRICS
   });
@@ -233,6 +258,13 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
       return;
     }
 
+    if (isSameDayOrFuture(fechaInicio) || isSameDayOrFuture(fechaFin)) {
+      setErrorMessage(
+        'No es posible registrar productividad para el día en curso. Selecciona un período finalizado anterior a hoy.'
+      );
+      return;
+    }
+
     if (fechaInicio.getTime() > fechaFin.getTime()) {
       setErrorMessage(
         'La fecha de inicio no puede ser posterior a la fecha de fin.'
@@ -255,8 +287,8 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
       await sharePointService.registrarProductividad(data);
 
       setSelectedAgent(undefined);
-      setFechaInicio(new Date());
-      setFechaFin(new Date());
+      setFechaInicio(getYesterday());
+      setFechaFin(getYesterday());
       setMetrics({ ...EMPTY_METRICS });
       setSuccessMessage('Productividad registrada correctamente.');
     } catch (error: unknown) {
@@ -280,6 +312,8 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
     });
   };
 
+  const hasCurrentDaySelected = isSameDayOrFuture(fechaInicio) || isSameDayOrFuture(fechaFin);
+
   return (
     <Pivot className={styles.modulePivot} aria-label="Vistas del módulo de productividad">
       <PivotItem headerText="➕ Nuevo Registro" itemKey="nuevo">
@@ -302,6 +336,12 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
             {errorMessage && (
               <MessageBar messageBarType={MessageBarType.error}>
                 {errorMessage}
+              </MessageBar>
+            )}
+
+            {hasCurrentDaySelected && (
+              <MessageBar messageBarType={MessageBarType.warning}>
+                No es posible registrar productividad para el día en curso. Selecciona un período finalizado anterior a hoy.
               </MessageBar>
             )}
 
@@ -504,6 +544,16 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.emisionesPg)}
                   />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Devoluciones"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('devolucionesEmisiones', value)
+                    }
+                    step={1}
+                    value={String(metrics.devolucionesEmisiones)}
+                  />
                 </Stack>
 
                 <Stack
@@ -538,6 +588,16 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.movimientosPg)}
                   />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Devoluciones"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('devolucionesMovimientos', value)
+                    }
+                    step={1}
+                    value={String(metrics.devolucionesMovimientos)}
+                  />
                 </Stack>
 
                 <Stack
@@ -567,6 +627,46 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     onChange={(_, value) => updateMetric('escaneoPg', value)}
                     step={1}
                     value={String(metrics.escaneoPg)}
+                  />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Devoluciones"
+                    min={0}
+                    onChange={(_, value) =>
+                      updateMetric('devolucionesEscaneo', value)
+                    }
+                    step={1}
+                    value={String(metrics.devolucionesEscaneo)}
+                  />
+                </Stack>
+
+                <Stack
+                  className={`${styles.metricCard} glowCard`}
+                  tokens={{ childrenGap: 14 }}
+                >
+                  <Stack tokens={{ childrenGap: 3 }}>
+                    <Text className={styles.metricTitle}>
+                      🪪 Gestión de Carnets
+                    </Text>
+                    <Text className={styles.metricDescription}>
+                      Registra solicitudes recibidas y carnets procesados.
+                    </Text>
+                  </Stack>
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Transacciones / Solicitudes Recibidas"
+                    min={0}
+                    onChange={(_, value) => updateMetric('carnetsTx', value)}
+                    step={1}
+                    value={String(metrics.carnetsTx)}
+                  />
+                  <SpinButton
+                    disabled={isSubmitting}
+                    label="Carnets Procesados / Gestionados"
+                    min={0}
+                    onChange={(_, value) => updateMetric('carnetsPg', value)}
+                    step={1}
+                    value={String(metrics.carnetsPg)}
                   />
                 </Stack>
               </div>

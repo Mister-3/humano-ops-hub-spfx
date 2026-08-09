@@ -7,6 +7,7 @@ import {
   Dropdown,
   type IColumn,
   type IDropdownOption,
+  IconButton,
   MessageBar,
   MessageBarType,
   PrimaryButton,
@@ -645,139 +646,166 @@ const createKudosColumns = (): IColumn[] => [
   }
 ];
 
-const createProductividadColumns = (): IColumn[] => [
-  {
-    key: 'auditId',
-    minWidth: 135,
-    name: 'Audit ID',
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text className={styles.auditIdCell} title={getAuditId(item)}>
-        {getAuditId(item) || '—'}
-      </Text>
-    )
-  },
-  {
-    key: 'fechaInicio',
-    name: 'Fecha Inicio',
-    minWidth: 90,
-    maxWidth: 105,
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text>
-        {item
-          ? formatDateValue(item.FechaInicio || item.FechaRegistro)
-          : '—'}
-      </Text>
-    )
-  },
-  {
-    key: 'fechaFin',
-    name: 'Fecha Fin',
-    minWidth: 90,
-    maxWidth: 105,
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text>
-        {item
-          ? formatDateValue(
-              item.FechaFin || item.FechaInicio || item.FechaRegistro
-            )
-          : '—'}
-      </Text>
-    )
-  },
-  {
-    fieldName: 'Title',
-    isResizable: true,
-    key: 'agente',
-    minWidth: 160,
-    name: 'Agente'
-  },
-  {
-    key: 'agenteEmail',
-    minWidth: 210,
-    name: 'Correo del agente',
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text className={styles.identityCell}>
-        {item?.AgenteEmail || '—'}
-      </Text>
-    )
-  },
-  {
-    key: 'agenteObjectId',
-    minWidth: 180,
-    name: 'Object ID Entra ID',
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text className={styles.identityCell} title={item?.AgenteObjectID}>
-        {item?.AgenteObjectID || '—'}
-      </Text>
-    )
-  },
-  {
-    key: 'casosAtendidos',
-    minWidth: 110,
-    name: 'Casos Atendidos',
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text>
-        {formatNumber(item ? getCaseSlaValues(item).attended : 0)}
-      </Text>
-    )
-  },
-  {
-    key: 'casosATiempo',
-    minWidth: 115,
-    name: 'Casos a Tiempo',
-    onRender: (item?: IProductividadHistorialItem) => {
-      if (!item) {
-        return <Text>—</Text>;
-      }
-
-      const caseValues = getCaseSlaValues(item);
-
-      return (
-        <Text>
-          {caseValues.hasSlaData ? formatNumber(caseValues.onTime) : '—'}
+const createProductividadColumns = (
+  isAdmin?: boolean,
+  onDelete?: (item: IProductividadHistorialItem) => void
+): IColumn[] => {
+  const baseCols: IColumn[] = [
+    {
+      key: 'auditId',
+      minWidth: 135,
+      name: 'Audit ID',
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text className={styles.auditIdCell} title={getAuditId(item)}>
+          {getAuditId(item) || '—'}
         </Text>
-      );
-    }
-  },
-  {
-    key: 'sla',
-    minWidth: 210,
-    name: 'Cumplimiento SLA',
-    onRender: (item?: IProductividadHistorialItem) => {
-      if (!item) {
-        return <Text>—</Text>;
+      )
+    },
+    {
+      key: 'fechaInicio',
+      name: 'Fecha Inicio',
+      minWidth: 90,
+      maxWidth: 105,
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text>
+          {item
+            ? formatDateValue(item.FechaInicio || item.FechaRegistro)
+            : '—'}
+        </Text>
+      )
+    },
+    {
+      key: 'fechaFin',
+      name: 'Fecha Fin',
+      minWidth: 90,
+      maxWidth: 105,
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text>
+          {item
+            ? formatDateValue(
+                item.FechaFin || item.FechaInicio || item.FechaRegistro
+              )
+            : '—'}
+        </Text>
+      )
+    },
+    {
+      fieldName: 'Title',
+      isResizable: true,
+      key: 'agente',
+      minWidth: 160,
+      name: 'Agente'
+    },
+    {
+      key: 'agenteEmail',
+      minWidth: 210,
+      name: 'Correo del agente',
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text className={styles.identityCell}>
+          {item?.AgenteEmail || '—'}
+        </Text>
+      )
+    },
+    {
+      key: 'agenteObjectId',
+      minWidth: 180,
+      name: 'Object ID Entra ID',
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text className={styles.identityCell} title={item?.AgenteObjectID}>
+          {item?.AgenteObjectID || '—'}
+        </Text>
+      )
+    },
+    {
+      key: 'casosAtendidos',
+      minWidth: 110,
+      name: 'Casos Atendidos',
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text>
+          {formatNumber(item ? getCaseSlaValues(item).attended : 0)}
+        </Text>
+      )
+    },
+    {
+      key: 'casosATiempo',
+      minWidth: 115,
+      name: 'Casos a Tiempo',
+      onRender: (item?: IProductividadHistorialItem) => {
+        if (!item) {
+          return <Text>—</Text>;
+        }
+
+        const caseValues = getCaseSlaValues(item);
+
+        return (
+          <Text>
+            {caseValues.hasSlaData ? formatNumber(caseValues.onTime) : '—'}
+          </Text>
+        );
       }
+    },
+    {
+      key: 'sla',
+      minWidth: 210,
+      name: 'Cumplimiento SLA',
+      onRender: (item?: IProductividadHistorialItem) => {
+        if (!item) {
+          return <Text>—</Text>;
+        }
 
-      const caseValues = getCaseSlaValues(item);
+        const caseValues = getCaseSlaValues(item);
 
-      return (
-        <span
-          className={`${styles.badge} ${
-            caseValues.percentage === undefined
-              ? styles.badgeNeutral
-              : styles.badgeSla
-          }`}
-        >
-          {formatSlaPercentage(caseValues)}
-        </span>
-      );
-    }
-  },
-  ...productivityMetricDisplays.map((metric): IColumn => ({
-    key: `metric-${metric.key}`,
-    minWidth: metric.minWidth,
-    name: metric.label,
-    onRender: (item?: IProductividadHistorialItem) => (
-      <Text>
-        {formatNumber(
-          item
-            ? resolveProductivityMetricValues(item)[metric.key]
-            : 0
-        )}
-      </Text>
-    )
-  }))
-];
+        return (
+          <span
+            className={`${styles.badge} ${
+              caseValues.percentage === undefined
+                ? styles.badgeNeutral
+                : styles.badgeSla
+            }`}
+          >
+            {formatSlaPercentage(caseValues)}
+          </span>
+        );
+      }
+    },
+    ...productivityMetricDisplays.map((metric): IColumn => ({
+      key: `metric-${metric.key}`,
+      minWidth: metric.minWidth,
+      name: metric.label,
+      onRender: (item?: IProductividadHistorialItem) => (
+        <Text>
+          {formatNumber(
+            item
+              ? resolveProductivityMetricValues(item)[metric.key]
+              : 0
+          )}
+        </Text>
+      )
+    }))
+  ];
+
+  if (isAdmin) {
+    baseCols.push({
+      key: 'acciones',
+      name: 'Acciones',
+      minWidth: 70,
+      onRender: (item?: IProductividadHistorialItem) => {
+        if (!item) return null;
+        return (
+          <IconButton
+            iconProps={{ iconName: 'Delete' }}
+            title="Eliminar Registro de Productividad"
+            ariaLabel="Eliminar Registro de Productividad"
+            onClick={() => onDelete?.(item)}
+            styles={{ root: { color: '#e74c3c' }, rootHovered: { color: '#c0392b' } }}
+          />
+        );
+      }
+    });
+  }
+
+  return baseCols;
+};
 
 const escapeCsvValue = (value: string | number): string => (
   `"${String(value).replace(/"/g, '""')}"`
@@ -1032,6 +1060,21 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     };
   }, [moduleType, selectedCategory, sharePointService]);
 
+  const handleDeleteProductividadRecord = React.useCallback(
+    async (item: IProductividadHistorialItem): Promise<void> => {
+      if (confirm('¿Está seguro de que desea eliminar este registro de productividad?')) {
+        try {
+          const rawId = (item as any).rawId ?? item.Id;
+          await sharePointService.deleteProductividad(rawId);
+          queryRecords().catch(() => undefined);
+        } catch (err) {
+          console.error('Error al eliminar registro de productividad:', err);
+        }
+      }
+    },
+    [sharePointService]
+  );
+
   const columns = React.useMemo((): IColumn[] => {
     switch (moduleType) {
       case 'faltas':
@@ -1039,9 +1082,9 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       case 'kudos':
         return createKudosColumns();
       case 'productividad':
-        return createProductividadColumns();
+        return createProductividadColumns(isAdministrator, handleDeleteProductividadRecord);
     }
-  }, [moduleType]);
+  }, [moduleType, isAdministrator, handleDeleteProductividadRecord]);
 
   const getRecords = async (
     normalizedStart: Date,

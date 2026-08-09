@@ -401,6 +401,11 @@ export interface IRegistrarProductividadData {
   movimientosPg: number;
   escaneoTx: number;
   escaneoPg: number;
+  devolucionesEmisiones?: number;
+  devolucionesMovimientos?: number;
+  devolucionesEscaneo?: number;
+  carnetsTx?: number;
+  carnetsPg?: number;
   emisiones?: number;
   movimientos?: number;
 }
@@ -524,10 +529,15 @@ export interface IProductividadHistorialItem {
   Movimientos: number;
   EmisionesTx: number;
   EmisionesPg: number;
+  DevolucionesEmisiones?: number;
   MovimientosTx: number;
   MovimientosPg: number;
+  DevolucionesMovimientos?: number;
   EscaneoTx: number;
   EscaneoPg: number;
+  DevolucionesEscaneo?: number;
+  CarnetsTx?: number;
+  CarnetsPg?: number;
   AuditID?: string;
 }
 
@@ -894,6 +904,10 @@ export class SharePointService {
     }
 
     return cloudDbClient.createProductividad(data);
+  }
+
+  public async deleteProductividad(id: number | string): Promise<void> {
+    return cloudDbClient.deleteProductividad(id);
   }
 
   public async getProductividadHistorial(
