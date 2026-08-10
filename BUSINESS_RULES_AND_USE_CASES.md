@@ -13,19 +13,19 @@ El formulario de productividad (`ProductividadForm.tsx`) captura el desempeño d
    - Casos Atendidos a Tiempo (SLA).
 2. **Emisiones**:
    - Transacciones de Emisiones (`emisiones_tx`).
-   - Pagos / Procesados de Emisiones (`emisiones_pg`).
+   - Paginas / Procesados de Emisiones (`emisiones_pg`).
    - Devoluciones de Emisiones (`devoluciones_emisiones`).
 3. **Movimientos**:
    - Transacciones de Movimientos (`movimientos_tx`).
-   - Pagos / Procesados de Movimientos (`movimientos_pg`).
+   - Paginas / Procesados de Movimientos (`movimientos_pg`).
    - Devoluciones de Movimientos (`devoluciones_movimientos`).
 4. **Escaneo**:
    - Transacciones de Escaneo (`escaneo_tx`).
-   - Pagos / Procesados de Escaneo (`escaneo_pg`).
+   - Paginas / Procesados de Escaneo (`escaneo_pg`).
    - Devoluciones de Escaneo (`devoluciones_escaneo`).
 5. **Gestión de Carnets**:
    - Transacciones de Carnets (`carnets_tx`).
-   - Pagos / Procesados de Carnets (`carnets_pg`).
+   - Paginas / Procesados de Carnets (`carnets_pg`).
 
 ### 1.2 Regla de Devoluciones Condicionales
 - El campo numérico de **Devoluciones** es visible y obligatorio **ÚNICAMENTE** para los procesos de **Emisiones**, **Movimientos** y **Escaneo**.
