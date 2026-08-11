@@ -63,15 +63,6 @@ const isCatalogValue = (value: string, expectedValue: string): boolean => (
   normalizeCatalogValue(value) === normalizeCatalogValue(expectedValue)
 );
 
-const fallbackCategoryOptions: IDropdownOption[] = [
-  { key: 'Tardanza', text: 'Tardanza' },
-  { key: 'Ausencia Injustificada', text: 'Ausencia Injustificada' },
-  { key: ERROR_CATEGORY, text: ERROR_CATEGORY },
-  { key: 'Violación de Política', text: 'Violación de Política' },
-  { key: TRAINING_CATEGORY, text: TRAINING_CATEGORY },
-  { key: ETHICS_CATEGORY, text: ETHICS_CATEGORY }
-];
-
 const impactOptions: IDropdownOption[] = [
   { key: 'Bajo', text: 'Bajo' },
   { key: 'Medio', text: 'Medio' },
@@ -92,29 +83,6 @@ const arrivalPeriodOptions: IDropdownOption[] = [
 const errorOriginOptions: IDropdownOption[] = [
   { key: 'Caso Helpdesk', text: 'Caso Helpdesk' },
   { key: 'Monitoreo Calidad', text: 'Monitoreo Calidad' }
-];
-
-const fallbackSubcategoryOptions: IDropdownOption[] = [
-  { key: ASSISTANT_SUBCATEGORY, text: ASSISTANT_SUBCATEGORY },
-  { key: 'Incumplimiento SLA', text: 'Incumplimiento SLA' },
-  { key: 'Procedimiento Incompleto', text: 'Procedimiento Incompleto' },
-  { key: 'Omisión de Verificación', text: 'Omisión de Verificación' }
-];
-
-const fallbackEthicsSubcategoryOptions: IDropdownOption[] = [
-  { key: 'Uso inadecuado de recursos', text: 'Uso inadecuado de recursos' },
-  {
-    key: 'Trato irrespetuoso o conducta inapropiada',
-    text: 'Trato irrespetuoso o conducta inapropiada'
-  },
-  {
-    key: 'Conflicto de interés no declarado',
-    text: 'Conflicto de interés no declarado'
-  },
-  {
-    key: 'Fraude, soborno o divulgación indebida',
-    text: 'Fraude, soborno o divulgación indebida'
-  }
 ];
 
 const toCatalogOptions = (
@@ -265,9 +233,6 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   const [arrivalPeriod, setArrivalPeriod] =
     React.useState<ArrivalPeriod>('AM');
   const [nivelImpacto, setNivelImpacto] = React.useState<string>('');
-  const [estadoAprobacion, setEstadoAprobacion] = React.useState<string>(
-    isAssistant ? 'Pendiente_Aprobacion' : 'Registrado'
-  );
   const [evidenciaFile, setEvidenciaFile] = React.useState<File | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
@@ -364,15 +329,16 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
 
         setCategoryOptions(
           isAssistant
-            ? [{ key: ERROR_CATEGORY, text: ERROR_CATEGORY }]
+            ? loadedCategories.filter((option) =>
+              isCatalogValue(String(option.key), ERROR_CATEGORY)
+            )
             : loadedCategories
         );
         setSubcategoryOptions(
           isAssistant
-            ? [{
-              key: ASSISTANT_SUBCATEGORY,
-              text: ASSISTANT_SUBCATEGORY
-            }]
+            ? loadedSubcategories.filter((option) =>
+              isCatalogValue(String(option.key), ASSISTANT_SUBCATEGORY)
+            )
             : loadedSubcategories
         );
         setProcessOptions(toCatalogOptions(processes));
@@ -388,12 +354,12 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
           const detail = error instanceof Error
             ? error.message
             : 'No fue posible cargar los catálogos operativos.';
-          setCategoryOptions(fallbackCategoryOptions);
-          setSubcategoryOptions(fallbackSubcategoryOptions);
+          setCategoryOptions([]);
+          setSubcategoryOptions([]);
           setProcessOptions([]);
-          setEthicsSubcategoryOptions(fallbackEthicsSubcategoryOptions);
+          setEthicsSubcategoryOptions([]);
           setCatalogErrorMessage(
-            `${detail} Se habilitaron temporalmente las opciones base.`
+            `${detail} Configure las opciones requeridas en el Panel Admin.`
           );
         }
       } finally {
@@ -426,6 +392,12 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   const isTraining = isCatalogValue(categoria, TRAINING_CATEGORY);
   const isProcessError = isCatalogValue(categoria, ERROR_CATEGORY);
   const isEthicsViolation = isCatalogValue(categoria, ETHICS_CATEGORY);
+  const hasRequiredCatalogOptions = categoryOptions.length > 0 &&
+    (!isProcessError || (
+      subcategoryOptions.length > 0 && processOptions.length > 0
+    )) &&
+    (!isEthicsViolation || ethicsSubcategoryOptions.length > 0) &&
+    (!isTraining || processOptions.length > 0);
   const isTardanza = categoria
     .toLowerCase()
     .normalize('NFD')
@@ -535,8 +507,10 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const finalEstadoAprobacion = isAssistant ? 'Pendiente_Aprobacion' : estadoAprobacion;
-      const estado: IFalta['estado'] = (requiresApproval || finalEstadoAprobacion === 'Pendiente_Aprobacion')
+      const finalEstadoAprobacion = requiresApproval
+        ? 'Pendiente_Aprobacion'
+        : 'Aprobado';
+      const estado: IFalta['estado'] = requiresApproval
         ? 'Borrador'
         : 'Aprobado';
       const faltaData: IRegistrarFaltaData = {
@@ -705,7 +679,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                 : categoryOptions}
               placeholder={isLoadingCatalogs
                 ? 'Cargando categorías...'
-                : 'Seleccione una categoría'}
+                : categoryOptions.length === 0
+                  ? 'Sin opciones registradas (Configurar en Panel Admin)'
+                  : 'Seleccione una categoría'}
               required
               selectedKey={categoria}
             />
@@ -727,7 +703,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   options={processOptions}
                   placeholder={isLoadingCatalogs
                     ? 'Cargando procesos...'
-                    : 'Seleccione el proceso certificado'}
+                    : processOptions.length === 0
+                      ? 'Sin opciones registradas (Configurar en Panel Admin)'
+                      : 'Seleccione el proceso certificado'}
                   required
                   selectedKey={procesoArea || undefined}
                 />
@@ -772,7 +750,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                     : subcategoryOptions}
                   placeholder={isLoadingCatalogs
                     ? 'Cargando subcategorías...'
-                    : 'Seleccione una subcategoría'}
+                    : subcategoryOptions.length === 0
+                      ? 'Sin opciones registradas (Configurar en Panel Admin)'
+                      : 'Seleccione una subcategoría'}
                   required
                   selectedKey={subcategoria || undefined}
                 />
@@ -809,7 +789,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   options={processOptions}
                   placeholder={isLoadingCatalogs
                     ? 'Cargando procesos...'
-                    : 'Seleccione el proceso donde ocurrió el error'}
+                    : processOptions.length === 0
+                      ? 'Sin opciones registradas (Configurar en Panel Admin)'
+                      : 'Seleccione el proceso donde ocurrió el error'}
                   required
                   selectedKey={procesoArea || undefined}
                 />
@@ -830,7 +812,9 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   options={ethicsSubcategoryOptions}
                   placeholder={isLoadingCatalogs
                     ? 'Cargando subcategorías...'
-                    : 'Seleccione la conducta tipificada'}
+                    : ethicsSubcategoryOptions.length === 0
+                      ? 'Sin opciones registradas (Configurar en Panel Admin)'
+                      : 'Seleccione la conducta tipificada'}
                   required
                   selectedKey={subcategoria || undefined}
                 />
@@ -941,20 +925,6 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
               selectedKey={isTraining ? NO_PENALTY_IMPACT : nivelImpacto}
             />
 
-            {!isAssistant && (
-              <Dropdown
-                disabled={!canSubmit || isSubmitting}
-                label="Estado de Registro / Aprobación"
-                onChange={(_, option) => setEstadoAprobacion(String(option?.key || 'Registrado'))}
-                options={[
-                  { key: 'Registrado', text: 'Registro Definitivo' },
-                  { key: 'Pendiente_Aprobacion', text: 'Enviar a Cola de Aprobación' }
-                ]}
-                required
-                selectedKey={estadoAprobacion}
-              />
-            )}
-
             <Stack verticalAlign="start" tokens={{ childrenGap: 6 }}>
               <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
                 <input
@@ -1001,7 +971,8 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   !canSubmit ||
                   isSubmitting ||
                   isLoadingTeam ||
-                  isLoadingCatalogs
+                  isLoadingCatalogs ||
+                  !hasRequiredCatalogOptions
                 }
                 text={requiresApproval
                   ? isAssistant

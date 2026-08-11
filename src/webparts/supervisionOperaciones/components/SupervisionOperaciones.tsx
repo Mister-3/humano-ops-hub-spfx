@@ -14,6 +14,7 @@ import {
 } from '@fluentui/react';
 
 import type { IUsuario, RoleType } from '../models/AppModels';
+import { supabaseEnvironment } from '../../../services/supabase';
 import type GraphService from '../services/GraphService';
 import type { IDirectReport } from '../services/GraphService';
 import SecurityService from '../services/SecurityService';
@@ -561,37 +562,49 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             </div>
           </div>
 
-          <div
-            className={styles.userWidget}
-            aria-label={`${usuario.displayName}, rol ${usuario.rol}`}
-          >
-            <span className={styles.statusDot} aria-hidden="true" />
-            <span className={styles.userName}>{usuario.displayName}</span>
-            <span className={styles.userDivider} aria-hidden="true">|</span>
-            <span className={styles.rolePrefix}>Rol:</span>
-            <span className={styles.roleBadge}>{usuario.rol}</span>
-            <IconButton
-              ariaLabel="Abrir menú de perfil"
-              className={styles.signOutButton}
-              iconProps={{ iconName: 'Contact' }}
-              menuProps={{
-                items: [
-                  {
-                    key: 'changePassword',
-                    text: 'Cambiar contraseña',
-                    iconProps: { iconName: 'Permissions' },
-                    onClick: onChangePassword
-                  },
-                  {
-                    key: 'signOut',
-                    text: 'Cerrar sesión',
-                    iconProps: { iconName: 'SignOut' },
-                    onClick: onSignOut
-                  }
-                ]
-              }}
-              title="Menú de perfil"
-            />
+          <div className={styles.topBarControls}>
+            <div
+              className={styles.userWidget}
+              aria-label={`${usuario.displayName}, rol ${usuario.rol}`}
+            >
+              <span className={styles.statusDot} aria-hidden="true" />
+              <span className={styles.userName}>{usuario.displayName}</span>
+              <span className={styles.userDivider} aria-hidden="true">|</span>
+              <span className={styles.rolePrefix}>Rol:</span>
+              <span className={styles.roleBadge}>{usuario.rol}</span>
+              <IconButton
+                ariaLabel="Abrir menú de perfil"
+                className={styles.signOutButton}
+                iconProps={{ iconName: 'Contact' }}
+                menuProps={{
+                  items: [
+                    {
+                      key: 'changePassword',
+                      text: 'Cambiar contraseña',
+                      iconProps: { iconName: 'Permissions' },
+                      onClick: onChangePassword
+                    },
+                    {
+                      key: 'signOut',
+                      text: 'Cerrar sesión',
+                      iconProps: { iconName: 'SignOut' },
+                      onClick: onSignOut
+                    }
+                  ]
+                }}
+                title="Menú de perfil"
+              />
+            </div>
+
+            {import.meta.env.DEV && supabaseEnvironment === 'qa' && (
+              <span
+                aria-label="Base de datos QA"
+                className={`${styles.environmentBadge} ${styles.environmentBadgeQa}`}
+                title={`Supabase: ${import.meta.env.VITE_SUPABASE_URL}`}
+              >
+                🟢 BASE DE DATOS QA
+              </span>
+            )}
           </div>
         </header>
 

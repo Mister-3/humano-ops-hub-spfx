@@ -161,7 +161,7 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
     }));
 
     try {
-      await sharePointService.actualizarEstadoAprobacion(item.Id, status);
+      await sharePointService.actualizarEstadoAprobacion(item.rawId || item.Id, status);
       setItems((currentItems) => currentItems.filter(
         (currentItem) => currentItem.Id !== item.Id
       ));

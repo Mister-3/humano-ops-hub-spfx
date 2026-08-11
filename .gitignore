@@ -41,3 +41,7 @@ obj
 # Styles Generated Code
 *.scss.ts
 .vercel
+
+# Local environment credentials
+.env.local
+.env.*.local

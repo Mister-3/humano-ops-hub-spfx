@@ -3,26 +3,50 @@ import IndexedDbAdapter, { LOCAL_STORES } from './IndexedDbAdapter';
 import type { IAppUserRecord, AppUserStatus, AppUserRole } from '../auth/AuthModels';
 import type { IHeadcountRow } from './PowerAutomateSyncService';
 import type {
+  AusenciaType,
+  CatalogCategory,
   IFaltaHistorialItem,
   IFaltaAprobacionItem,
   IKudoHistorialItem,
   ICatalogoItem,
-  CatalogCategory,
+  IEmpleadoDelMes,
   IProductividadHistorialItem,
   IRegistrarProductividadData,
-  ILlamadaFlotaItem,
-  IRegistrarLlamadaFlotaData,
   IAusenciaItem,
   IRegistrarAusenciaData,
-  AusenciaType,
   IRegistrarFaltaData,
   IRegistrarKudoData,
   ISolicitudMejora
+} from '../types';
+import type {
+  ILlamadaFlotaItem,
+  IRegistrarLlamadaFlotaData
 } from '../webparts/supervisionOperaciones/services/SharePointService';
 
 import { generateAuditID } from '../webparts/supervisionOperaciones/utils/auditUtils';
 
 const indexedDb = new IndexedDbAdapter();
+
+const formatSupabaseError = (operation: string, error: unknown): Error => {
+  const candidate = error as {
+    code?: string;
+    details?: string;
+    hint?: string;
+    message?: string;
+  } | null;
+  const parts = [
+    candidate?.message,
+    candidate?.details,
+    candidate?.hint,
+    candidate?.code ? `Código: ${candidate.code}` : undefined
+  ].filter(Boolean);
+
+  return new Error(
+    parts.length > 0
+      ? `${operation}: ${parts.join(' · ')}`
+      : `${operation}: Supabase no devolvió detalles del error.`
+  );
+};
 
 export interface ISupabaseUserRow {
   id?: number | string;
@@ -72,6 +96,7 @@ export interface ISupabaseKudoRow {
   email_destino?: string;
   email_origen?: string;
   motivo?: string;
+  categoria?: string;
   puntos?: number;
   fecha?: string;
 }
@@ -495,50 +520,57 @@ export class CloudDbClient {
   // ==========================================
 
   public async getFaltas(): Promise<IFaltaHistorialItem[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const response = await supabase.from('faltas_errores').select('*');
-        const data = response.data;
-        const error = response.error;
-
-        if (!error && Array.isArray(data)) {
-          const mappedFaltas: IFaltaHistorialItem[] = data.map((row: any, index: number) => {
-            const numericId = typeof row.id === 'number' ? row.id : (index + 1);
-            const email = row.email_empleado || row.colaborador_email || '';
-            const motivo = row.motivo || row.tipo_registro || row.descripcion || '';
-            return {
-              Id: numericId,
-              Title: email,
-              AgenteEmail: email,
-              FechaFalta: row.fecha || new Date().toISOString(),
-              Categoria: motivo,
-              CasoRef: row.id_caso_helpdesk || '',
-              IdCasoHelpdesk: row.id_caso_helpdesk || '',
-              HorasPerdidas: Number(row.horas_perdidas) || 0,
-              MinutosTardanza: Number(row.minutos_tardanza) || 0,
-              Impacto: row.impacto || row.categoria_impacto || 'Bajo',
-              Estado: (row.estado as IFaltaHistorialItem['Estado']) || 'Aprobado',
-              EstadoAprobacion: (row.estado_aprobacion as IFaltaHistorialItem['EstadoAprobacion']) || 'Aprobado',
-              RolOriginador: 'Supervisor',
-              SyncStatus: 'Sincronizado'
-            };
-          });
-
-          // Update local cache
-          try {
-            await indexedDb.replaceAll(LOCAL_STORES.faltas, mappedFaltas);
-          } catch {
-            // Ignore cache error
-          }
-
-          return mappedFaltas;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getFaltas fallback to IndexedDB:', err);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se puede consultar el histórico de faltas.');
     }
 
-    return indexedDb.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas);
+    const { data, error } = await supabase
+      .from('faltas_errores')
+      .select('*')
+      .order('fecha', { ascending: false });
+
+    if (error) {
+      throw formatSupabaseError('No se pudo consultar faltas_errores', error);
+    }
+
+    const mappedFaltas: IFaltaHistorialItem[] = (data || []).map((row: any, index: number) => {
+      const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+      const email = row.email_empleado || row.colaborador_email || row.agente_email || '';
+      const categoria = row.tipo_registro || row.categoria || row.motivo || '';
+      return {
+        Id: numericId,
+        rawId: row.id ? String(row.id) : undefined,
+        Title: row.colaborador_nombre || row.agente_nombre || email,
+        AgenteEmail: email,
+        EmailSupervisor: row.supervisor_email || '',
+        FechaFalta: row.fecha || row.fecha_falta || '',
+        Categoria: categoria,
+        Subcategoria: row.subcategoria || '',
+        CasoRef: row.id_caso_helpdesk || '',
+        IdCasoHelpdesk: row.id_caso_helpdesk || '',
+        ProcesoArea: row.proceso_area || '',
+        Comentarios: row.comentarios || row.descripcion || '',
+        ComentariosCapacitacion: row.comentarios_capacitacion || '',
+        HoraLlegada: row.hora_llegada || '',
+        HorasPerdidas: Number(row.horas_perdidas) || 0,
+        MinutosTardanza: Number(row.minutos_tardanza ?? row.tardanza_minutos) || 0,
+        Impacto: row.impacto || row.gravedad || row.categoria_impacto || 'Bajo',
+        Estado: (row.estado as IFaltaHistorialItem['Estado']) || 'Aprobado',
+        EstadoAprobacion: (row.estado_aprobacion as IFaltaHistorialItem['EstadoAprobacion']) || 'Registrado',
+        RolOriginador: (row.rol_originador as IFaltaHistorialItem['RolOriginador']) || 'Supervisor',
+        AuditID: row.audit_id || '',
+        IdAuditoria: row.audit_id || row.id_auditoria || '',
+        SyncStatus: 'Sincronizado'
+      };
+    });
+
+    try {
+      await indexedDb.replaceAll(LOCAL_STORES.faltas, mappedFaltas);
+    } catch {
+      // Cache writes never replace the Supabase response as source of truth.
+    }
+
+    return mappedFaltas;
   }
 
   public async createFalta(
@@ -561,10 +593,20 @@ export class CloudDbClient {
     const recordToSave: Omit<IFaltaHistorialItem, 'Id'> = {
       Title: isRegistrarData ? faltaData.agente : (faltaData.Title || emailEmpleado),
       AgenteEmail: emailEmpleado,
+      EmailSupervisor: isRegistrarData
+        ? (faltaData.emailSupervisor || '')
+        : (faltaData.EmailSupervisor || ''),
       FechaFalta: fechaISO,
       Categoria: motivo,
+      Subcategoria: isRegistrarData ? (faltaData.subcategoria || '') : (faltaData.Subcategoria || ''),
       CasoRef: casoHelpdesk,
       IdCasoHelpdesk: casoHelpdesk,
+      ProcesoArea: isRegistrarData ? (faltaData.procesoArea || '') : (faltaData.ProcesoArea || ''),
+      Comentarios: isRegistrarData ? (faltaData.comentarios || '') : (faltaData.Comentarios || ''),
+      ComentariosCapacitacion: isRegistrarData
+        ? (faltaData.comentariosCapacitacion || '')
+        : (faltaData.ComentariosCapacitacion || ''),
+      HoraLlegada: isRegistrarData ? (faltaData.horaLlegada || '') : (faltaData.HoraLlegada || ''),
       HorasPerdidas: horasPerdidas,
       MinutosTardanza: minutosTardanza,
       Impacto: isRegistrarData ? faltaData.impacto : (faltaData.Impacto || 'Bajo'),
@@ -586,51 +628,61 @@ export class CloudDbClient {
       ? ((faltaData as any).auditId || (faltaData as any).audit_id || (faltaData as any).idAuditoria || generateAuditID())
       : ((faltaData as any).audit_id || (faltaData as any).AuditID || (faltaData as any).IdAuditoria || generateAuditID());
 
-    if (isSupabaseConfigured()) {
-      try {
-        const payload: Record<string, any> = {
-          audit_id: auditId,
-          email_empleado: emailEmpleado,
-          colaborador_email: emailEmpleado,
-          colaborador_nombre: isRegistrarData ? faltaData.agente : (faltaData.Title || emailEmpleado),
-          tipo_registro: motivo || 'Error en proceso',
-          motivo,
-          supervisor_email: (faltaData as any).supervisorEmail || (faltaData as any).supervisor_email || 'admin@humano.com.do',
-          id_caso_helpdesk: casoHelpdesk,
-          horas_perdidas: horasPerdidas,
-          minutos_tardanza: minutosTardanza,
-          fecha: fechaISO,
-          impacto: recordToSave.Impacto,
-          categoria_impacto: recordToSave.Impacto,
-          descripcion: motivo,
-          estado: recordToSave.Estado,
-          estado_aprobacion: estadoAprobacion,
-          evidencia_url: evidenciaUrl
-        };
-
-        const res = await supabase.from('faltas_errores').insert([payload]).select();
-
-        if (!res.error && res.data && res.data.length > 0) {
-          const insertedRow = res.data[0] as ISupabaseFaltaRow;
-          const officialItem: IFaltaHistorialItem = {
-            ...recordToSave,
-            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
-            SyncStatus: 'Sincronizado'
-          };
-          try {
-            await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, officialItem);
-          } catch {
-            // Ignore cache error
-          }
-          return officialItem;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.createFalta error inserting to Supabase:', err);
-      }
+    if (!emailEmpleado.trim() || !motivo.trim()) {
+      throw new Error('El correo del colaborador y el tipo de falta son obligatorios.');
     }
 
-    const savedLocal = await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, recordToSave as IFaltaHistorialItem);
-    return savedLocal;
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; la falta no fue guardada.');
+    }
+
+    const payload: Record<string, any> = {
+      audit_id: auditId,
+      email_empleado: emailEmpleado.trim().toLowerCase(),
+      colaborador_email: emailEmpleado.trim().toLowerCase(),
+      colaborador_nombre: isRegistrarData ? faltaData.agente : (faltaData.Title || emailEmpleado),
+      tipo_registro: motivo,
+      motivo,
+      supervisor_email: recordToSave.EmailSupervisor || '',
+      id_caso_helpdesk: casoHelpdesk,
+      horas_perdidas: horasPerdidas,
+      minutos_tardanza: minutosTardanza,
+      fecha: fechaISO,
+      impacto: recordToSave.Impacto,
+      categoria_impacto: recordToSave.Impacto,
+      descripcion: recordToSave.Comentarios || recordToSave.ComentariosCapacitacion || motivo,
+      estado: recordToSave.Estado,
+      estado_aprobacion: estadoAprobacion,
+      evidencia_url: evidenciaUrl
+    };
+
+    const { data: insertedRows, error } = await supabase
+      .from('faltas_errores')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      throw formatSupabaseError('No se pudo guardar la falta en faltas_errores', error);
+    }
+
+    if (!insertedRows || insertedRows.length !== 1) {
+      throw new Error('Supabase no confirmó la creación de la falta.');
+    }
+
+    const insertedRow = insertedRows[0] as ISupabaseFaltaRow;
+    const officialItem: IFaltaHistorialItem = {
+      ...recordToSave,
+      Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+      rawId: insertedRow.id ? String(insertedRow.id) : undefined,
+      AuditID: auditId,
+      SyncStatus: 'Sincronizado'
+    };
+    try {
+      await indexedDb.add<IFaltaHistorialItem>(LOCAL_STORES.faltas, officialItem);
+    } catch {
+      // The confirmed Supabase insert remains authoritative.
+    }
+    return officialItem;
   }
 
   // ==========================================
@@ -638,47 +690,44 @@ export class CloudDbClient {
   // ==========================================
 
   public async getKudos(): Promise<IKudoHistorialItem[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('kudos')
-          .select('*');
-
-        if (!error && Array.isArray(data)) {
-          const mappedKudos: IKudoHistorialItem[] = data.map((row: ISupabaseKudoRow, index: number) => {
-            const numericId = typeof row.id === 'number' ? row.id : (index + 1);
-            return {
-              Id: numericId,
-              Title: row.email_destino || '',
-              AgenteEmail: row.email_destino || '',
-              EmailEmisor: row.email_origen || '',
-              Atributo: row.motivo || '',
-              Mensaje: row.motivo || '',
-              Puntos: row.puntos ?? 10,
-              FechaKudo: row.fecha || new Date().toISOString(),
-              Remitente: row.email_origen || '',
-              SyncStatus: 'Sincronizado'
-            };
-          });
-
-          const deduplicated = deduplicateKudos(mappedKudos);
-
-          // Cache to IndexedDB
-          try {
-            await indexedDb.replaceAll(LOCAL_STORES.kudos, deduplicated);
-          } catch {
-            // Ignore cache error
-          }
-
-          return deduplicated;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getKudos fallback to IndexedDB:', err);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se puede consultar el histórico de Kudos.');
     }
 
-    const localKudos = await indexedDb.getAll<IKudoHistorialItem>(LOCAL_STORES.kudos);
-    return deduplicateKudos(localKudos);
+    const { data, error } = await supabase
+      .from('kudos')
+      .select('*')
+      .order('fecha', { ascending: false });
+
+    if (error) {
+      throw formatSupabaseError('No se pudo consultar kudos', error);
+    }
+
+    const mappedKudos: IKudoHistorialItem[] = (data || []).map((row: ISupabaseKudoRow, index: number) => {
+      const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+      return {
+        Id: numericId,
+        rawId: row.id ? String(row.id) : undefined,
+        Title: row.email_destino || '',
+        AgenteEmail: row.email_destino || '',
+        EmailEmisor: row.email_origen || '',
+        Atributo: row.categoria || '',
+        Mensaje: row.motivo || '',
+        Puntos: row.puntos ?? 10,
+        FechaKudo: row.fecha || '',
+        Remitente: row.email_origen || '',
+        SyncStatus: 'Sincronizado'
+      };
+    });
+    const deduplicated = deduplicateKudos(mappedKudos);
+
+    try {
+      await indexedDb.replaceAll(LOCAL_STORES.kudos, deduplicated);
+    } catch {
+      // Cache writes never replace the Supabase response as source of truth.
+    }
+
+    return deduplicated;
   }
 
   public async createKudo(
@@ -712,42 +761,44 @@ export class CloudDbClient {
       UpdatedAt: new Date().toISOString()
     };
 
-    if (isSupabaseConfigured()) {
-      try {
-        const payload: ISupabaseKudoRow = {
-          email_destino: emailDestino,
-          email_origen: emailOrigen,
-          motivo,
-          puntos,
-          fecha: fechaISO
-        };
-
-        const { data, error } = await supabase
-          .from('kudos')
-          .insert([payload])
-          .select();
-
-        if (!error && data && data.length > 0) {
-          const insertedRow = data[0] as ISupabaseKudoRow;
-          const officialItem: IKudoHistorialItem = {
-            ...recordToSave,
-            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
-            SyncStatus: 'Sincronizado'
-          };
-          try {
-            await indexedDb.add<IKudoHistorialItem>(LOCAL_STORES.kudos, officialItem);
-          } catch {
-            // Ignore cache error
-          }
-          return officialItem;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.createKudo error inserting to Supabase:', err);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; el Kudo no fue guardado.');
     }
 
-    const savedLocal = await indexedDb.add<IKudoHistorialItem>(LOCAL_STORES.kudos, recordToSave as IKudoHistorialItem);
-    return savedLocal;
+    const payload: ISupabaseKudoRow = {
+      email_destino: emailDestino.trim().toLowerCase(),
+      email_origen: emailOrigen.trim().toLowerCase(),
+      motivo: isRegistrarData ? kudoData.mensaje.trim() : motivo,
+      categoria: isRegistrarData ? kudoData.atributo.trim() : recordToSave.Atributo,
+      fecha: fechaISO
+    };
+
+    const { data: insertedRows, error } = await supabase
+      .from('kudos')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      throw formatSupabaseError('No se pudo guardar el reconocimiento en kudos', error);
+    }
+
+    if (!insertedRows || insertedRows.length !== 1) {
+      throw new Error('Supabase no confirmó la creación del Kudo.');
+    }
+
+    const insertedRow = insertedRows[0] as ISupabaseKudoRow;
+    const officialItem: IKudoHistorialItem = {
+      ...recordToSave,
+      Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+      rawId: insertedRow.id ? String(insertedRow.id) : undefined,
+      SyncStatus: 'Sincronizado'
+    };
+    try {
+      await indexedDb.add<IKudoHistorialItem>(LOCAL_STORES.kudos, officialItem);
+    } catch {
+      // The confirmed Supabase insert remains authoritative.
+    }
+    return officialItem;
   }
 
   // ==========================================
@@ -889,33 +940,40 @@ export class CloudDbClient {
   public async getFaltasPendientes(
     allowedAuthorEmails?: ReadonlyArray<string>
   ): Promise<IFaltaAprobacionItem[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se puede consultar la cola de faltas.');
+    }
+
+    const { data, error } = await supabase
           .from('faltas_errores')
           .select('*')
           .in('estado_aprobacion', ['Pendiente_Aprobacion', 'Pendiente']);
 
-        if (!error && Array.isArray(data)) {
+    if (error) {
+      throw formatSupabaseError('No se pudo consultar la cola de faltas', error);
+    }
+
           const allowed = allowedAuthorEmails === undefined
             ? undefined
             : new Set(allowedAuthorEmails.map((e) => (e || '').trim().toLowerCase()).filter(Boolean));
 
           const mapped: IFaltaAprobacionItem[] = data
-            .map((row: ISupabaseFaltaRow, index: number) => {
+            .map((row: ISupabaseFaltaRow & Record<string, any>, index: number) => {
               const numericId = typeof row.id === 'number' ? row.id : (index + 1);
               const emailEmpleado = row.email_empleado || '';
               return {
                 Id: numericId,
-                Title: emailEmpleado,
+                rawId: row.id ? String(row.id) : undefined,
+                Title: row.colaborador_nombre || row.agente_nombre || emailEmpleado,
                 AgenteEmail: emailEmpleado,
                 FechaFalta: row.fecha || new Date().toISOString(),
-                Categoria: row.motivo || '',
+                Categoria: row.tipo_registro || row.categoria || row.motivo || '',
+                Subcategoria: row.subcategoria || '',
                 CasoRef: row.id_caso_helpdesk || '',
                 IdCasoHelpdesk: row.id_caso_helpdesk || '',
                 HorasPerdidas: row.horas_perdidas || 0,
                 MinutosTardanza: row.minutos_tardanza || 0,
-                Impacto: row.impacto || 'Bajo',
+                Impacto: row.impacto || row.categoria_impacto || 'Bajo',
                 Estado: (row.estado as any) || 'Borrador',
                 EstadoAprobacion: 'Pendiente_Aprobacion' as any,
                 RolOriginador: 'Asistente' as any,
@@ -935,60 +993,29 @@ export class CloudDbClient {
             )
             .sort((left, right) => right.FechaFalta.localeCompare(left.FechaFalta));
 
-          return mapped;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getFaltasPendientes fallback to IndexedDB:', err);
-      }
-    }
-
-    const items = await indexedDb.getAll<IFaltaHistorialItem>(LOCAL_STORES.faltas);
-    const allowed = allowedAuthorEmails === undefined
-      ? undefined
-      : new Set(allowedAuthorEmails.map((e) => (e || '').trim().toLowerCase()).filter(Boolean));
-
-    return items
-      .filter((item) =>
-        (item.EstadoAprobacion === 'Pendiente_Aprobacion' || item.EstadoAprobacion === 'Pendiente') &&
-        (!allowed || allowed.has((item.AgenteEmail || '').trim().toLowerCase()) || allowed.has((item.Author?.EMail || '').trim().toLowerCase()))
-      )
-      .map((item): IFaltaAprobacionItem => ({
-        ...item,
-        Id: item.Id,
-        EstadoAprobacion: 'Pendiente_Aprobacion',
-        AttachmentFiles: (item as any).AttachmentData ? ((item as any).AttachmentData || []).map((att: any) => ({
-          FileName: att.name,
-          ServerRelativeUrl: URL.createObjectURL(att.content)
-        })) : []
-      }))
-      .sort((left, right) => right.FechaFalta.localeCompare(left.FechaFalta));
+    return mapped;
   }
 
   public async actualizarEstadoAprobacion(
-    id: number,
+    id: number | string,
     nuevoEstado: 'Aprobado' | 'Rechazado'
   ): Promise<void> {
-    if (isSupabaseConfigured()) {
-      try {
-        const estadoRegistro = nuevoEstado === 'Aprobado' ? 'Aprobado' : 'Rechazado';
-        await supabase
-          .from('faltas_errores')
-          .update({ estado_aprobacion: nuevoEstado, estado: estadoRegistro })
-          .eq('id', id);
-      } catch (err) {
-        console.warn('CloudDbClient.actualizarEstadoAprobacion error:', err);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; la aprobación no fue guardada.');
     }
 
-    try {
-      const localItem = await indexedDb.getById<IFaltaHistorialItem>(LOCAL_STORES.faltas, id);
-      if (localItem) {
-        localItem.EstadoAprobacion = nuevoEstado as any;
-        localItem.Estado = nuevoEstado === 'Aprobado' ? 'Aprobado' : 'Rechazado';
-        await indexedDb.put(LOCAL_STORES.faltas, localItem);
-      }
-    } catch {
-      // Ignore local error
+    const estadoRegistro = nuevoEstado === 'Aprobado' ? 'Aprobado' : 'Rechazado';
+    const { data, error } = await supabase
+      .from('faltas_errores')
+      .update({ estado_aprobacion: nuevoEstado, estado: estadoRegistro })
+      .eq('id', id)
+      .select('id');
+
+    if (error) {
+      throw formatSupabaseError('No se pudo actualizar la aprobación de la falta', error);
+    }
+    if (!data || data.length !== 1) {
+      throw new Error('Supabase no confirmó la actualización de la falta.');
     }
   }
 
@@ -1096,35 +1123,30 @@ export class CloudDbClient {
   // ==========================================
 
   public async getProductividad(): Promise<IProductividadHistorialItem[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        let res = await supabase
-          .from('productividad')
-          .select('*')
-          .order('fecha_inicio', { ascending: false, nullsFirst: false });
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se puede consultar productividad.');
+    }
 
-        if (res.error) {
-          res = await supabase
-            .from('productividad')
-            .select('*')
-            .order('created_at', { ascending: false, nullsFirst: false });
-        }
+    const { data, error } = await supabase
+      .from('productividad')
+      .select('*')
+      .order('fecha_inicio', { ascending: false, nullsFirst: false });
 
-        const data = res.data;
-        const error = res.error;
+    if (error) {
+      throw formatSupabaseError('No se pudo consultar productividad', error);
+    }
 
-        if (!error && Array.isArray(data)) {
-          const mapped: IProductividadHistorialItem[] = data.map((row: any, index: number) => {
-            const numericId = typeof row.id === 'number' ? row.id : (index + 1);
-            const email = row.email_empleado || row.email || '';
-            return {
+    const mapped: IProductividadHistorialItem[] = data.map((row: any, index: number) => {
+      const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+      const email = row.email_empleado || row.email || '';
+      return {
               Id: numericId,
               rawId: row.id ? String(row.id) : (row.audit_id || row.id_auditoria || undefined),
               Title: email,
               AgenteEmail: email,
-              FechaRegistro: row.created_at || row.fecha_registro || new Date().toISOString(),
-              FechaInicio: row.fecha_inicio || new Date().toISOString(),
-              FechaFin: row.fecha_fin || new Date().toISOString(),
+              FechaRegistro: row.created_at || row.fecha_registro || row.fecha_inicio || row.fecha || '',
+              FechaInicio: row.fecha_inicio || row.fecha || '',
+              FechaFin: row.fecha_fin || row.fecha_inicio || row.fecha || '',
               Casos: Number(row.casos_atendidos) || 0,
               CasosAtendidos: Number(row.casos_atendidos) || 0,
               CasosATiempo: Number(row.casos_a_tiempo) || 0,
@@ -1143,22 +1165,15 @@ export class CloudDbClient {
               CarnetsTx: Number(row.carnets_tx) || 0,
               CarnetsPg: Number(row.carnets_pg) || 0,
               AuditID: row.audit_id || row.id_auditoria || ''
-            };
-          });
+      };
+    });
 
-          try {
-            await indexedDb.replaceAll(LOCAL_STORES.productividad, mapped);
-          } catch {
-            // Ignore cache error
-          }
-          return mapped;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getProductividad fallback to IndexedDB:', err);
-      }
+    try {
+      await indexedDb.replaceAll(LOCAL_STORES.productividad, mapped);
+    } catch {
+      // Cache writes never replace the Supabase response as source of truth.
     }
-
-    return indexedDb.getAll<IProductividadHistorialItem>(LOCAL_STORES.productividad);
+    return mapped;
   }
 
   public async createProductividad(data: IRegistrarProductividadData): Promise<void> {
@@ -1167,32 +1182,49 @@ export class CloudDbClient {
     const auditId = generateAuditID();
     const emailEmpleado = (data.agenteEmail || data.agente || '').trim().toLowerCase();
 
-    if (isSupabaseConfigured()) {
-      try {
-        const payload = {
-          audit_id: auditId,
-          email_empleado: emailEmpleado,
-          fecha_inicio: startIso,
-          fecha_fin: endIso,
-          casos_atendidos: data.casosAtendidos || 0,
-          casos_a_tiempo: data.casosATiempo || 0,
-          emisiones_tx: data.emisionesTx || 0,
-          emisiones_pg: data.emisionesPg || 0,
-          devoluciones_emisiones: data.devolucionesEmisiones || 0,
-          movimientos_tx: data.movimientosTx || 0,
-          movimientos_pg: data.movimientosPg || 0,
-          devoluciones_movimientos: data.devolucionesMovimientos || 0,
-          escaneo_tx: data.escaneoTx || 0,
-          escaneo_pg: data.escaneoPg || 0,
-          devoluciones_escaneo: data.devolucionesEscaneo || 0,
-          carnets_tx: data.carnetsTx || 0,
-          carnets_pg: data.carnetsPg || 0
-        };
+    if (!emailEmpleado) {
+      throw new Error('El correo del colaborador es obligatorio para registrar productividad.');
+    }
 
-        const res = await supabase.from('productividad').insert([payload]).select();
-        if (!res.error && res.data && res.data.length > 0) {
-          const insertedRow = res.data[0];
-          const officialItem: IProductividadHistorialItem = {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; la productividad no fue guardada.');
+    }
+
+    const payload = {
+      audit_id: auditId,
+      email_empleado: emailEmpleado,
+      fecha_inicio: startIso,
+      fecha_fin: endIso,
+      casos_atendidos: data.casosAtendidos || 0,
+      casos_a_tiempo: data.casosATiempo || 0,
+      emisiones_tx: data.emisionesTx || 0,
+      emisiones_pg: data.emisionesPg || 0,
+      devoluciones_emisiones: data.devolucionesEmisiones || 0,
+      movimientos_tx: data.movimientosTx || 0,
+      movimientos_pg: data.movimientosPg || 0,
+      devoluciones_movimientos: data.devolucionesMovimientos || 0,
+      escaneo_tx: data.escaneoTx || 0,
+      escaneo_pg: data.escaneoPg || 0,
+      devoluciones_escaneo: data.devolucionesEscaneo || 0,
+      carnets_tx: data.carnetsTx || 0,
+      carnets_pg: data.carnetsPg || 0
+    };
+
+    const { data: insertedRows, error } = await supabase
+      .from('productividad')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      throw formatSupabaseError('No se pudo guardar la productividad', error);
+    }
+
+    if (!insertedRows || insertedRows.length !== 1) {
+      throw new Error('Supabase no confirmó la creación de la productividad.');
+    }
+
+    const insertedRow = insertedRows[0];
+    const officialItem: IProductividadHistorialItem = {
             Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
             rawId: insertedRow.id ? String(insertedRow.id) : auditId,
             Title: emailEmpleado,
@@ -1218,43 +1250,13 @@ export class CloudDbClient {
             CarnetsTx: data.carnetsTx || 0,
             CarnetsPg: data.carnetsPg || 0,
             AuditID: auditId
-          };
-          try {
-            await indexedDb.add(LOCAL_STORES.productividad, officialItem);
-          } catch {
-            // Ignore cache error
-          }
-          return;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.createProductividad error inserting to Supabase:', err);
-      }
+    };
+    try {
+      await indexedDb.add(LOCAL_STORES.productividad, officialItem);
+    } catch {
+      // The confirmed Supabase insert remains authoritative.
     }
-
-    await indexedDb.add(LOCAL_STORES.productividad, {
-      Title: data.agente.trim(),
-      AgenteEmail: emailEmpleado,
-      FechaRegistro: new Date().toISOString(),
-      FechaInicio: startIso,
-      FechaFin: endIso,
-      Casos: data.casosAtendidos,
-      CasosAtendidos: data.casosAtendidos,
-      CasosATiempo: data.casosATiempo,
-      TieneDatosSLA: true,
-      EmisionesTx: data.emisionesTx,
-      EmisionesPg: data.emisionesPg,
-      DevolucionesEmisiones: data.devolucionesEmisiones,
-      MovimientosTx: data.movimientosTx,
-      MovimientosPg: data.movimientosPg,
-      DevolucionesMovimientos: data.devolucionesMovimientos,
-      EscaneoTx: data.escaneoTx,
-      EscaneoPg: data.escaneoPg,
-      DevolucionesEscaneo: data.devolucionesEscaneo,
-      CarnetsTx: data.carnetsTx,
-      CarnetsPg: data.carnetsPg,
-      AuditID: auditId,
-      SyncStatus: 'Pendiente'
-    });
+    return;
   }
 
   public async deleteProductividad(id: number | string): Promise<void> {
@@ -1384,19 +1386,24 @@ export class CloudDbClient {
   // ==========================================
 
   public async getAusencias(startDate?: Date, endDate?: Date): Promise<IAusenciaItem[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('ausencias')
-          .select('*')
-          .order('fecha_inicio', { ascending: false, nullsFirst: false });
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se pueden consultar las ausencias.');
+    }
 
-        if (!error && Array.isArray(data)) {
-          const mapped: IAusenciaItem[] = data.map((row: any, index: number) => {
-            const numericId = typeof row.id === 'number' ? row.id : (index + 1);
-            const email = row.email_empleado || row.agente_email || row.colaborador_email || '';
-            const nombre = row.colaborador_nombre || row.agente_nombre || row.title || email;
-            return {
+    const { data, error } = await supabase
+      .from('ausencias')
+      .select('*')
+      .order('fecha_inicio', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      throw formatSupabaseError('No se pudo consultar ausencias', error);
+    }
+
+    const mapped: IAusenciaItem[] = data.map((row: any, index: number) => {
+      const numericId = typeof row.id === 'number' ? row.id : (index + 1);
+      const email = row.email_empleado || row.agente_email || row.colaborador_email || '';
+      const nombre = row.colaborador_nombre || row.agente_nombre || row.title || email;
+      return {
               Id: numericId,
               Title: nombre,
               AgenteEmail: email,
@@ -1405,44 +1412,29 @@ export class CloudDbClient {
               FechaInicio: row.fecha_inicio || new Date().toISOString(),
               FechaFin: row.fecha_fin || new Date().toISOString(),
               Comentarios: row.comentarios || '',
-              AuditID: row.audit_id || ''
-            };
-          });
+              AuditID: row.audit_id || '',
+              PeriodoAnio: row.periodo_anio,
+              PremioEmpleadoMesID: row.empleado_mes_id || row.premio_empleado_mes_id
+      };
+    });
 
-          try {
-            await indexedDb.replaceAll(LOCAL_STORES.ausencias, mapped);
-          } catch {
-            // Ignore cache error
-          }
-
-          if (startDate || endDate) {
-            const startMs = startDate ? startDate.getTime() : 0;
-            const endMs = endDate ? endDate.getTime() : Infinity;
-            return mapped.filter((item) => {
-              const itemStart = new Date(item.FechaInicio).getTime();
-              const itemEnd = new Date(item.FechaFin).getTime();
-              return itemStart <= endMs && itemEnd >= startMs;
-            });
-          }
-
-          return mapped;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getAusencias fallback to IndexedDB:', err);
-      }
+    try {
+      await indexedDb.replaceAll(LOCAL_STORES.ausencias, mapped);
+    } catch {
+      // Cache writes never replace the Supabase response as source of truth.
     }
 
-    const items = await indexedDb.getAll<IAusenciaItem>(LOCAL_STORES.ausencias);
     if (startDate || endDate) {
       const startMs = startDate ? startDate.getTime() : 0;
       const endMs = endDate ? endDate.getTime() : Infinity;
-      return items.filter((item) => {
+      return mapped.filter((item) => {
         const itemStart = new Date(item.FechaInicio).getTime();
         const itemEnd = new Date(item.FechaFin).getTime();
         return itemStart <= endMs && itemEnd >= startMs;
       });
     }
-    return items;
+
+    return mapped;
   }
 
   public async createEmpleadoMesAward(data: {
@@ -1452,43 +1444,55 @@ export class CloudDbClient {
     anio: number;
     supervisor_email?: string;
     supervisor_nombre?: string;
+    dedicatoria?: string;
   }): Promise<void> {
     const normEmail = data.email_empleado.trim().toLowerCase();
-    if (isSupabaseConfigured()) {
-      try {
-        const payload = {
-          email_empleado: normEmail,
-          nombre_empleado: data.nombre_empleado || '',
-          mes: data.mes,
-          anio: data.anio,
-          supervisor_email: (data.supervisor_email || '').trim().toLowerCase(),
-          supervisor_nombre: data.supervisor_nombre || '',
-          dia_libre_reclamado: false
-        };
-        await supabase.from('empleado_del_mes').insert([payload]);
-      } catch (err) {
-        console.warn('CloudDbClient.createEmpleadoMesAward error:', err);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; el Empleado del Mes no fue publicado.');
+    }
+
+    const payload = {
+      email_empleado: normEmail,
+      colaborador_nombre: data.nombre_empleado || '',
+      mes: data.mes,
+      anio: data.anio,
+      supervisor_email: (data.supervisor_email || '').trim().toLowerCase(),
+      supervisor_nombre: data.supervisor_nombre || '',
+      dia_libre_reclamado: false
+    };
+    const { data: insertedRows, error } = await supabase
+      .from('empleado_del_mes')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      throw formatSupabaseError('No se pudo publicar el Empleado del Mes', error);
+    }
+
+    if (!insertedRows || insertedRows.length !== 1) {
+      throw new Error('Supabase no confirmó la publicación del Empleado del Mes.');
     }
   }
 
-  public async getHistorialEmpleadoMes(): Promise<any[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('empleado_del_mes')
-          .select('*')
-          .order('anio', { ascending: false })
-          .order('mes', { ascending: false });
-
-        if (!error && Array.isArray(data)) {
-          return data;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getHistorialEmpleadoMes error:', err);
-      }
+  public async getHistorialEmpleadoMes(): Promise<IEmpleadoDelMes[]> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se puede consultar Empleado del Mes.');
     }
-    return [];
+
+    const { data, error } = await supabase
+      .from('empleado_del_mes')
+      .select('*')
+      .order('anio', { ascending: false })
+      .order('mes', { ascending: false });
+
+    if (error) {
+      throw formatSupabaseError('No se pudo consultar empleado_del_mes', error);
+    }
+
+    return (data || []).map((row: any) => ({
+      ...row,
+      nombre_empleado: row.nombre_empleado || row.colaborador_nombre || ''
+    }));
   }
 
   public async createSolicitudMejora(data: {
@@ -1497,6 +1501,9 @@ export class CloudDbClient {
     aplicativo?: string;
     modulo_afectado: string;
     pantalla_afectada?: string;
+    aplicativo_id?: string;
+    modulo_id?: string;
+    pantalla_id?: string;
     titulo: string;
     descripcion: string;
     criterios_aceptacion: string;
@@ -1504,43 +1511,60 @@ export class CloudDbClient {
     const auditId = generateAuditID();
     const normEmail = data.autor_email.trim().toLowerCase();
 
-    if (isSupabaseConfigured()) {
-      try {
-        const payload = {
-          audit_id: auditId,
-          autor_nombre: data.autor_nombre.trim(),
-          autor_email: normEmail,
-          aplicativo: data.aplicativo?.trim() || '',
-          modulo_afectado: data.modulo_afectado.trim(),
-          pantalla_afectada: data.pantalla_afectada?.trim() || '',
-          titulo: data.titulo.trim(),
-          descripcion: data.descripcion.trim(),
-          criterios_aceptacion: data.criterios_aceptacion.trim(),
-          estado: 'Pendiente_Aprobacion'
-        };
-        await supabase.from('solicitudes_mejora').insert([payload]);
-      } catch (err) {
-        console.warn('CloudDbClient.createSolicitudMejora error:', err);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; la iniciativa no fue guardada.');
+    }
+
+    const payload = {
+      audit_id: auditId,
+      autor_nombre: data.autor_nombre.trim(),
+      autor_email: normEmail,
+      aplicativo: data.aplicativo?.trim() || '',
+      aplicativo_id: data.aplicativo_id || null,
+      modulo_afectado: data.modulo_afectado.trim(),
+      modulo_id: data.modulo_id || null,
+      pantalla_afectada: data.pantalla_afectada?.trim() || '',
+      pantalla_id: data.pantalla_id || null,
+      titulo: data.titulo.trim(),
+      descripcion: data.descripcion.trim(),
+      criterios_aceptacion: data.criterios_aceptacion.trim(),
+      estado: 'Pendiente_Aprobacion'
+    };
+    const { data: insertedRows, error } = await supabase
+      .from('solicitudes_mejora')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      throw formatSupabaseError('No se pudo guardar la iniciativa', error);
+    }
+
+    if (!insertedRows || insertedRows.length !== 1) {
+      throw new Error('Supabase no confirmó la creación de la iniciativa.');
     }
   }
 
   public async getSolicitudesMejora(emailFilter?: string): Promise<ISolicitudMejora[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        let query = supabase
-          .from('solicitudes_mejora')
-          .select('*')
-          .order('created_at', { ascending: false });
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se pueden consultar las iniciativas.');
+    }
 
-        if (emailFilter) {
-          query = query.ilike('autor_email', emailFilter.trim());
-        }
+    let query = supabase
+      .from('solicitudes_mejora')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-        const { data, error } = await query;
-        if (!error && Array.isArray(data)) {
-          return data.map((row: any) => ({
-            id: row.id ? String(row.id) : undefined,
+    if (emailFilter) {
+      query = query.ilike('autor_email', emailFilter.trim());
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw formatSupabaseError('No se pudieron consultar las iniciativas', error);
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id ? String(row.id) : undefined,
             audit_id: row.audit_id || row.id_auditoria || '',
             autor_nombre: row.autor_nombre || row.colaborador_nombre || '',
             autor_email: row.autor_email || row.email_empleado || '',
@@ -1555,14 +1579,8 @@ export class CloudDbClient {
             supervisor_email: row.supervisor_email || '',
             supervisor_nombre: row.supervisor_nombre || '',
             fecha_revision: row.fecha_revision || '',
-            created_at: row.created_at || new Date().toISOString()
-          }));
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getSolicitudesMejora error:', err);
-      }
-    }
-    return [];
+      created_at: row.created_at || new Date().toISOString()
+    }));
   }
 
   public async responderSolicitudMejora(
@@ -1572,8 +1590,10 @@ export class CloudDbClient {
     supervisorEmail: string,
     supervisorNombre: string
   ): Promise<void> {
-    if (isSupabaseConfigured() && id) {
-      try {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; la respuesta no fue guardada.');
+    }
+    if (id) {
         const payload = {
           estado,
           comentario_supervisor: comentario.trim(),
@@ -1583,67 +1603,66 @@ export class CloudDbClient {
         };
 
         const isUuid = id.includes('-');
-        if (isUuid) {
-          await supabase.from('solicitudes_mejora').update(payload).eq('id', id);
-        } else {
-          await supabase.from('solicitudes_mejora').update(payload).or(`id.eq.${id},audit_id.eq.${id}`);
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.responderSolicitudMejora error:', err);
+      const response = isUuid
+        ? await supabase.from('solicitudes_mejora').update(payload).eq('id', id).select('id')
+        : await supabase.from('solicitudes_mejora').update(payload).or(`id.eq.${id},audit_id.eq.${id}`).select('id');
+
+      if (response.error) {
+        throw formatSupabaseError('No se pudo responder la iniciativa', response.error);
+      }
+      if (!response.data || response.data.length !== 1) {
+        throw new Error('Supabase no confirmó la actualización de la iniciativa.');
       }
     }
   }
 
-  public async getPremiosEmpleadoMesPendientes(email: string): Promise<Array<{
-    id?: number | string;
-    email_empleado: string;
-    nombre_empleado?: string;
-    mes: number;
-    anio: number;
-    dia_libre_reclamado?: boolean;
-    fecha_reclamado?: string;
-  }>> {
+  public async getPremiosEmpleadoMesPendientes(email: string): Promise<IEmpleadoDelMes[]> {
     if (!email) return [];
     const normEmail = email.trim().toLowerCase();
-    if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('empleado_del_mes')
-          .select('*')
-          .eq('email_empleado', normEmail)
-          .eq('dia_libre_reclamado', false);
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; no se pueden consultar los premios pendientes.');
+    }
 
-        if (!error && Array.isArray(data)) {
-          return data.map((row: any) => ({
-            id: row.id,
+    const { data, error } = await supabase
+      .from('empleado_del_mes')
+      .select('*')
+      .eq('email_empleado', normEmail)
+      .eq('dia_libre_reclamado', false);
+
+    if (error) {
+      throw formatSupabaseError('No se pudieron consultar los premios pendientes', error);
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
             email_empleado: row.email_empleado,
-            nombre_empleado: row.nombre_empleado,
+            nombre_empleado: row.nombre_empleado || row.colaborador_nombre || '',
             mes: Number(row.mes) || 1,
             anio: Number(row.anio) || new Date().getFullYear(),
             dia_libre_reclamado: Boolean(row.dia_libre_reclamado),
-            fecha_reclamado: row.fecha_reclamado
-          }));
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.getPremiosEmpleadoMesPendientes error:', err);
-      }
-    }
-    return [];
+      fecha_reclamado: row.fecha_reclamado
+    }));
   }
 
   public async marcarPremioEmpleadoMesReclamado(premioId: string | number, fechaReclamado?: string): Promise<void> {
     if (isSupabaseConfigured() && premioId) {
-      try {
-        const nowIso = fechaReclamado || new Date().toISOString();
-        await supabase
-          .from('empleado_del_mes')
-          .update({
-            dia_libre_reclamado: true,
-            fecha_reclamado: nowIso
-          })
-          .eq('id', premioId);
-      } catch (err) {
-        console.warn('CloudDbClient.marcarPremioEmpleadoMesReclamado error:', err);
+      const nowIso = fechaReclamado || new Date().toISOString();
+      const { data, error } = await supabase
+        .from('empleado_del_mes')
+        .update({
+          dia_libre_reclamado: true,
+          fecha_reclamado: nowIso
+        })
+        .eq('id', premioId)
+        .eq('dia_libre_reclamado', false)
+        .select('id');
+
+      if (error) {
+        throw new Error(`No se pudo marcar el premio como reclamado: ${error.message}`);
+      }
+
+      if (!data || data.length !== 1) {
+        throw new Error('El premio seleccionado ya fue reclamado o dejó de estar disponible.');
       }
     }
   }
@@ -1654,73 +1673,76 @@ export class CloudDbClient {
     const startIso = data.fechaInicio.toISOString();
     const endIso = data.fechaFin.toISOString();
 
-    if (isSupabaseConfigured()) {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase no está configurado; la ausencia no fue guardada.');
+    }
+
+    const payload: Record<string, any> = {
+      audit_id: auditId,
+      email_empleado: emailEmpleado,
+      agente_email: emailEmpleado,
+      colaborador_nombre: data.agente.trim(),
+      agente_nombre: data.agente.trim(),
+      agente_object_id: data.agenteObjectId || '',
+      tipo_ausencia: data.tipoAusencia,
+      fecha_inicio: startIso,
+      fecha_fin: endIso,
+      comentarios: data.comentarios?.trim() || '',
+      periodo_anio: data.periodoAnio || new Date().getFullYear(),
+      empleado_mes_id: data.premioEmpleadoMesId || null
+    };
+
+    const { data: insertedRows, error: insertError } = await supabase
+      .from('ausencias')
+      .insert([payload])
+      .select();
+
+    if (insertError) {
+      throw formatSupabaseError('No se pudo registrar la ausencia', insertError);
+    }
+
+    if (!insertedRows || insertedRows.length !== 1) {
+      throw new Error('Supabase no confirmó la creación de la ausencia.');
+    }
+
+    const insertedRow = insertedRows[0];
+
+    if (data.premioEmpleadoMesId) {
       try {
-        const payload: Record<string, any> = {
-          audit_id: auditId,
-          email_empleado: emailEmpleado,
-          agente_email: emailEmpleado,
-          colaborador_nombre: data.agente.trim(),
-          agente_nombre: data.agente.trim(),
-          agente_object_id: data.agenteObjectId || '',
-          tipo_ausencia: data.tipoAusencia,
-          fecha_inicio: startIso,
-          fecha_fin: endIso,
-          comentarios: data.comentarios?.trim() || '',
-          periodo_anio: data.periodoAnio || new Date().getFullYear(),
-          premio_empleado_mes_id: data.premioEmpleadoMesId || null
-        };
+        await this.marcarPremioEmpleadoMesReclamado(data.premioEmpleadoMesId, startIso);
+      } catch (claimError) {
+        const { error: rollbackError } = await supabase
+          .from('ausencias')
+          .delete()
+          .eq('id', insertedRow.id);
 
-        const res = await supabase.from('ausencias').insert([payload]).select();
-
-        if (data.premioEmpleadoMesId) {
-          await this.marcarPremioEmpleadoMesReclamado(data.premioEmpleadoMesId, startIso);
+        if (rollbackError) {
+          console.error('No se pudo revertir la ausencia tras fallar el reclamo del premio:', rollbackError);
         }
 
-        if (!res.error && res.data && res.data.length > 0) {
-          const insertedRow = res.data[0];
-          const officialItem: IAusenciaItem = {
-            Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
-            Title: data.agente.trim(),
-            AgenteEmail: emailEmpleado,
-            AgenteObjectID: data.agenteObjectId || '',
-            TipoAusencia: data.tipoAusencia,
-            FechaInicio: startIso,
-            FechaFin: endIso,
-            Comentarios: data.comentarios?.trim() || '',
-            AuditID: auditId,
-            PeriodoAnio: data.periodoAnio,
-            PremioEmpleadoMesID: data.premioEmpleadoMesId
-          };
-          try {
-            await indexedDb.add(LOCAL_STORES.ausencias, officialItem);
-          } catch {
-            // Ignore cache error
-          }
-          return;
-        }
-      } catch (err) {
-        console.warn('CloudDbClient.createAusencia error inserting to Supabase:', err);
+        throw claimError;
       }
     }
 
-    if (data.premioEmpleadoMesId) {
-      await this.marcarPremioEmpleadoMesReclamado(data.premioEmpleadoMesId, startIso);
+    const officialItem: IAusenciaItem = {
+      Id: typeof insertedRow.id === 'number' ? insertedRow.id : Date.now(),
+        Title: data.agente.trim(),
+        AgenteEmail: emailEmpleado,
+        AgenteObjectID: data.agenteObjectId || '',
+        TipoAusencia: data.tipoAusencia,
+        FechaInicio: startIso,
+        FechaFin: endIso,
+        Comentarios: data.comentarios?.trim() || '',
+        AuditID: auditId,
+        PeriodoAnio: data.periodoAnio,
+      PremioEmpleadoMesID: data.premioEmpleadoMesId
+    };
+    try {
+      await indexedDb.add(LOCAL_STORES.ausencias, officialItem);
+    } catch {
+      // The confirmed Supabase insert remains authoritative.
     }
-
-    await indexedDb.add(LOCAL_STORES.ausencias, {
-      Title: data.agente.trim(),
-      AgenteEmail: emailEmpleado,
-      AgenteObjectID: data.agenteObjectId || '',
-      TipoAusencia: data.tipoAusencia,
-      FechaInicio: startIso,
-      FechaFin: endIso,
-      Comentarios: data.comentarios?.trim() || '',
-      AuditID: auditId,
-      PeriodoAnio: data.periodoAnio,
-      PremioEmpleadoMesID: data.premioEmpleadoMesId,
-      SyncStatus: 'Pendiente'
-    });
+    return;
   }
 }
 

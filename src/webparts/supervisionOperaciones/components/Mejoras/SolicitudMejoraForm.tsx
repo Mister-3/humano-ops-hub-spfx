@@ -83,14 +83,11 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       .then((allItems: ICatalogoItem[]) => {
         if (isMounted) {
           const filtered = (allItems || []).filter((item) => {
-            if (!item.parent_id) return true;
+            if (item.parent_id === null || item.parent_id === undefined || item.parent_id === '') {
+              return false;
+            }
             const pId = String(item.parent_id);
-            return (
-              pId === parentKey ||
-              pId === String(selectedAplicativoItem.Id) ||
-              pId === String(selectedAplicativoItem.rawId) ||
-              pId.toLowerCase() === selectedAplicativoItem.Valor.toLowerCase()
-            );
+            return pId === parentKey;
           });
           setModulos(filtered);
         }
@@ -125,14 +122,11 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
       .then((allItems: ICatalogoItem[]) => {
         if (isMounted) {
           const filtered = (allItems || []).filter((item) => {
-            if (!item.parent_id) return true;
+            if (item.parent_id === null || item.parent_id === undefined || item.parent_id === '') {
+              return false;
+            }
             const pId = String(item.parent_id);
-            return (
-              pId === parentKey ||
-              pId === String(selectedModuloItem.Id) ||
-              pId === String(selectedModuloItem.rawId) ||
-              pId.toLowerCase() === selectedModuloItem.Valor.toLowerCase()
-            );
+            return pId === parentKey;
           });
           setPantallas(filtered);
         }
@@ -243,8 +237,11 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
         autor_nombre: currentUserName || 'Colaborador',
         autor_email: currentUserEmail,
         aplicativo: selectedAplicativoItem.Valor,
+        aplicativo_id: String(selectedAplicativoItem.rawId),
         modulo_afectado: selectedModuloItem.Valor,
+        modulo_id: String(selectedModuloItem.rawId),
         pantalla_afectada: selectedPantallaItem.Valor,
+        pantalla_id: String(selectedPantallaItem.rawId),
         titulo: titulo.trim(),
         descripcion: userStoryDescription,
         criterios_aceptacion: criteriosAceptacion.trim()
@@ -309,13 +306,13 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
               onChange={(e) => handleAplicativoChange(e.target.value)}
               required
             >
-              <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
+              <option value="" disabled className="bg-slate-900 text-white py-2">
                 {isLoadingAplicativos ? 'Cargando aplicativos...' : aplicativos.length === 0 ? 'Sin opciones disponibles (Configurar en Admin)' : 'Seleccione el aplicativo...'}
               </option>
               {aplicativos.map((app) => {
                 const key = String(app.rawId ?? app.Id ?? app.Valor);
                 return (
-                  <option key={key} value={key} className="bg-slate-900 text-slate-100 py-2">
+                  <option key={key} value={key} className="bg-slate-900 text-white py-2">
                     {app.Valor}
                   </option>
                 );
@@ -335,7 +332,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
               onChange={(e) => handleModuloChange(e.target.value)}
               required
             >
-              <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
+              <option value="" disabled className="bg-slate-900 text-white py-2">
                 {!selectedAplicativoItem
                   ? '👈 Seleccione aplicativo primero'
                   : isLoadingModulos
@@ -347,7 +344,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
               {modulos.map((mod) => {
                 const key = String(mod.rawId ?? mod.Id ?? mod.Valor);
                 return (
-                  <option key={key} value={key} className="bg-slate-900 text-slate-100 py-2">
+                  <option key={key} value={key} className="bg-slate-900 text-white py-2">
                     {mod.Valor}
                   </option>
                 );
@@ -367,7 +364,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
               onChange={(e) => handlePantallaChange(e.target.value)}
               required
             >
-              <option value="" disabled className="bg-slate-900 text-slate-400 py-2">
+              <option value="" disabled className="bg-slate-900 text-white py-2">
                 {!selectedModuloItem
                   ? '👈 Seleccione módulo primero'
                   : isLoadingPantallas
@@ -379,7 +376,7 @@ export const SolicitudMejoraForm: React.FC<ISolicitudMejoraFormProps> = ({
               {pantallas.map((pan) => {
                 const key = String(pan.rawId ?? pan.Id ?? pan.Valor);
                 return (
-                  <option key={key} value={key} className="bg-slate-900 text-slate-100 py-2">
+                  <option key={key} value={key} className="bg-slate-900 text-white py-2">
                     {pan.Valor}
                   </option>
                 );

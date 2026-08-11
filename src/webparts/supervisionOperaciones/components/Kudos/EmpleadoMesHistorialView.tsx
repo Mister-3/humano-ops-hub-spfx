@@ -14,6 +14,7 @@ import {
 } from '@fluentui/react';
 
 import { getHistorialEmpleadoMes } from '../../../../services/CloudDbClient';
+import type { IEmpleadoDelMes } from '../../../../types';
 import styles from './EmpleadoMesHistorialView.module.scss';
 
 const NOMBRES_MESES = [
@@ -40,8 +41,8 @@ const formatDateStr = (isoStr?: string): string => {
 };
 
 export const EmpleadoMesHistorialView: React.FC = () => {
-  const [items, setItems] = React.useState<any[]>([]);
-  const [filteredItems, setFilteredItems] = React.useState<any[]>([]);
+  const [items, setItems] = React.useState<IEmpleadoDelMes[]>([]);
+  const [filteredItems, setFilteredItems] = React.useState<IEmpleadoDelMes[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
@@ -103,7 +104,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
         minWidth: 130,
         maxWidth: 160,
         isResizable: true,
-        onRender: (item: any) => (
+        onRender: (item: IEmpleadoDelMes) => (
           <Text style={{ fontWeight: 600 }}>
             {getNombreMes(Number(item.mes))} {item.anio}
           </Text>
@@ -116,7 +117,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
         minWidth: 120,
         maxWidth: 140,
         isResizable: true,
-        onRender: (item: any) => (
+        onRender: (item: IEmpleadoDelMes) => (
           <Text>{formatDateStr(item.created_at || item.fecha_publicacion)}</Text>
         )
       },
@@ -127,7 +128,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
         minWidth: 180,
         maxWidth: 240,
         isResizable: true,
-        onRender: (item: any) => (
+        onRender: (item: IEmpleadoDelMes) => (
           <Stack tokens={{ childrenGap: 2 }}>
             <Text style={{ fontWeight: 500 }}>{item.nombre_empleado || 'Colaborador'}</Text>
             <Text variant="small" style={{ color: '#64748b' }}>
@@ -143,7 +144,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
         minWidth: 180,
         maxWidth: 240,
         isResizable: true,
-        onRender: (item: any) => (
+        onRender: (item: IEmpleadoDelMes) => (
           <Stack tokens={{ childrenGap: 2 }}>
             <Text style={{ fontWeight: 500 }}>
               {item.supervisor_nombre || 'Sistema / Supervisor'}
@@ -161,7 +162,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
         minWidth: 180,
         maxWidth: 240,
         isResizable: true,
-        onRender: (item: any) => {
+        onRender: (item: IEmpleadoDelMes) => {
           const isClaimed = Boolean(item.dia_libre_reclamado);
           return (
             <div>
@@ -213,11 +214,11 @@ export const EmpleadoMesHistorialView: React.FC = () => {
       {isLoading ? (
         <Spinner label="Cargando historial de Empleado del Mes..." size={SpinnerSize.large} />
       ) : filteredItems.length > 0 ? (
-        <div className={styles.tableContainer}>
+        <div className={`${styles.tableContainer} bg-slate-900/95 border border-slate-800 text-white rounded-2xl shadow-2xl backdrop-blur-md`}>
           <DetailsList
             columns={columns}
             compact
-            getKey={(item: any) => String(item.id || item.created_at)}
+            getKey={(item: IEmpleadoDelMes) => String(item.id || item.created_at)}
             items={filteredItems}
             layoutMode={DetailsListLayoutMode.justified}
             selectionMode={SelectionMode.none}

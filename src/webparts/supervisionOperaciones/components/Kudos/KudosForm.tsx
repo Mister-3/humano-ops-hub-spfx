@@ -61,15 +61,6 @@ export interface IKudosFormProps {
   userRole: RoleType;
 }
 
-const fallbackAtributoOptions: IDropdownOption[] = [
-  { key: 'Orientado al negocio', text: 'Orientado al negocio' },
-  { key: 'Empatía', text: 'Empatía' },
-  { key: 'Agilidad', text: 'Agilidad' },
-  { key: 'Pensamiento digital', text: 'Pensamiento digital' },
-  { key: 'Resolución de problemas', text: 'Resolución de problemas' },
-  { key: 'Trabajo en equipo', text: 'Trabajo en equipo' }
-];
-
 const MONTH_NAMES: ReadonlyArray<string> = [
   'Enero',
   'Febrero',
@@ -639,9 +630,9 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           ? error.message
           : 'No fue posible consultar el catálogo de Kudos.';
 
-        setAtributoOptions(fallbackAtributoOptions);
+        setAtributoOptions([]);
         setCatalogErrorMessage(
-          `El catálogo no está disponible; se usarán temporalmente los atributos predeterminados. ${detail}`
+          `${detail} Configure los atributos en el Panel Admin.`
         );
       } finally {
         if (isMounted) {
@@ -1062,7 +1053,9 @@ const KudosForm: React.FC<IKudosFormProps> = ({
               placeholder={
                 isLoadingCatalog
                   ? 'Cargando opciones...'
-                  : 'Seleccione un atributo'
+                  : atributoOptions.length === 0
+                    ? 'Sin opciones registradas (Configurar en Panel Admin)'
+                    : 'Seleccione un atributo'
               }
               required
               selectedKey={atributo || undefined}

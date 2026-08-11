@@ -1,41 +1,66 @@
 import type {
+  AusenciaType,
+  CatalogCategory,
   FaltaApprovalStatus,
   IFalta,
   IFaltaAprobacionItem,
+  IFaltaHistorialItem,
+  IAusenciaItem,
+  ICatalogoItem,
+  IDashboardFaltaItem,
+  IDashboardProductividadItem,
+  IEvaluacionFaltaItem,
+  IEvaluacionKudoItem,
+  IEvaluacionProductividadItem,
+  IKudoHistorialItem,
+  IKudoListItem,
+  IPublicacionEmpleadoMes,
+  IPublicarEmpleadoMesData,
+  IProductividadHistorialItem,
+  IRegistrarAusenciaData,
+  IRegistrarFaltaData,
+  IRegistrarKudoData,
+  IRegistrarProductividadData,
+  ISolicitudMejora,
   RoleType
-} from '../models/AppModels';
+} from '../../../types';
 export type {
+  AusenciaType,
+  CatalogCategory,
   FaltaApprovalStatus,
-  IFaltaAprobacionItem
-} from '../models/AppModels';
+  IFalta,
+  IFaltaAprobacionItem,
+  IFaltaHistorialItem,
+  IAusenciaItem,
+  ICatalogoItem,
+  IDashboardFaltaItem,
+  IDashboardProductividadItem,
+  IEmpleadoDelMes,
+  IEvaluacionFaltaItem,
+  IEvaluacionKudoItem,
+  IEvaluacionProductividadItem,
+  IKudoHistorialItem,
+  IKudoListItem,
+  IPublicacionEmpleadoMes,
+  IPublicarEmpleadoMesData,
+  IProductividadHistorialItem,
+  IRegistrarAusenciaData,
+  IRegistrarFaltaData,
+  IRegistrarKudoData,
+  IRegistrarProductividadData,
+  ISolicitudMejora,
+  RoleType
+} from '../../../types';
 import { generateAuditID } from '../utils/auditUtils';
 import IndexedDbAdapter, {
   LOCAL_STORES,
-  type ILocalEntity,
-  type IOperationalFaltaFields
+  type ILocalEntity
 } from '../../../services/IndexedDbAdapter';
 import { cloudDbClient, deduplicateKudos, uploadEvidenciaToSupabase } from '../../../services/CloudDbClient';
 export { deduplicateKudos } from '../../../services/CloudDbClient';
 
 export const PRODUCTIVITY_OVERLAP_ERROR_MESSAGE =
   '⚠️ Conflicto de Fechas: Ya existe un registro de productividad guardado para este colaborador que se traslapa con el rango ingresado.';
-
-export type CatalogCategory =
-  | 'Falta'
-  | 'ErrorProceso'
-  | 'CodigoEtica'
-  | 'Kudo'
-  | 'ProcesoArea'
-  | 'modulos_pantallas'
-  | 'aplicativos'
-  | 'modulos'
-  | 'pantallas';
-
-export type AusenciaType =
-  | 'Vacaciones'
-  | 'Día Libre Cumpleaños'
-  | 'Día Libre Empleado del Mes'
-  | 'Licencia / Incapacidad';
 
 const ROLE_VALUES: ReadonlyArray<RoleType> = [
   'Master_Admin',
@@ -64,45 +89,6 @@ const ABSENCE_TYPES: ReadonlyArray<AusenciaType> = [
   'Día Libre Cumpleaños',
   'Día Libre Empleado del Mes',
   'Licencia / Incapacidad'
-];
-
-const DEFAULT_CATALOG_ITEMS: ReadonlyArray<{
-  categoria: CatalogCategory;
-  valor: string;
-}> = [
-  { categoria: 'Falta', valor: 'Tardanza' },
-  { categoria: 'Falta', valor: 'Ausencia Injustificada' },
-  { categoria: 'Falta', valor: 'Error en proceso' },
-  { categoria: 'Falta', valor: 'Violación de Política' },
-  { categoria: 'Falta', valor: 'Capacitación' },
-  { categoria: 'Falta', valor: 'Código de Ética' },
-  { categoria: 'ErrorProceso', valor: 'Error de Digitación' },
-  { categoria: 'ErrorProceso', valor: 'Incumplimiento SLA' },
-  { categoria: 'ErrorProceso', valor: 'Procedimiento Incompleto' },
-  { categoria: 'ErrorProceso', valor: 'Omisión de Verificación' },
-  { categoria: 'CodigoEtica', valor: 'Uso inadecuado de recursos' },
-  {
-    categoria: 'CodigoEtica',
-    valor: 'Trato irrespetuoso o conducta inapropiada'
-  },
-  {
-    categoria: 'CodigoEtica',
-    valor: 'Conflicto de interés no declarado'
-  },
-  {
-    categoria: 'CodigoEtica',
-    valor: 'Fraude, soborno o divulgación indebida'
-  },
-  { categoria: 'Kudo', valor: 'Orientado al negocio' },
-  { categoria: 'Kudo', valor: 'Empatía' },
-  { categoria: 'Kudo', valor: 'Agilidad' },
-  { categoria: 'Kudo', valor: 'Pensamiento digital' },
-  { categoria: 'Kudo', valor: 'Resolución de problemas' },
-  { categoria: 'Kudo', valor: 'Trabajo en equipo' },
-  { categoria: 'ProcesoArea', valor: 'Emisiones' },
-  { categoria: 'ProcesoArea', valor: 'Movimientos' },
-  { categoria: 'ProcesoArea', valor: 'Reclamaciones' },
-  { categoria: 'ProcesoArea', valor: 'Servicio al Cliente' }
 ];
 
 const DEFAULT_CONFIG: IConfiguracionMetricas = {
@@ -137,11 +123,6 @@ interface ILocalAttachment {
   content: Blob;
 }
 
-type ILocalFaltaRecord = IFaltaHistorialItem &
-IOperationalFaltaFields & ILocalEntity & {
-  AttachmentData?: ILocalAttachment[];
-};
-
 type ILocalKudoRecord = IKudoHistorialItem & ILocalEntity & {
   AttachmentData?: ILocalAttachment[];
 };
@@ -160,11 +141,6 @@ const isCatalogCategory = (value: string): value is CatalogCategory =>
 
 const isAusenciaType = (value: string): value is AusenciaType =>
   ABSENCE_TYPES.indexOf(value as AusenciaType) >= 0;
-
-const getApprovalStatusForRole = (role: RoleType): FaltaApprovalStatus =>
-  role === 'Analista' || role === 'Asistente' || role === 'Oficial'
-    ? 'Pendiente'
-    : 'Aprobado';
 
 export const isFaltaApprovedForScoring = (
   approvalStatus?: string
@@ -374,116 +350,6 @@ const normalizeProductividadMetrics = <
   };
 };
 
-export interface IRegistrarFaltaData {
-  agente: string;
-  agenteEmail?: string;
-  agenteObjectId?: string;
-  emailSupervisor?: string;
-  fecha: Date;
-  categoria: string;
-  subcategoria?: string;
-  casoRef?: string;
-  procesoArea?: string;
-  comentariosCapacitacion?: string;
-  comentarios?: string;
-  horaLlegada?: string;
-  minutosTardanza?: number;
-  horasPerdidas?: number;
-  origenError?: string;
-  impacto: string;
-  estado: IFalta['estado'];
-  rolOriginador: RoleType;
-  evidenciaUrl?: string;
-  estadoAprobacion?: string;
-}
-
-export interface IRegistrarKudoData {
-  agente: string;
-  agenteEmail?: string;
-  agenteObjectId?: string;
-  atributo: string;
-  mensaje: string;
-  puntos: number;
-  fecha: Date;
-  remitente: string;
-  remitenteEmail?: string;
-}
-
-export interface IKudoListItem {
-  Title?: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  Puntos?: number;
-}
-
-export interface IRegistrarProductividadData {
-  agente: string;
-  agenteEmail: string;
-  agenteObjectId?: string;
-  fechaInicio: Date;
-  fechaFin: Date;
-  casosAtendidos: number;
-  casosATiempo: number;
-  emisionesTx: number;
-  emisionesPg: number;
-  movimientosTx: number;
-  movimientosPg: number;
-  escaneoTx: number;
-  escaneoPg: number;
-  devolucionesEmisiones?: number;
-  devolucionesMovimientos?: number;
-  devolucionesEscaneo?: number;
-  carnetsTx?: number;
-  carnetsPg?: number;
-  emisiones?: number;
-  movimientos?: number;
-}
-
-export interface IRegistrarAusenciaData {
-  agente: string;
-  agenteEmail?: string;
-  agenteObjectId?: string;
-  tipoAusencia: AusenciaType;
-  fechaInicio: Date;
-  fechaFin: Date;
-  comentarios?: string;
-  periodoAnio?: number;
-  premioEmpleadoMesId?: string | number;
-}
-
-export interface IAusenciaItem {
-  Id: number;
-  Title: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  TipoAusencia: AusenciaType;
-  FechaInicio: string;
-  FechaFin: string;
-  Comentarios: string;
-  AuditID?: string;
-  PeriodoAnio?: number;
-  PremioEmpleadoMesID?: string | number;
-}
-
-export interface ISolicitudMejora {
-  id?: string;
-  audit_id?: string;
-  autor_nombre: string;
-  autor_email: string;
-  aplicativo?: string;
-  modulo_afectado: string;
-  pantalla_afectada?: string;
-  titulo: string;
-  descripcion: string;
-  criterios_aceptacion: string;
-  estado: 'Pendiente_Aprobacion' | 'Aprobada' | 'Declinada';
-  comentario_supervisor?: string;
-  supervisor_email?: string;
-  supervisor_nombre?: string;
-  fecha_revision?: string;
-  created_at?: string;
-}
-
 export interface IRegistrarLlamadaFlotaData {
   casoContacto: string;
   supervisorEmail: string;
@@ -517,115 +383,10 @@ export interface IOcupacionCorreoItem {
   Comentarios: string;
 }
 
-export interface IFaltaHistorialItem extends ILocalEntity {
-  Id: number;
-  Title: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  EmailSupervisor?: string;
-  FechaFalta: string;
-  Categoria: string;
-  Subcategoria?: string;
-  CasoRef?: string;
-  IdCasoHelpdesk?: string;
-  ProcesoArea?: string;
-  ComentariosCapacitacion?: string;
-  Comentarios?: string;
-  HoraLlegada?: string;
-  MinutosTardanza?: number;
-  HorasPerdidas?: number;
-  OrigenError?: string;
-  SubcategoriaError?: string;
-  Impacto: string;
-  Estado: IFalta['estado'];
-  EstadoAprobacion?: FaltaApprovalStatus;
-  RolOriginador: RoleType;
-  AuditID?: string;
-  IdAuditoria?: string;
-  Author?: { EMail?: string; Title?: string };
-}
-
 export interface IRoleOverrideItem extends ILocalEntity {
   Id: number;
   Title: string;
   RolAsignado: RoleType;
-}
-
-export interface IKudoHistorialItem extends ILocalEntity {
-  Id: number;
-  Title: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  EmailEmisor?: string;
-  Atributo: string;
-  Mensaje: string;
-  Puntos: number;
-  FechaKudo: string;
-  Remitente: string;
-  AuditID?: string;
-}
-
-export interface IProductividadHistorialItem {
-  Id: number;
-  rawId?: string;
-  Title: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  FechaRegistro: string;
-  FechaInicio?: string;
-  FechaFin?: string;
-  Casos: number;
-  CasosAtendidos: number;
-  CasosATiempo?: number;
-  TieneDatosSLA?: boolean;
-  Emisiones: number;
-  Movimientos: number;
-  EmisionesTx: number;
-  EmisionesPg: number;
-  DevolucionesEmisiones?: number;
-  MovimientosTx: number;
-  MovimientosPg: number;
-  DevolucionesMovimientos?: number;
-  EscaneoTx: number;
-  EscaneoPg: number;
-  DevolucionesEscaneo?: number;
-  CarnetsTx?: number;
-  CarnetsPg?: number;
-  AuditID?: string;
-}
-
-export interface IDashboardProductividadItem {
-  Id?: number;
-  Title?: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  FechaRegistro?: string;
-  FechaInicio?: string;
-  FechaFin?: string;
-  Casos?: number;
-  CasosAtendidos?: number;
-  CasosATiempo?: number;
-  TieneDatosSLA?: boolean;
-  Emisiones?: number;
-  Movimientos?: number;
-  EmisionesTx?: number;
-  EmisionesPg?: number;
-  MovimientosTx?: number;
-  MovimientosPg?: number;
-  EscaneoTx?: number;
-  EscaneoPg?: number;
-}
-
-export interface IDashboardFaltaItem {
-  Id?: number;
-  Title?: string;
-  AgenteEmail?: string;
-  AgenteObjectID?: string;
-  FechaFalta?: string;
-  Categoria?: string;
-  Impacto?: string;
-  Estado?: string;
-  EstadoAprobacion?: FaltaApprovalStatus;
 }
 
 export interface IDatosDashboard {
@@ -633,19 +394,6 @@ export interface IDatosDashboard {
   productividad: IDashboardProductividadItem[];
   faltas: IDashboardFaltaItem[];
   kudos: IKudoListItem[];
-}
-
-export interface IEvaluacionProductividadItem extends IDashboardProductividadItem {
-  Id: number;
-}
-
-export interface IEvaluacionKudoItem extends IKudoListItem {
-  FechaKudo?: string;
-  Atributo?: string;
-}
-
-export interface IEvaluacionFaltaItem extends IDashboardFaltaItem {
-  Id: number;
 }
 
 export interface IDatosEvaluacion {
@@ -659,15 +407,6 @@ export interface IAgenteIdentityFilter {
   name: string;
   email?: string;
   objectId?: string;
-}
-
-export interface ICatalogoItem {
-  Id: number;
-  rawId?: string | number;
-  Title: CatalogCategory;
-  Valor: string;
-  parent_id?: string | number;
-  activo?: boolean;
 }
 
 export interface IConfiguracionMetricas {
@@ -692,31 +431,6 @@ export interface IConfiguracionMetricas {
   PenalidadMedia: number;
   PenalidadCritica: number;
   LimiteDiaPublicacion?: number;
-}
-
-export type PublicacionEmpleadoMesEstado = 'Borrador' | 'Publicado';
-
-export interface IPublicacionEmpleadoMes {
-  Id: number;
-  Title: string;
-  AgenteEmail: string;
-  AgenteNombre: string;
-  PuntosTotales: number;
-  ConceptoKudo: string;
-  Dedicatoria: string;
-  Estado: PublicacionEmpleadoMesEstado;
-  FechaPublicacion: string;
-}
-
-export interface IPublicarEmpleadoMesData {
-  mesAno: string;
-  agenteEmail: string;
-  agenteNombre: string;
-  puntosTotales: number;
-  conceptoKudo: string;
-  dedicatoria: string;
-  estado?: PublicacionEmpleadoMesEstado;
-  fechaPublicacion?: Date;
 }
 
 export type IConfiguracionMetricasUpdate = Pick<
@@ -768,38 +482,6 @@ export class SharePointService {
       evidenciaUrl: publicUrl
     };
 
-    const author = getLocalAuthor();
-    const auditId = generateAuditID();
-    const record: Omit<ILocalFaltaRecord, 'Id'> = {
-      Title: faltaData.agente.trim(),
-      AgenteEmail: normalizeEmail(faltaData.agenteEmail),
-      AgenteObjectID: faltaData.agenteObjectId?.trim() || '',
-      EmailSupervisor: normalizeEmail(faltaData.emailSupervisor),
-      FechaFalta: faltaData.fecha.toISOString(),
-      Categoria: faltaData.categoria.trim(),
-      Subcategoria: faltaData.subcategoria?.trim() || '',
-      SubcategoriaError: faltaData.subcategoria?.trim() || '',
-      CasoRef: faltaData.casoRef?.trim() || '',
-      IdCasoHelpdesk: faltaData.casoRef?.trim() || '',
-      ProcesoArea: faltaData.procesoArea?.trim() || '',
-      ComentariosCapacitacion: faltaData.comentariosCapacitacion?.trim() || '',
-      Comentarios: faltaData.comentarios?.trim() || '',
-      HoraLlegada: faltaData.horaLlegada?.trim() || '',
-      MinutosTardanza: faltaData.minutosTardanza || 0,
-      HorasPerdidas: faltaData.horasPerdidas || 0,
-      OrigenError: faltaData.origenError?.trim() || '',
-      Impacto: faltaData.impacto,
-      Estado: faltaData.estado,
-      EstadoAprobacion: getApprovalStatusForRole(faltaData.rolOriginador),
-      RolOriginador: faltaData.rolOriginador,
-      AuditID: auditId,
-      IdAuditoria: auditId,
-      Author: author,
-      AttachmentData: file ? [toAttachment(file)] : [],
-      SyncStatus: 'Pendiente',
-      UpdatedAt: new Date().toISOString()
-    };
-
     await cloudDbClient.createFalta(faltaConEvidencia);
   }
 
@@ -842,7 +524,7 @@ export class SharePointService {
   }
 
   public async actualizarEstadoAprobacion(
-    id: number,
+    id: number | string,
     estado: Extract<FaltaApprovalStatus, 'Aprobado' | 'Rechazado'>
   ): Promise<void> {
     return cloudDbClient.actualizarEstadoAprobacion(id, estado);
@@ -855,12 +537,12 @@ export class SharePointService {
   ): Promise<IFaltaHistorialItem[]> {
     const { start, end } = normalizeRange(startDate, endDate);
     const expectedAuthor = normalizeEmail(supervisorEmail);
-    const items = await this.database.getAll<ILocalFaltaRecord>(LOCAL_STORES.faltas);
+    const items = await cloudDbClient.getFaltas();
 
     return items.filter((item) =>
       normalizeText(item.Categoria) === normalizeText('Capacitación') &&
       isDateInRange(item.FechaFalta, start, end) &&
-      (!expectedAuthor || normalizeEmail(item.Author?.EMail) === expectedAuthor)
+      (!expectedAuthor || normalizeEmail(item.EmailSupervisor) === expectedAuthor)
     );
   }
 
@@ -1106,19 +788,7 @@ export class SharePointService {
   }
 
   public async ensureConfiguracionCatalogosList(): Promise<void> {
-    const items = await this.database.getAll<ICatalogoItem>(LOCAL_STORES.catalogos);
-
-    if (items.length > 0) {
-      return;
-    }
-
-    for (const item of DEFAULT_CATALOG_ITEMS) {
-      await this.database.add(LOCAL_STORES.catalogos, {
-        Title: item.categoria,
-        Valor: item.valor,
-        SyncStatus: 'Sincronizado'
-      });
-    }
+    await Promise.resolve();
   }
 
   public async getCatalogos(
@@ -1202,12 +872,27 @@ export class SharePointService {
   public async getPublicacionMes(
     mesAno: string
   ): Promise<IPublicacionEmpleadoMes | undefined> {
-    const month = normalizeText(mesAno);
-    const items = await this.database.getAll<IPublicacionEmpleadoMes>(LOCAL_STORES.publicaciones);
+    const period = parseMesAnioText(mesAno);
+    const items = await cloudDbClient.getHistorialEmpleadoMes();
+    const current = items.find((item) =>
+      item.mes === period.mes && item.anio === period.anio
+    );
 
-    return items
-      .filter((item) => normalizeText(item.Title) === month && item.Estado === 'Publicado')
-      .sort((left, right) => right.FechaPublicacion.localeCompare(left.FechaPublicacion))[0];
+    if (!current) {
+      return undefined;
+    }
+
+    return {
+      Id: typeof current.id === 'number' ? current.id : 0,
+      Title: mesAno.trim(),
+      AgenteEmail: current.email_empleado,
+      AgenteNombre: current.nombre_empleado || '',
+      PuntosTotales: 0,
+      ConceptoKudo: '',
+      Dedicatoria: current.dedicatoria || '',
+      Estado: 'Publicado',
+      FechaPublicacion: current.fecha_publicacion || current.created_at || ''
+    };
   }
 
   public async publicarEmpleadoMes(data: IPublicarEmpleadoMesData): Promise<void> {
@@ -1221,6 +906,18 @@ export class SharePointService {
     if (!dedicatoria || dedicatoria.length > 150 || dedicatoria.split(/\r?\n/).length > 2) {
       throw new Error('La dedicatoria debe contener máximo 150 caracteres y dos líneas.');
     }
+
+    const parsed = parseMesAnioText(mesAno);
+    const author = getLocalAuthor();
+    await cloudDbClient.createEmpleadoMesAward({
+      email_empleado: normalizeEmail(data.agenteEmail),
+      nombre_empleado: data.agenteNombre.trim(),
+      mes: parsed.mes,
+      anio: parsed.anio,
+      supervisor_email: author.EMail,
+      supervisor_nombre: author.Title,
+      dedicatoria
+    });
 
     const items = await this.database.getAll<IPublicacionEmpleadoMes>(LOCAL_STORES.publicaciones);
     const existing = items.find((item) => normalizeText(item.Title) === normalizeText(mesAno));
@@ -1246,20 +943,6 @@ export class SharePointService {
       await this.database.add(LOCAL_STORES.publicaciones, record);
     }
 
-    try {
-      const parsed = parseMesAnioText(mesAno);
-      const author = getLocalAuthor();
-      await cloudDbClient.createEmpleadoMesAward({
-        email_empleado: normalizeEmail(data.agenteEmail),
-        nombre_empleado: data.agenteNombre.trim(),
-        mes: parsed.mes,
-        anio: parsed.anio,
-        supervisor_email: author.EMail,
-        supervisor_nombre: author.Title
-      });
-    } catch (err) {
-      console.warn('SharePointService.publicarEmpleadoMes award insert error:', err);
-    }
   }
 
   public async getDatosEvaluacion(

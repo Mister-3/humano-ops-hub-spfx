@@ -14,6 +14,7 @@ import {
 } from '@fluentui/react';
 
 import { cloudDbClient } from '../../../../services/CloudDbClient';
+import type { IEmpleadoDelMes } from '../../../../types';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   type AusenciaType,
@@ -99,15 +100,7 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
   const [fechaFin, setFechaFin] = React.useState<Date>(new Date());
   const [comentarios, setComentarios] = React.useState<string>('');
   const [periodoAnio, setPeriodoAnio] = React.useState<number>(currentYear);
-  const [pendingAwards, setPendingAwards] = React.useState<Array<{
-    id?: number | string;
-    email_empleado: string;
-    nombre_empleado?: string;
-    mes: number;
-    anio: number;
-    dia_libre_reclamado?: boolean;
-    fecha_reclamado?: string;
-  }>>([]);
+  const [pendingAwards, setPendingAwards] = React.useState<IEmpleadoDelMes[]>([]);
   const [isLoadingAwards, setIsLoadingAwards] = React.useState<boolean>(false);
   const [selectedAwardId, setSelectedAwardId] = React.useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
@@ -121,7 +114,7 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
       setSelectedAwardId(undefined);
       cloudDbClient
         .getPremiosEmpleadoMesPendientes(selectedAgent.email)
-        .then((awards: any[]) => {
+        .then((awards) => {
           if (isMounted) {
             setPendingAwards(awards);
             if (awards.length > 0) {

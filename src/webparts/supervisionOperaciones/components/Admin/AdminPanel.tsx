@@ -23,6 +23,7 @@ import SharePointService, {
   type ICatalogoItem,
   type IConfiguracionMetricasUpdate
 } from '../../services/SharePointService';
+import DeleteConfirmModal from '../Common/DeleteConfirmModal';
 import styles from './AdminPanel.module.scss';
 
 export interface IAdminPanelProps {
@@ -159,6 +160,8 @@ const AdminConfiguration: React.FC = () => {
     React.useState<boolean>(false);
   const [deletingCatalogId, setDeletingCatalogId] =
     React.useState<number>();
+  const [catalogItemToDelete, setCatalogItemToDelete] =
+    React.useState<ICatalogoItem | null>(null);
   const [catalogSuccessMessage, setCatalogSuccessMessage] =
     React.useState<string>('');
   const [catalogErrorMessage, setCatalogErrorMessage] =
@@ -438,6 +441,7 @@ const AdminConfiguration: React.FC = () => {
       const updatedItems = await sharePointService.getCatalogos();
 
       setCatalogItems(updatedItems);
+      setCatalogItemToDelete(null);
       setCatalogSuccessMessage(
         `"${item.Valor}" fue eliminado de ${catalogCategoryLabels[item.Title]}.`
       );
@@ -1040,7 +1044,7 @@ const AdminConfiguration: React.FC = () => {
                                 : 'Delete'
                             }}
                             onClick={() => {
-                              removeCatalogItem(item).catch(() => undefined);
+                              setCatalogItemToDelete(item);
                             }}
                             title={`Eliminar ${item.Valor}`}
                           />
@@ -1053,6 +1057,23 @@ const AdminConfiguration: React.FC = () => {
             })}
           </div>
         )}
+
+        <DeleteConfirmModal
+          cancelText="Cancelar"
+          confirmText="Sí, eliminar opción"
+          description={catalogItemToDelete
+            ? `La opción “${catalogItemToDelete.Valor}” se eliminará permanentemente del catálogo en Supabase.`
+            : ''}
+          isDeleting={deletingCatalogId !== undefined}
+          isOpen={Boolean(catalogItemToDelete)}
+          onCancel={() => setCatalogItemToDelete(null)}
+          onConfirm={() => {
+            if (catalogItemToDelete) {
+              return removeCatalogItem(catalogItemToDelete);
+            }
+          }}
+          title="¿Eliminar opción del catálogo?"
+        />
       </Stack>
     </Stack>
   );

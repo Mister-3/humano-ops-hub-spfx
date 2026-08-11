@@ -854,6 +854,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     React.useState<string>('');
   const [itemToDelete, setItemToDelete] = React.useState<IProductividadHistorialItem | null>(null);
   const [isDeletingRecord, setIsDeletingRecord] = React.useState<boolean>(false);
+  const hasLoadedInitialHistoryRef = React.useRef<boolean>(false);
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
   const isAdministrator = userRole === 'Admin' || userRole === 'Master_Admin';
@@ -1246,6 +1247,31 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       setIsLoadingQuery(false);
     }
   };
+
+  React.useEffect(() => {
+    if (
+      hasLoadedInitialHistoryRef.current ||
+      isLoadingTeam ||
+      isLoadingCategories ||
+      isLoadingCategoryDetails ||
+      !startDate ||
+      !endDate ||
+      (!selectedAgent && !selectedScopeKey)
+    ) {
+      return;
+    }
+
+    hasLoadedInitialHistoryRef.current = true;
+    queryRecords().catch(() => undefined);
+  }, [
+    endDate,
+    isLoadingCategories,
+    isLoadingCategoryDetails,
+    isLoadingTeam,
+    selectedAgent,
+    selectedScopeKey,
+    startDate
+  ]);
 
   const getCsvRows = (): Array<Array<string | number>> => {
     switch (moduleType) {

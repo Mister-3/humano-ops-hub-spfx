@@ -314,6 +314,31 @@
   white-space: nowrap;
 }
 
+.topBarControls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.environmentBadge {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.environmentBadgeQa {
+  color: #86efac;
+  background: rgba(22, 101, 52, 0.24);
+  border: 1px solid rgba(34, 197, 94, 0.58);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+}
+
 .userWidget {
   display: inline-flex;
   min-width: 0;
@@ -526,6 +551,11 @@
   .userWidget {
     width: 100%;
     max-width: 100%;
+  }
+
+  .topBarControls {
+    width: 100%;
+    flex-wrap: wrap-reverse;
   }
 
   .workspaceLayout {
