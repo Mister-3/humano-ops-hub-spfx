@@ -1,5 +1,25 @@
 import type { ILocalEntity } from '../services/IndexedDbAdapter';
 
+export type {
+  EndToEndFlow,
+  EndToEndIssueLevel,
+  EndToEndSeverity,
+  EndToEndStage,
+  IEndToEndAnalyzedRow,
+  IEndToEndCapabilities,
+  IEndToEndClosure,
+  IEndToEndGroup,
+  IEndToEndIssue,
+  IEndToEndNormalizedRow,
+  IEndToEndParsedReport,
+  IEndToEndReportAction,
+  IEndToEndRowSource,
+  IEndToEndSlaResult,
+  IEndToEndSnapshot,
+  IEndToEndValidationSummary,
+  IEndToEndVersionConflict
+} from './endToEnd';
+
 export type RoleType =
   | 'Master_Admin'
   | 'Admin'

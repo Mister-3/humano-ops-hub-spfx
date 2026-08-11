@@ -13,6 +13,7 @@ export type AppModuleKey =
   | 'productividad'
   | 'Ocupacion'
   | 'mejoras'
+  | 'endToEnd'
   | 'userAdmin'
   | 'admin';
 
@@ -63,6 +64,11 @@ export const defaultSidebarItems: ReadonlyArray<ISidebarNavItem> = [
     key: 'mejoras',
     label: 'Iniciativas & Mejoras',
     iconName: 'Lightbulb'
+  },
+  {
+    key: 'endToEnd',
+    label: 'Análisis End-to-End',
+    iconName: 'Processing'
   },
   {
     key: 'userAdmin',

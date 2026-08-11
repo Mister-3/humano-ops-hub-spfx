@@ -34,6 +34,7 @@ import { HumanoOpsLogo } from './Brand/HumanoOpsLogo';
 import Dashboard from './Dashboard/Dashboard';
 import { ErrorBoundary } from './ErrorBoundary/ErrorBoundary';
 import EvaluacionRendimiento from './EvaluacionRendimiento/EvaluacionRendimiento';
+import EndToEndView from './EndToEnd/EndToEndView';
 import FaltasForm from './Faltas/FaltasForm';
 import KudosForm from './Kudos/KudosForm';
 import {
@@ -466,6 +467,14 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             currentUserEmail={currentUser.email}
             currentUserName={currentUser.displayName}
             userRole={currentUser.rol}
+          />
+        );
+
+      case 'endToEnd':
+        return (
+          <EndToEndView
+            currentUserEmail={currentUser.email}
+            currentUserName={currentUser.displayName}
           />
         );
 

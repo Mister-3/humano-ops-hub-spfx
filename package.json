@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "test": "node --experimental-strip-types src/modules/endToEnd/endToEndDomain.test.mts",
+    "test:end-to-end-reference": "node --experimental-strip-types scripts/analyze-end-to-end-reference.mts",
     "build": "tsc -p tsconfig.app.json && vite build",
     "build:vercel": "npm run build",
     "generate:appdb": "node scripts/generate-app-db.mjs",
