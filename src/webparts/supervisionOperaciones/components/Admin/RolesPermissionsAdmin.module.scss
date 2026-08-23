@@ -1,0 +1,62 @@
+.panel {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  color: #f8fafc;
+  background: rgb(15 23 42 / 95%);
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(12px);
+}
+
+.header { display: flex; align-items: center; gap: 1rem; }
+.header h3, .usersSection h4 { margin: 0; color: #fff; font-size: 1.25rem; }
+.header p, .usersSection p, .roleSelector p { margin: .3rem 0 0; color: #94a3b8; font-size: .85rem; }
+.headerIcon { display: grid; place-items: center; width: 3rem; height: 3rem; color: #60a5fa; background: rgb(30 58 138 / 45%); border: 1px solid #1e40af; border-radius: .75rem; font-size: 1.25rem; }
+
+.success, .error { padding: .8rem 1rem; border-radius: .75rem; font-size: .9rem; }
+.success { color: #6ee7b7; background: rgb(6 78 59 / 45%); border: 1px solid #065f46; }
+.error { color: #fda4af; background: rgb(76 5 25 / 45%); border: 1px solid #9f1239; }
+.toast { position: fixed; z-index: 2100; top: 1.25rem; right: 1.25rem; display: flex; align-items: center; gap: .55rem; width: min(28rem, calc(100vw - 2rem)); padding: .9rem 1rem; color: #a7f3d0; background: rgb(6 78 59 / 95%); border: 1px solid #059669; border-radius: .85rem; box-shadow: 0 20px 45px rgb(0 0 0 / 45%); }
+.modalError { padding: .75rem .9rem; color: #fda4af; background: rgb(76 5 25 / 65%); border: 1px solid #9f1239; border-radius: .75rem; font-size: .82rem; }
+.adminNotice { padding: .8rem 1rem; color: #fde68a; background: rgb(120 53 15 / 25%); border: 1px solid #92400e; border-radius: .75rem; font-size: .82rem; line-height: 1.45; }
+
+.roleSelector { display: grid; gap: .45rem; }
+.roleSelector label { color: #cbd5e1; font-weight: 700; font-size: .85rem; }
+.roleSelectorRow { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.roleSelector select { width: min(28rem, 100%); padding: .7rem .85rem; color: #fff; background: rgb(15 23 42 / 90%); border: 1px solid #1e293b; border-radius: .75rem; }
+.option { color: #fff; background: #0f172a; }
+
+.permissionGroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1rem; align-items: start; }
+.permissionGroup { display: grid; gap: .55rem; min-width: 0; padding: 1rem; background: rgb(2 6 23 / 55%); border: 1px solid #1e293b; border-radius: .9rem; }
+.permissionGroup legend { padding: 0 .35rem; color: #93c5fd; font-weight: 800; }
+.permissionGroup legend small { margin-left: .35rem; color: #94a3b8; font-size: .7rem; font-weight: 700; }
+.permissionRow { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: .65rem; padding: .65rem; border-radius: .65rem; cursor: pointer; }
+.permissionRow:hover { background: rgb(30 41 59 / 70%); }
+.permissionRow input, .userRoles input { margin-top: .15rem; accent-color: #2563eb; }
+.permissionRow span { display: grid; gap: .18rem; }
+.permissionRow strong { color: #e2e8f0; font-size: .85rem; }
+.permissionRow small { color: #94a3b8; line-height: 1.35; }
+.permissionRow em { color: #94a3b8; font-size: .68rem; font-style: normal; text-transform: uppercase; }
+
+.actions { display: flex; justify-content: flex-end; }
+.primaryButton, .secondaryButton { padding: .7rem 1rem; color: #fff; border-radius: .75rem; font-weight: 700; cursor: pointer; }
+.primaryButton { background: #2563eb; border: 1px solid #3b82f6; }
+.secondaryButton { background: #1e293b; border: 1px solid #334155; }
+.primaryButton:disabled, .secondaryButton:disabled { opacity: .55; cursor: wait; }
+
+.usersSection { display: grid; gap: 1rem; padding-top: 1.25rem; border-top: 1px solid #1e293b; }
+.usersGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: .8rem; }
+.userCard { display: grid; gap: .8rem; padding: 1rem; background: rgb(2 6 23 / 55%); border: 1px solid #1e293b; border-radius: .9rem; }
+.userCard > div:first-child { display: grid; gap: .2rem; }
+.userCard small { color: #94a3b8; }
+.userRoles { display: flex; flex-wrap: wrap; gap: .55rem .9rem; }
+.userRoles label { display: flex; align-items: center; gap: .35rem; color: #cbd5e1; font-size: .8rem; }
+
+@media (max-width: 640px) {
+  .panel { padding: 1rem; }
+  .permissionGroups, .usersGrid { grid-template-columns: 1fr; }
+  .permissionRow { grid-template-columns: auto 1fr; }
+  .permissionRow em { grid-column: 2; }
+}

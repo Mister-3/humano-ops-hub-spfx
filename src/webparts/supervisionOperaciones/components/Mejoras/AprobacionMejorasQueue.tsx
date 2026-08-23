@@ -69,7 +69,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
     setErrorMessage('');
     try {
       const data = await improvementsRepository.list();
-      const pending = data.filter((it) => it.estado_ciclo === 'En Revision');
+      const pending = data.filter((it: ISolicitudMejora) => it.estado_ciclo === 'En Revision');
       setQueueItems(pending);
     } catch (err) {
       console.error('Error al cargar la cola de aprobación de mejoras:', err);

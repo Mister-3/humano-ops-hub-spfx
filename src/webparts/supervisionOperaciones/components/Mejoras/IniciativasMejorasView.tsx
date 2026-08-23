@@ -468,7 +468,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
               value={statusFilter}
             >
               <option className={OPTION_CLASS} value="">Todos los estados</option>
-              {INITIATIVE_STATUSES.map((value) => (
+              {INITIATIVE_STATUSES.map((value: InitiativeLifecycleStatus) => (
                 <option className={OPTION_CLASS} key={value} value={value}>
                   {value}
                 </option>
@@ -481,7 +481,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
               value={priorityFilter}
             >
               <option className={OPTION_CLASS} value="">Todas las prioridades</option>
-              {INITIATIVE_PRIORITIES.map((value) => (
+              {INITIATIVE_PRIORITIES.map((value: InitiativePriority) => (
                 <option className={OPTION_CLASS} key={value} value={value}>
                   {value === 'Critica' ? 'Crítica' : value}
                 </option>
@@ -608,7 +608,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                     onChange={(event) => setModulo(event.target.value)}
                     value={modulo}
                   >
-                    {INITIATIVE_MODULES.map((value) => (
+                    {INITIATIVE_MODULES.map((value: string) => (
                       <option className={OPTION_CLASS} key={value} value={value}>
                         {value}
                       </option>
@@ -622,7 +622,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                     onChange={(event) => setPrioridad(event.target.value as InitiativePriority)}
                     value={prioridad}
                   >
-                    {INITIATIVE_PRIORITIES.map((value) => (
+                    {INITIATIVE_PRIORITIES.map((value: InitiativePriority) => (
                       <option className={OPTION_CLASS} key={value} value={value}>
                         {value === 'Critica' ? 'Crítica' : value}
                       </option>
@@ -636,7 +636,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                     onChange={(event) => setEstado(event.target.value as InitiativeLifecycleStatus)}
                     value={estado}
                   >
-                    {INITIATIVE_STATUSES.map((value) => (
+                    {INITIATIVE_STATUSES.map((value: InitiativeLifecycleStatus) => (
                       <option className={OPTION_CLASS} key={value} value={value}>
                         {value}
                       </option>
