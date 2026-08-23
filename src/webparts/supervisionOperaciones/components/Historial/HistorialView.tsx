@@ -17,6 +17,7 @@ import {
 } from '@fluentui/react';
 
 import type { RoleType } from '../../models/AppModels';
+import { useRBAC } from '../../../../auth/RBACContext';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   deduplicateKudos,
@@ -820,6 +821,8 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
   moduleType,
   userRole
 }) => {
+  const { hasPermission } = useRBAC();
+  const canDeleteProductivity = hasPermission('modulo:productividad:eliminar');
   const [startDate, setStartDate] = React.useState<Date | undefined>(
     getInitialStartDate()
   );
@@ -857,12 +860,11 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
   const hasLoadedInitialHistoryRef = React.useRef<boolean>(false);
   const sharePointService = React.useMemo(() => new SharePointService(), []);
 
-  const isAdministrator = userRole === 'Admin' || userRole === 'Master_Admin';
+  const isAdministrator = userRole === 'Admin';
   const hasTeamScope = userRole === 'Supervisor' ||
     userRole === 'Gerente' ||
-    userRole === 'Asistente' ||
-    userRole === 'Analista';
-  const isRestrictedToSelf = userRole === 'Oficial';
+    userRole === 'Asistente';
+  const isRestrictedToSelf = userRole === 'Agente';
   const scopeOptions = React.useMemo(
     (): ReadonlyArray<IAgentComboBoxScopeOption> => {
       if (isAdministrator) {
@@ -1074,6 +1076,11 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
 
   const confirmDeleteProductividad = React.useCallback(async (): Promise<void> => {
     if (!itemToDelete) return;
+    if (!canDeleteProductivity) {
+      setErrorMessage('No posee permiso para eliminar productividad.');
+      setItemToDelete(null);
+      return;
+    }
     setIsDeletingRecord(true);
     setErrorMessage('');
     setSuccessMessage('');
@@ -1089,7 +1096,7 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
     } finally {
       setIsDeletingRecord(false);
     }
-  }, [itemToDelete, sharePointService]);
+  }, [canDeleteProductivity, itemToDelete, sharePointService]);
 
   const columns = React.useMemo((): IColumn[] => {
     switch (moduleType) {
@@ -1098,9 +1105,9 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
       case 'kudos':
         return createKudosColumns();
       case 'productividad':
-        return createProductividadColumns(isAdministrator, handleDeleteProductividadRecord);
+        return createProductividadColumns(canDeleteProductivity, handleDeleteProductividadRecord);
     }
-  }, [moduleType, isAdministrator, handleDeleteProductividadRecord]);
+  }, [canDeleteProductivity, moduleType, handleDeleteProductividadRecord]);
 
   const getRecords = async (
     normalizedStart: Date,

@@ -15,7 +15,7 @@ export interface IEndToEndClipboardPayload {
 const SEVERITY_LABELS: Record<IEndToEndGroup['severity'], string> = {
   verde: 'Cumple / < 4 h',
   amarillo: 'Atención · 4–6 h',
-  naranja: 'Prioridad · 6–8 h',
+  naranja: 'Crítica · 6–<8 h',
   rojo: 'Vencida / incumplida',
   gris: 'Excluida',
   error: 'Error de datos'

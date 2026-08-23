@@ -13,6 +13,7 @@ import type {
 
 export const END_TO_END_TIME_ZONE = 'America/Santo_Domingo';
 export const END_TO_END_SLA_MINUTES = 8 * 60;
+export const END_TO_END_CRITICAL_MINUTES = 6 * 60;
 
 export const DEFAULT_END_TO_END_CAPABILITIES: Readonly<IEndToEndCapabilities> = {
   canImport: true,
@@ -347,7 +348,7 @@ const severityFor = (
   if (excluded) return 'gris';
   if (completed) return consumedMinutes <= END_TO_END_SLA_MINUTES ? 'verde' : 'rojo';
   if (consumedMinutes >= END_TO_END_SLA_MINUTES) return 'rojo';
-  if (consumedMinutes >= 6 * 60) return 'naranja';
+  if (consumedMinutes >= END_TO_END_CRITICAL_MINUTES) return 'naranja';
   if (consumedMinutes >= 4 * 60) return 'amarillo';
   return 'verde';
 };
@@ -508,6 +509,17 @@ export const groupEndToEndRows = (
     return left.radicacion.localeCompare(right.radicacion, 'es', { numeric: true });
   });
 };
+
+/**
+ * Una radicación crítica es exclusivamente naranja: su peor fila aplicable
+ * consumió desde 6 horas inclusive y todavía no alcanzó las 8 horas.
+ */
+export const isCriticalEndToEndGroup = (
+  group: IEndToEndGroup
+): boolean => group.severity === 'naranja' &&
+  group.consumedMinutes !== undefined &&
+  group.consumedMinutes >= END_TO_END_CRITICAL_MINUTES &&
+  group.consumedMinutes < END_TO_END_SLA_MINUTES;
 
 export const formatSantoDomingoDateTime = (value?: string | Date): string => {
   if (!value) return '—';

@@ -13,7 +13,8 @@ import {
   ThemeProvider
 } from '@fluentui/react';
 
-import type { IUsuario, RoleType } from '../models/AppModels';
+import type { IUsuario } from '../models/AppModels';
+import { useRBAC } from '../../../auth/RBACContext';
 import { supabaseEnvironment } from '../../../services/supabase';
 import type GraphService from '../services/GraphService';
 import type { IDirectReport } from '../services/GraphService';
@@ -33,6 +34,7 @@ import PlanificacionSemanal from './Ausencias/PlanificacionSemanal';
 import { HumanoOpsLogo } from './Brand/HumanoOpsLogo';
 import Dashboard from './Dashboard/Dashboard';
 import { ErrorBoundary } from './ErrorBoundary/ErrorBoundary';
+import { NoAccessMessage } from './Common/PermissionGuard';
 import EvaluacionRendimiento from './EvaluacionRendimiento/EvaluacionRendimiento';
 import EndToEndView from './EndToEnd/EndToEndView';
 import FaltasForm from './Faltas/FaltasForm';
@@ -44,7 +46,7 @@ import {
   SidebarNav
 } from './Navigation/SidebarNav';
 import SupervisorTimeView from './Ocupacion/SupervisorTimeView';
-import MejorasView from './Mejoras/MejorasView';
+import IniciativasMejorasView from './Mejoras/IniciativasMejorasView';
 import ProductividadForm from './Productividad/ProductividadForm';
 import styles from './SupervisionOperaciones.module.scss';
 
@@ -58,44 +60,24 @@ export interface ISupervisionOperacionesProps {
   onSignOut: () => void;
 }
 
-const isMasterAdminRole = (role?: string): boolean => {
-  if (!role) return false;
-  const normalized = role.trim().toLowerCase().replace(/[\s_-]+/g, '_');
-  return normalized === 'master_admin';
+const MODULE_VIEW_PERMISSIONS: Record<AppModuleKey, ReadonlyArray<string>> = {
+  dashboard: ['modulo:dashboard:ver'],
+  Evaluacion: ['modulo:evaluacion:ver'],
+  faltas: ['modulo:faltas:ver', 'modulo:ausencias:ver'],
+  kudos: ['modulo:kudos:ver'],
+  productividad: ['modulo:productividad:ver'],
+  Ocupacion: ['modulo:ocupacion:ver'],
+  mejoras: ['modulo:iniciativas:ver'],
+  iniciativas: ['modulo:iniciativas:ver'],
+  oportunidades: ['modulo:iniciativas:ver'],
+  solicitudes_mejora: ['modulo:iniciativas:ver'],
+  endToEnd: ['modulo:end_to_end:ver'],
+  userAdmin: [
+    'modulo:admin:gestionar_usuarios',
+    'modulo:admin:gestionar_permisos'
+  ],
+  admin: ['modulo:admin:ver']
 };
-
-const canAccessModule = (
-  moduleKey: AppModuleKey,
-  userRole: RoleType
-): boolean => {
-  if (isMasterAdminRole(userRole)) {
-    return true;
-  }
-
-  const normalized = String(userRole || '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
-
-  if (moduleKey === 'userAdmin') {
-    return false;
-  }
-
-  if (moduleKey === 'admin') {
-    return normalized === 'admin';
-  }
-
-  if (moduleKey === 'productividad' || moduleKey === 'Ocupacion') {
-    return normalized === 'admin' ||
-      normalized === 'gerente' ||
-      normalized === 'supervisor';
-  }
-
-  return true;
-};
-
-const getNavigationItems = (
-  userRole: RoleType
-): ReadonlyArray<ISidebarNavItem> => defaultSidebarItems.filter(
-  (item) => canAccessModule(item.key, userRole)
-);
 
 const includeCurrentUserInScope = (
   users: ReadonlyArray<IDirectReport>,
@@ -169,6 +151,12 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   onChangePassword,
   onSignOut
 }) => {
+  const {
+    error: rbacError,
+    hasAnyPermission,
+    hasPermission,
+    loading: isRBACLoading
+  } = useRBAC();
   const [usuario, setUsuario] = React.useState<IUsuario | null>(currentUser);
   const [isLoading] = React.useState<boolean>(false);
   const [errorMessage] = React.useState<string | null>(null);
@@ -196,11 +184,17 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
     setUsuario(currentUser);
   }, [currentUser]);
 
+  const canAccessModule = React.useCallback((moduleKey: AppModuleKey): boolean =>
+    hasAnyPermission(MODULE_VIEW_PERMISSIONS[moduleKey]), [hasAnyPermission]);
+  const navigationItems = React.useMemo<ReadonlyArray<ISidebarNavItem>>(() =>
+    defaultSidebarItems.filter((item) => canAccessModule(item.key)), [canAccessModule]);
+
   React.useEffect(() => {
-    if (usuario && !canAccessModule(activeModule, usuario.rol)) {
-      setActiveModule('dashboard');
+    if (!isRBACLoading && usuario && !canAccessModule(activeModule)) {
+      const firstAllowedModule = navigationItems[0]?.key;
+      if (firstAllowedModule) setActiveModule(firstAllowedModule);
     }
-  }, [activeModule, usuario]);
+  }, [activeModule, canAccessModule, isRBACLoading, navigationItems, usuario]);
 
   React.useEffect(() => {
     if (!usuario) {
@@ -222,10 +216,10 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           usuario.rol
         );
         const userRoleStr = (usuario.rol || '').toString().toLowerCase();
-        const isAgent = userRoleStr === 'agente' || userRoleStr === 'oficial';
+        const isAgent = userRoleStr === 'agente';
         const scopedUsers = isAgent
           ? includeCurrentUserInScope([], usuario)
-          : usuario.rol === 'Asistente' || usuario.rol === 'Analista'
+          : usuario.rol === 'Asistente'
             ? includeCurrentUserInScope(resolvedUsers, usuario)
             : resolvedUsers;
 
@@ -321,6 +315,10 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   };
 
   const renderActiveModule = (currentUser: IUsuario): React.ReactElement => {
+    if (!canAccessModule(activeModule)) {
+      return <NoAccessMessage detail="No posees el permiso de vista requerido para este módulo." />;
+    }
+
     switch (activeModule) {
       case 'dashboard':
         if (isLoadingVisibleAgents) {
@@ -342,7 +340,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           <Dashboard
             availableAgents={visibleAgents}
             hasGlobalScope={
-              currentUser.rol === 'Master_Admin' || currentUser.rol === 'Admin'
+              currentUser.rol === 'Admin' || currentUser.rol === 'Gerente'
             }
           />
         );
@@ -385,8 +383,8 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             aria-label="Vistas de Registro Operativo"
             className={styles.operationalPivot}
           >
-            <PivotItem
-              headerText="➕ Registro Operativo / Faltas"
+            {hasPermission('modulo:faltas:ver') && <PivotItem
+              headerText="Oportunidades operativas"
               itemKey="faltas"
             >
               <FaltasForm
@@ -396,10 +394,10 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
                 isLoadingAgents={isLoadingVisibleAgents}
                 userRole={currentUser.rol}
               />
-            </PivotItem>
+            </PivotItem>}
 
-            <PivotItem
-              headerText="🌴 Registrar Ausencia / Vacaciones"
+            {hasPermission('modulo:ausencias:ver') && <PivotItem
+              headerText="Registrar ausencia"
               itemKey="ausencias"
             >
               <AusenciasForm
@@ -409,17 +407,17 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
                   setAbsenceRefreshVersion((current) => current + 1);
                 }}
               />
-            </PivotItem>
+            </PivotItem>}
 
-            <PivotItem
-              headerText="📅 Planificación Semanal de Trabajo"
+            {hasPermission('modulo:ausencias:ver') && <PivotItem
+              headerText="Planificación semanal"
               itemKey="planificacion"
             >
               <PlanificacionSemanal
                 availableAgents={visibleAgents}
                 isLoadingAgents={isLoadingVisibleAgents}
               />
-            </PivotItem>
+            </PivotItem>}
           </Pivot>
         );
 
@@ -435,7 +433,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
         );
 
       case 'productividad':
-        return canAccessModule('productividad', currentUser.rol) ? (
+        return (
           <ProductividadForm
             availableAgents={visibleAgents}
             currentUserEmail={currentUser.email}
@@ -443,27 +441,22 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
             isLoadingAgents={isLoadingVisibleAgents}
             userRole={currentUser.rol}
           />
-        ) : (
-          <MessageBar messageBarType={MessageBarType.blocked}>
-            No tiene permisos para acceder al módulo de Productividad.
-          </MessageBar>
         );
 
       case 'Ocupacion':
-        return canAccessModule('Ocupacion', currentUser.rol) ? (
+        return (
           <SupervisorTimeView
             currentUserEmail={currentUser.email}
             graphService={graphService}
           />
-        ) : (
-          <MessageBar messageBarType={MessageBarType.blocked}>
-            No tiene permisos para acceder a Ocupación del Supervisor.
-          </MessageBar>
         );
 
+      case 'iniciativas':
       case 'mejoras':
+      case 'oportunidades':
+      case 'solicitudes_mejora':
         return (
-          <MejorasView
+          <IniciativasMejorasView
             currentUserEmail={currentUser.email}
             currentUserName={currentUser.displayName}
             userRole={currentUser.rol}
@@ -479,7 +472,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
         );
 
       case 'admin':
-        return <AdminPanel userRole={currentUser.rol} />;
+        return <AdminPanel />;
 
       case 'userAdmin':
         return <UserAdminPanel />;
@@ -487,7 +480,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   };
 
   const renderContent = (): React.ReactElement => {
-    if (isLoading) {
+    if (isLoading || isRBACLoading) {
       return (
         <Stack
           className={styles.stateContainer}
@@ -496,9 +489,21 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
         >
           <Stack className={styles.stateCard} styles={glowCardStyles}>
             <Spinner
-              label="Cargando identidad de Microsoft 365..."
+              label={isRBACLoading ? 'Cargando permisos de acceso...' : 'Cargando identidad...'}
               size={SpinnerSize.large}
             />
+          </Stack>
+        </Stack>
+      );
+    }
+
+    if (rbacError) {
+      return (
+        <Stack className={styles.stateContainer} horizontalAlign="center" verticalAlign="center">
+          <Stack className={styles.stateCard} styles={glowCardStyles}>
+            <MessageBar messageBarType={MessageBarType.error}>
+              {rbacError} Aplica la migración RBAC incluida antes de continuar.
+            </MessageBar>
           </Stack>
         </Stack>
       );
@@ -520,7 +525,6 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
       );
     }
 
-    const navigationItems = getNavigationItems(usuario.rol);
     const currentNavigationItem = navigationItems.find(
       (item) => item.key === activeModule
     ) || navigationItems[0];
@@ -630,7 +634,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           >
             <div className={styles.moduleHeader}>
               <span className={styles.moduleHeaderIcon} aria-hidden="true">
-                <Icon iconName={currentNavigationItem.iconName} />
+                <Icon iconName={currentNavigationItem?.iconName || 'Blocked2'} />
               </span>
               <h2
                 className={styles.moduleHeaderTitle}
@@ -638,7 +642,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
                 ref={moduleHeadingRef}
                 tabIndex={-1}
               >
-                {currentNavigationItem.label}
+                {currentNavigationItem?.label || 'Acceso restringido'}
               </h2>
             </div>
 

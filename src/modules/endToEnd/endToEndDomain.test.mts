@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import test from 'node:test';
 
 import {
@@ -12,6 +13,7 @@ import {
   getRetentionCutoff,
   groupEndToEndRows,
   isApiEmissionUser,
+  isCriticalEndToEndGroup,
   parseGenerationDateTime,
   parseProcessDateTime,
   parseRadicationDateTime,
@@ -117,6 +119,28 @@ test('semáforo aplica límites exactos de 4, 6 y 8 horas', () => {
   assert.equal(calculateEndToEndSla(baseRow(), generation, []).severity, 'amarillo');
   assert.equal(calculateEndToEndSla(baseRow(), createSantoDomingoDate(2026, 8, 10, 14), []).severity, 'naranja');
   assert.equal(calculateEndToEndSla(baseRow(), createSantoDomingoDate(2026, 8, 10, 16), []).severity, 'rojo');
+});
+
+test('Críticas excluye 5h59 y 8h, e incluye 6h y 7h59', () => {
+  const groupAt = (minutes: number) => groupEndToEndRows(analyzeEndToEndRows(
+    [baseRow()],
+    new Date(createSantoDomingoDate(2026, 8, 10, 8).getTime() + minutes * 60000),
+    []
+  ))[0];
+
+  const before = groupAt(5 * 60 + 59);
+  const lowerBound = groupAt(6 * 60);
+  const upperBound = groupAt(7 * 60 + 59);
+  const expired = groupAt(8 * 60);
+
+  assert.equal(before.severity, 'amarillo');
+  assert.equal(isCriticalEndToEndGroup(before), false);
+  assert.equal(lowerBound.severity, 'naranja');
+  assert.equal(isCriticalEndToEndGroup(lowerBound), true);
+  assert.equal(upperBound.severity, 'naranja');
+  assert.equal(isCriticalEndToEndGroup(upperBound), true);
+  assert.equal(expired.severity, 'rojo');
+  assert.equal(isCriticalEndToEndGroup(expired), false);
 });
 
 test('completada exactamente a ocho horas cumple', () => {
@@ -277,15 +301,15 @@ test('copiado termina antes de auditar y las columnas sensibles son opt-in', asy
 
 test('tarjetas y gráficos aplican filtros combinados a la tabla', () => {
   const groups = groupEndToEndRows(analyzeEndToEndRows([
-    baseRow({ radicacion: '1001', radicacionAt: iso(2026, 8, 10, 8) }),
+    baseRow({ radicacion: '1001', radicacionAt: iso(2026, 8, 10, 10) }),
     baseRow({
       rowNumber: 13,
       radicacion: '1002',
-      radicacionAt: iso(2026, 8, 7, 8),
+      radicacionAt: iso(2026, 8, 10, 8),
       canal: 'OFICINA VIRTUAL',
       modalidad: 'Automatica'
     })
-  ], createSantoDomingoDate(2026, 8, 10, 12), []));
+  ], createSantoDomingoDate(2026, 8, 10, 14), []));
 
   assert.deepEqual(applyEndToEndFilters(groups, {
     ...EMPTY_END_TO_END_FILTERS,
@@ -295,4 +319,19 @@ test('tarjetas y gráficos aplican filtros combinados a la tabla', () => {
     ...EMPTY_END_TO_END_FILTERS,
     priority: 'officeAutomatic'
   }).map((group) => group.radicacion), ['1002']);
+});
+
+test('migración incremental aísla datos por auth.uid y permite hash por propietario', async () => {
+  const migration = await fs.readFile(new URL(
+    '../../../supabase/migrations/202608190001_end_to_end_user_isolation.sql',
+    import.meta.url
+  ), 'utf8');
+
+  assert.match(migration, /owner_id uuid references auth\.users\(id\)/);
+  assert.match(migration, /owner_id = auth\.uid\(\)/);
+  assert.match(migration, /e2e_snapshots_owner_hash_unique_idx/);
+  assert.match(migration, /on public\.e2e_snapshots \(owner_id, file_hash\)/);
+  assert.match(migration, /revoke all on public\.%I from anon/);
+  assert.match(migration, /e2e_cancellation_aliases_shared_read/);
+  assert.match(migration, /e2e_non_working_periods_shared_read/);
 });

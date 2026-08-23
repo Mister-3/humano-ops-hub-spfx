@@ -27,7 +27,7 @@ interface IAuthContextValue {
   listUsers: () => Promise<Array<IAppUserRecord & { Id: number }>>;
   authorizeUser: (
     userId: number,
-    role: Extract<AppUserRole, 'Admin' | 'Supervisor' | 'Asistente'>
+    role: AppUserRole
   ) => Promise<IUserAuthorizationResult>;
 }
 
@@ -81,8 +81,9 @@ export const AuthProvider: React.FC<IAuthProviderProps> = ({
     requestMasterAdminRecovery: (recoveryEmail) =>
       service.requestMasterAdminRecovery(recoveryEmail),
     signOut: async () => {
-      await service.signOut();
+      // Desmonta inmediatamente toda UI y estado del usuario anterior.
       setCurrentUser(null);
+      await service.signOut();
     },
     refreshCurrentUser: async () => {
       setCurrentUser(await service.restoreSession());

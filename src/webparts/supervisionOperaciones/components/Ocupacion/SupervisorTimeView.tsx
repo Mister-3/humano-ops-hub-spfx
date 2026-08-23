@@ -15,6 +15,7 @@ import {
 } from '@fluentui/react';
 
 import type GraphService from '../../services/GraphService';
+import { useRBAC } from '../../../../auth/RBACContext';
 import SharePointService, {
   type IRegistrarLlamadaFlotaData
 } from '../../services/SharePointService';
@@ -189,6 +190,8 @@ const SupervisorTimeView: React.FC<ISupervisorTimeViewProps> = ({
   currentUserEmail,
   graphService
 }) => {
+  const { hasPermission } = useRBAC();
+  const canRegisterOccupation = hasPermission('modulo:ocupacion:registrar');
   const [filterMode, setFilterMode] =
     React.useState<DateFilterMode>('day');
   const [startDate, setStartDate] = React.useState<Date>(new Date());
@@ -282,6 +285,11 @@ const SupervisorTimeView: React.FC<ISupervisorTimeViewProps> = ({
   const submitFleetCall = async (): Promise<void> => {
     setCallSuccess('');
     setCallError('');
+
+    if (!canRegisterOccupation) {
+      setCallError('No posee permiso para registrar ocupación.');
+      return;
+    }
 
     const normalizedCase = casoContacto.trim();
     const callDateTime = combineDateAndTime(callDate, callTime);
@@ -579,7 +587,7 @@ const SupervisorTimeView: React.FC<ISupervisorTimeViewProps> = ({
 
         <div className={styles.formGrid}>
           <TextField
-            disabled={isSavingCall}
+            disabled={!canRegisterOccupation || isSavingCall}
             label="Caso / Contacto"
             onChange={(_, value) => setCasoContacto(value || '')}
             placeholder="ID del caso o nombre del contacto"

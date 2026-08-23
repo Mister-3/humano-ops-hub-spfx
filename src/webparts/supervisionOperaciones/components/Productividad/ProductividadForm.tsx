@@ -3,8 +3,6 @@ import {
   DatePicker,
   MessageBar,
   MessageBarType,
-  Pivot,
-  PivotItem,
   PrimaryButton,
   SpinButton,
   Spinner,
@@ -12,14 +10,25 @@ import {
   Stack,
   Text
 } from '@fluentui/react';
+import {
+  Activity,
+  FilePlus2,
+  History,
+  IdCard,
+  PackageOpen,
+  RefreshCw,
+  ScanLine
+} from 'lucide-react';
 
 import type { IDirectReport } from '../../services/GraphService';
+import { useRBAC } from '../../../../auth/RBACContext';
 import type { RoleType } from '../../models/AppModels';
 import SharePointService, {
   type IRegistrarProductividadData
 } from '../../services/SharePointService';
 import { getWorkingDaysCount } from '../../utils';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
+import { KpiCard, PageHeader, StatusBadge, SurfaceCard } from '../Common';
 import HistorialView from '../Historial/HistorialView';
 import styles from './ProductividadForm.module.scss';
 
@@ -54,6 +63,7 @@ interface IDailyProductivityGoals {
 }
 
 type ProductivityMetricKey = keyof IProductivityMetrics;
+type ProductivityViewKey = 'nuevo' | 'historial';
 
 const EMPTY_METRICS: IProductivityMetrics = {
   casosAtendidos: 0,
@@ -116,9 +126,13 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
   isLoadingAgents = false,
   userRole
 }) => {
+  const { hasPermission } = useRBAC();
+  const canRegisterProductivity = hasPermission('modulo:productividad:registrar');
   const [selectedAgent, setSelectedAgent] = React.useState<
     IDirectReport | undefined
   >();
+  const [activeView, setActiveView] =
+    React.useState<ProductivityViewKey>('nuevo');
   const [fechaInicio, setFechaInicio] = React.useState<Date | null>(getYesterday());
   const [fechaFin, setFechaFin] = React.useState<Date | null>(getYesterday());
   const [metrics, setMetrics] = React.useState<IProductivityMetrics>({
@@ -223,6 +237,11 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
     setSuccessMessage('');
     setErrorMessage('');
 
+    if (!canRegisterProductivity) {
+      setErrorMessage('No posee permiso para registrar productividad.');
+      return;
+    }
+
     const numericValues = Object.keys(metrics).map(
       (key) => metrics[key as ProductivityMetricKey]
     );
@@ -315,18 +334,53 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
   const hasCurrentDaySelected = isSameDayOrFuture(fechaInicio) || isSameDayOrFuture(fechaFin);
 
   return (
-    <Pivot className={styles.modulePivot} aria-label="Vistas del módulo de productividad">
-      <PivotItem headerText="➕ Nuevo Registro" itemKey="nuevo">
+    <div className="space-y-6">
+      <PageHeader
+        action={(
+          <button
+            className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition-colors hover:bg-cyan-500"
+            onClick={() => setActiveView('nuevo')}
+            type="button"
+          >
+            <FilePlus2 aria-hidden="true" size={18} />
+            Nuevo registro
+          </button>
+        )}
+        icon={<Activity aria-hidden="true" size={24} />}
+        subtitle="Captura resultados operativos por período y visualiza las cuotas esperadas sin alterar las reglas de cálculo."
+        title="Productividad Operativa"
+      />
+
+      <nav
+        aria-label="Vistas de productividad"
+        className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2 shadow-lg"
+      >
+        {([
+          { key: 'nuevo' as const, label: 'Nuevo registro', icon: FilePlus2 },
+          { key: 'historial' as const, label: 'Historial y consultas', icon: History }
+        ]).map((tab) => {
+          const TabIcon = tab.icon;
+          const isActive = activeView === tab.key;
+          return (
+            <button
+              aria-current={isActive ? 'page' : undefined}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${isActive
+                ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                : 'border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-200'}`}
+              key={tab.key}
+              onClick={() => setActiveView(tab.key)}
+              type="button"
+            >
+              <TabIcon aria-hidden="true" size={17} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {activeView === 'nuevo' && (
         <form onSubmit={handleSubmit}>
           <Stack className={styles.form} tokens={{ childrenGap: 18 }}>
-            <Stack tokens={{ childrenGap: 4 }}>
-              <Text variant="xxLarge">Carga de Productividad</Text>
-              <Text className={styles.description}>
-                Registra los resultados operativos acumulados por cada agente
-                dentro de un rango sin duplicar períodos.
-              </Text>
-            </Stack>
-
             {successMessage && (
               <MessageBar messageBarType={MessageBarType.success}>
                 {successMessage}
@@ -351,7 +405,8 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
               </MessageBar>
             )}
 
-            <Stack className={styles.formCard} tokens={{ childrenGap: 18 }}>
+            <SurfaceCard className={styles.formCard}>
+              <Stack tokens={{ childrenGap: 18 }}>
               {isLoadingTeam && (
                 <Spinner
                   label="Cargando colaboradores autorizados..."
@@ -400,75 +455,51 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
               <section
                 aria-busy={isLoadingGoals}
                 aria-label="Resumen de días laborables y cuotas esperadas"
-                className={styles.quotaPanel}
+                className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
               >
-                <div className={styles.workingDaysSummary}>
-                  <Text className={styles.quotaEyebrow}>
-                    PERÍODO OPERATIVO
-                  </Text>
-                  <Text className={styles.workingDaysValue}>
-                    {workingDays}
-                  </Text>
-                  <Text className={styles.workingDaysLabel}>
-                    {workingDays === 1
-                      ? 'día laborable'
-                      : 'días laborables'}{' '}
-                    (sábado equivale a 0.5)
-                  </Text>
-                </div>
-
                 {isLoadingGoals ? (
-                  <Spinner
-                    label="Calculando cuotas configuradas..."
-                    size={SpinnerSize.small}
-                  />
-                ) : (
-                  <div className={styles.quotaGrid}>
-                    <div className={styles.quotaItem}>
-                      <Text className={styles.quotaLabel}>
-                        Meta Emisiones Tx
-                      </Text>
-                      <Text className={styles.quotaValue}>
-                        {formatQuantity(expectedQuotas.emisionesTx)}
-                      </Text>
-                      <Text className={styles.quotaHint}>
-                        {formatQuantity(dailyGoals.emisionesTx)} diarias
-                      </Text>
-                    </div>
-
-                    <div className={styles.quotaItem}>
-                      <Text className={styles.quotaLabel}>
-                        Meta Movimientos Pg
-                      </Text>
-                      <Text className={styles.quotaValue}>
-                        {formatQuantity(expectedQuotas.movimientosPg)}
-                      </Text>
-                      <Text className={styles.quotaHint}>
-                        {formatQuantity(dailyGoals.movimientosPg)} diarias
-                      </Text>
-                    </div>
-
-                    <div className={styles.quotaItem}>
-                      <Text className={styles.quotaLabel}>Meta Escaneo Pg</Text>
-                      <Text className={styles.quotaValue}>
-                        {formatQuantity(expectedQuotas.escaneoPg)}
-                      </Text>
-                      <Text className={styles.quotaHint}>
-                        {formatQuantity(dailyGoals.escaneoPg)} diarias
-                      </Text>
-                    </div>
+                  <div className="col-span-full rounded-2xl border border-slate-800 bg-slate-950/70 p-6">
+                    <Spinner
+                      label="Calculando cuotas configuradas..."
+                      size={SpinnerSize.small}
+                    />
                   </div>
+                ) : (
+                  <>
+                    <KpiCard
+                      label="Período operativo"
+                      subtext={`${workingDays === 1 ? 'día laborable' : 'días laborables'} · sábado = 0.5`}
+                      value={workingDays}
+                      variant="cyan"
+                    />
+                    <KpiCard
+                      label="Meta Emisiones Tx"
+                      subtext={`${formatQuantity(dailyGoals.emisionesTx)} diarias`}
+                      value={formatQuantity(expectedQuotas.emisionesTx)}
+                      variant="purple"
+                    />
+                    <KpiCard
+                      label="Meta Movimientos Pg"
+                      subtext={`${formatQuantity(dailyGoals.movimientosPg)} diarias`}
+                      value={formatQuantity(expectedQuotas.movimientosPg)}
+                      variant="amber"
+                    />
+                    <KpiCard
+                      label="Meta Escaneo Pg"
+                      subtext={`${formatQuantity(dailyGoals.escaneoPg)} diarias`}
+                      value={formatQuantity(expectedQuotas.escaneoPg)}
+                      variant="emerald"
+                    />
+                  </>
                 )}
               </section>
 
               <div className={styles.metricsGrid}>
-                <Stack
-                  className={`${styles.metricCard} glowCard`}
-                  tokens={{ childrenGap: 14 }}
-                >
+                <SurfaceCard className={styles.metricCard}>
                   <Stack tokens={{ childrenGap: 3 }}>
                     <Text className={styles.metricTitle}>
-                      📋 Gestión de Casos
+                      <Activity aria-hidden="true" size={18} />
+                      Gestión de Casos
                     </Text>
                     <Text className={styles.metricDescription}>
                       Mide la tasa de cierre dentro del SLA acordado.
@@ -494,31 +525,29 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.casosATiempo)}
                   />
-                  <div
-                    aria-live="polite"
-                    className={`${styles.slaBadge} ${
-                      hasInvalidCaseSla
-                        ? styles.slaBadgeInvalid
+                  <div aria-live="polite">
+                    <StatusBadge
+                      size="md"
+                      variant={hasInvalidCaseSla
+                        ? 'danger'
                         : caseSlaPercentage === undefined
-                          ? styles.slaBadgeInactive
-                          : styles.slaBadgeActive
-                    }`}
-                  >
-                    {caseSlaPercentage === undefined
-                      ? 'SLA: N/A - Re-distribuido por Normalización Dinámica'
-                      : hasInvalidCaseSla
-                        ? `SLA: ${formatQuantity(caseSlaPercentage)}% · Revisa los valores`
-                        : `SLA en vivo: ${formatQuantity(caseSlaPercentage)}%`}
+                          ? 'neutral'
+                          : 'success'}
+                    >
+                      {caseSlaPercentage === undefined
+                        ? 'SLA: N/A - Re-distribuido por Normalización Dinámica'
+                        : hasInvalidCaseSla
+                          ? `SLA: ${formatQuantity(caseSlaPercentage)}% · Revisa los valores`
+                          : `SLA en vivo: ${formatQuantity(caseSlaPercentage)}%`}
+                    </StatusBadge>
                   </div>
-                </Stack>
+                </SurfaceCard>
 
-                <Stack
-                  className={`${styles.metricCard} glowCard`}
-                  tokens={{ childrenGap: 14 }}
-                >
+                <SurfaceCard className={styles.metricCard}>
                   <Stack tokens={{ childrenGap: 3 }}>
                     <Text className={styles.metricTitle}>
-                      📦 Proceso Emisiones
+                      <PackageOpen aria-hidden="true" size={18} />
+                      Proceso Emisiones
                     </Text>
                     <Text className={styles.metricDescription}>
                       Registra transacciones y páginas digitadas.
@@ -554,15 +583,13 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.devolucionesEmisiones)}
                   />
-                </Stack>
+                </SurfaceCard>
 
-                <Stack
-                  className={`${styles.metricCard} glowCard`}
-                  tokens={{ childrenGap: 14 }}
-                >
+                <SurfaceCard className={styles.metricCard}>
                   <Stack tokens={{ childrenGap: 3 }}>
                     <Text className={styles.metricTitle}>
-                      🔄 Proceso Movimientos
+                      <RefreshCw aria-hidden="true" size={18} />
+                      Proceso Movimientos
                     </Text>
                     <Text className={styles.metricDescription}>
                       Registra transacciones y páginas digitadas.
@@ -598,15 +625,13 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.devolucionesMovimientos)}
                   />
-                </Stack>
+                </SurfaceCard>
 
-                <Stack
-                  className={`${styles.metricCard} glowCard`}
-                  tokens={{ childrenGap: 14 }}
-                >
+                <SurfaceCard className={styles.metricCard}>
                   <Stack tokens={{ childrenGap: 3 }}>
                     <Text className={styles.metricTitle}>
-                      🖨️ Proceso Escaneo
+                      <ScanLine aria-hidden="true" size={18} />
+                      Proceso Escaneo
                     </Text>
                     <Text className={styles.metricDescription}>
                       Registra transacciones y páginas escaneadas.
@@ -638,15 +663,13 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.devolucionesEscaneo)}
                   />
-                </Stack>
+                </SurfaceCard>
 
-                <Stack
-                  className={`${styles.metricCard} glowCard`}
-                  tokens={{ childrenGap: 14 }}
-                >
+                <SurfaceCard className={styles.metricCard}>
                   <Stack tokens={{ childrenGap: 3 }}>
                     <Text className={styles.metricTitle}>
-                      🪪 Gestión de Carnets
+                      <IdCard aria-hidden="true" size={18} />
+                      Gestión de Carnets
                     </Text>
                     <Text className={styles.metricDescription}>
                       Registra solicitudes recibidas y carnets procesados.
@@ -668,12 +691,12 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                     step={1}
                     value={String(metrics.carnetsPg)}
                   />
-                </Stack>
+                </SurfaceCard>
               </div>
 
               <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
                 <PrimaryButton
-                  disabled={isSubmitting || isLoadingTeam}
+                  disabled={!canRegisterProductivity || isSubmitting || isLoadingTeam}
                   text="Registrar Productividad"
                   type="submit"
                 />
@@ -681,12 +704,13 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   <Spinner label="Guardando..." size={SpinnerSize.small} />
                 )}
               </Stack>
-            </Stack>
+              </Stack>
+            </SurfaceCard>
           </Stack>
         </form>
-      </PivotItem>
+      )}
 
-      <PivotItem headerText="📊 Historial y Consultas" itemKey="historial">
+      {activeView === 'historial' && (
         <HistorialView
           currentUserEmail={currentUserEmail}
           currentUserName={currentUserName}
@@ -695,8 +719,8 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
           moduleType="productividad"
           userRole={userRole}
         />
-      </PivotItem>
-    </Pivot>
+      )}
+    </div>
   );
 };
 

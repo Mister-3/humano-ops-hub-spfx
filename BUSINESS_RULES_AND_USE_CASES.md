@@ -1,154 +1,249 @@
 # Business Rules and Functional Specification: Humano Ops Hub (Cerebro Maestro)
 
-Este documento constituye la especificación funcional completa y fuente única de verdad sobre las reglas de negocio, flujos operativos y políticas de dominio implementadas en el portal **Humano Ops Hub**.
+Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Humano Ops Hub (v2.4.0)**.
 
 ---
 
-## 1. Módulo de Productividad Operativa
+## 1. Matriz de Autorización, Catálogo Unificado de 5 Roles y RBAC
 
-### 1.1 Desglose de Procesos y Métricas Integradas
-El formulario de productividad (`ProductividadForm.tsx`) captura el desempeño diario por colaborador dividiendo la operación en 5 líneas de proceso principales:
-1. **Casos Atendidos / SLA**:
-   - Total de Casos Atendidos.
-   - Casos Atendidos a Tiempo (SLA).
-2. **Emisiones**:
-   - Transacciones de Emisiones (`emisiones_tx`).
-   - Paginas / Procesados de Emisiones (`emisiones_pg`).
-   - Devoluciones de Emisiones (`devoluciones_emisiones`).
-3. **Movimientos**:
-   - Transacciones de Movimientos (`movimientos_tx`).
-   - Paginas / Procesados de Movimientos (`movimientos_pg`).
-   - Devoluciones de Movimientos (`devoluciones_movimientos`).
-4. **Escaneo**:
-   - Transacciones de Escaneo (`escaneo_tx`).
-   - Paginas / Procesados de Escaneo (`escaneo_pg`).
-   - Devoluciones de Escaneo (`devoluciones_escaneo`).
-5. **Gestión de Carnets**:
-   - Transacciones de Carnets (`carnets_tx`).
-   - Paginas / Procesados de Carnets (`carnets_pg`).
+### 1.1 Catálogo Unificado de Roles Base
+La seguridad y el control de acceso en Humano Ops Hub operan bajo un modelo RBAC (*Role-Based Access Control*) desacoplado de cadenas de texto rígidas y respaldado por PostgreSQL en Supabase. El sistema define una jerarquía operativa estructurada en **5 roles base canónicos**:
 
-### 1.2 Regla de Devoluciones Condicionales
-- El campo numérico de **Devoluciones** es visible y obligatorio **ÚNICAMENTE** para los procesos de **Emisiones**, **Movimientos** y **Escaneo**.
-- En cualquier otro tipo de proceso o métrica (Casos Atendidos, Gestión de Carnets), el campo de Devoluciones se oculta por completo del formulario para evitar inconsistencias de captura.
+```mermaid
+graph TD
+    A["👑 Admin (admin)"] --> B["👔 Gerente (gerente)"]
+    B --> C["📋 Supervisor (supervisor)"]
+    C --> D["💼 Asistente (asistente)"]
+    D --> E["👤 Agente (agente)"]
 
-### 1.3 Regla de Control de Fecha y Períodos En Curso (Bloqueo de Día Actual)
-- **Restricción Estricta**: No se permite registrar productividad para el día actual en curso (`hoy`) ni para períodos futuros.
-- **Lógica de Validación**: El selector de fecha (`FechaRegistro` / `FechaFin`) exige que la fecha ingresada sea estrictamente **anterior a la fecha actual (`fecha < fechaActualSinHora`)**.
-- Si el usuario selecciona la fecha del día en curso o posterior, el formulario bloquea el envío y muestra un mensaje de advertencia:
-  > *"⚠️ Bloqueo de Período: Solo se puede registrar productividad de días concluidos. El día en curso no ha finalizado."*
+    style A fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
+    style B fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#fff
+    style C fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#fff
+    style D fill:#0f172a,stroke:#fbbf24,stroke-width:2px,color:#fff
+    style E fill:#0f172a,stroke:#94a3b8,stroke-width:2px,color:#fff
+```
 
-### 1.4 Regla de Eliminación de Registros de Productividad
-- El botón de eliminación en la tabla/lista de productividad (`ProductividadList.tsx`) está **restringido visual y funcionalmente al rol `admin` / `Master_Admin`**.
-- La eliminación exige la confirmación del usuario a través del modal `<ConfirmDialog />` (`DeleteConfirmModal.tsx`), eliminando la llamada a `window.confirm`.
-- El manejador pasa el identificador real (`record.id` de tipo UUID o `record.audit_id` de tipo string) devuelto por Supabase, evitando índices numéricos ordinales de tabla.
+#### Descripción Detallada de Facultades por Rol:
+1. **Admin (Slug: `admin`)**:
+   - **Nivel**: Administrador General de la Plataforma.
+   - **Facultades**: Control técnico integral de la plataforma; administración de catálogos y parámetros del sistema; gestión completa de identidades de usuario (aprobación, activación, deshabilitación); configuración de la matriz RBAC (permisos por rol y asignación de múltiples roles a usuarios); creación de roles personalizados; eliminación de registros críticos en productividad, faltas e iniciativas; y visualización transversal sin restricciones.
+   - **Superrol Inmutable**: Cuenta con **Bypass Total y Definitivo**. Cualquier validación de permisos en frontend (`hasPermission`, `hasAnyPermission`) o backend (`rbac_has_permission()`, `rbac_is_admin()`) retorna `true` de forma inmediata para este rol, garantizando la continuidad operativa.
+2. **Gerente (Slug: `gerente`)**:
+   - **Nivel**: Gestión Ejecutiva y Dirección de Operaciones.
+   - **Facultades**: Visibilidad transversal de todos los tableros analíticos (Dashboard General, Evaluación de Rendimiento, Historial de Productividad, Ausencias, Kudos y Operaciones End-to-End); aprobación de faltas/errores de alto impacto; y revisión/aprobación de Historias de Usuario en Iniciativas & Mejoras. No posee facultades para modificar matrices RBAC ni alterar catálogos de infraestructura.
+3. **Supervisor (Slug: `supervisor`)**:
+   - **Nivel**: Supervisión Operativa Directa y Líder de Equipo.
+   - **Facultades**: Registro y aprobación de faltas y amonestaciones; registro de tiempos de ocupación (llamadas/correos); registro y seguimiento de productividad diaria; gestión y aprobación de ausencias y planificación semanal; publicación del reconocimiento *Empleado del Mes*; aprobación/descarte de solicitudes de mejora continua; e importación, validación, exclusión auditada y resolución de conflictos en el ciclo End-to-End.
+4. **Asistente (Slug: `asistente`)**:
+   - **Nivel**: Apoyo Operativo, Reportería y Custodia de Radicaciones (Consolidación de roles históricos *Custodio* y *Analista*).
+   - **Facultades**: Consulta de tableros de productividad; registro de incidencias disciplinarias (ingresan en estado `Pendiente`); solicitud de ausencias y vacaciones; envío de Kudos; creación y edición de iniciativas propias; e importación, custodia, marcado de radicaciones reportadas y exclusión auditada en el módulo End-to-End.
+5. **Agente (Slug: `agente`)**:
+   - **Nivel**: Operador Base y Colaborador de Línea (Consolidación de roles históricos *Colaborador* y *Oficial*).
+   - **Facultades**: Consulta de indicadores personales en dashboard; registro de faltas o incidencias personales; solicitud de ausencias y vacaciones propias; envío de Kudos a compañeros; y registro, edición y seguimiento de sus propias Historias de Usuario en el módulo de Iniciativas & Mejoras.
 
----
+### 1.2 Mapeo Canónico de Roles Legacy
+Para garantizar la compatibilidad retroactiva durante migraciones o sincronizaciones de directorio M365, todo rol heredado se normaliza automáticamente a su slug canónico mediante `canonicalizeRoleSlug()` y triggers de base de datos:
 
-## 2. Módulo de Faltas y Errores Operativos
+| Rol Legacy / Alias | Slug Canónico Normalizado | Nombre Mostrado |
+| :--- | :--- | :--- |
+| `Master_Admin`, `Master Admin`, `master-admin`, `admin` | `admin` | Admin |
+| `Gerente`, `gerente` | `gerente` | Gerente |
+| `Supervisor`, `supervisor` | `supervisor` | Supervisor |
+| `Custodio`, `Analista`, `Asistente`, `custodio`, `analista` | `asistente` | Asistente |
+| `Colaborador`, `Oficial`, `Agente`, `colaborador`, `oficial` | `agente` | Agente |
 
-### 2.1 Clasificación y Tipificación
-El módulo de Faltas (`FaltasForm.tsx`) registra incidencias operativas categorizadas en:
-- **Falta Disciplinaria**: Tardanzas en minutos, inasistencias, incumplimiento de horario.
-- **Error de Proceso**: Errores en captura de datos, reprocesos, omisión de controles.
-- **Código de Ética**: Violación de políticas corporativas o confidencialidad.
+### 1.3 Creación Dinámica de Roles Personalizados
+- Los administradores autorizados con el permiso `modulo:admin:gestionar_permisos` pueden dar de alta nuevos roles personalizados (`is_system = false`) directamente desde la interfaz de usuario a través del RPC `rbac_create_role(target_role_id, target_name, target_description)`.
+- **Reglas de Validación de Roles Personalizados**:
+  1. El slug identificador debe comenzar con una letra y contener únicamente minúsculas, números o guiones bajos (`^[a-z][a-z0-9_]{2,49}$`).
+  2. Queda prohibido reutilizar identificadores reservados (`admin`, `gerente`, `supervisor`, `asistente`, `agente`, `master_admin`, `custodio`, `analista`, `colaborador`, `oficial`).
+  3. El nombre descriptivo debe contener entre 3 y 80 caracteres.
+  4. Los roles personalizados se integran de inmediato a la matriz RBAC para asignación de permisos y vinculación a usuarios.
 
-### 2.2 Atributos Requeridos y Amonestaciones
-- **Campos Operativos**: Categoría, Subcategoría, Impacto (Bajo, Medio, Alto, Crítico), Horas Perdidas (`horas_perdidas`), Minutos de Tardanza (`minutos_tardanza`), Hora de Llegada (`hora_llegada`), Número de Ticket/Helpdesk (`id_caso_helpdesk`), Proceso del Área (`proceso_area`), Comentarios y Plan de Capacitación (`comentarios_capacitacion`).
-- **Flujo de Aprobación**: Faltas registradas por usuarios de nivel Analista o Asistente ingresan en estado `Pendiente`. Faltas registradas por Supervisores o Administradores se aprueban automáticamente (`Aprobado`).
-
----
-
-## 3. Módulo de Reconocimientos, Kudos y Empleado del Mes
-
-### 3.1 Envío y Asignación de Kudos
-- Permite enviar felicitaciones entre colaboradores seleccionando un **Atributo Cultural** (ej: Trabajo en Equipo, Excelencia, Innovación) y asignando un puntaje acumulable.
-- Cada Kudo requiere mensaje de felicitación y registra el correo del remitente para auditoría.
-
-### 3.2 Publicación e Histórico de Empleado del Mes
-- Al publicar o registrar un nuevo galardón de "Empleado del Mes", se guarda un registro en la tabla `empleado_del_mes` que incluye:
-  - Email y Nombre del galardonado.
-  - Mes (1-12) y Año del premio.
-  - Dedicatoria corporativa.
-  - Email y Nombre del supervisor originador (`supervisor_email`, `supervisor_nombre`).
-  - **Estado Inicial del Día Libre**: `dia_libre_reclamado = false`.
-- La vista de **Histórico de Empleado del Mes** (`EmpleadoMesView.tsx` / `ReconocimientosView.tsx`) muestra la lista histórica de publicaciones consultada desde `getHistorialEmpleadoMes()`.
-
-### 3.3 Gestión de Días Libres no Reclamados (Empleado del Mes)
-- **Vinculación Estricta**: Al solicitar una ausencia de tipo *"Día Libre Empleado del Mes"* en `AusenciasForm.tsx`:
-  1. El formulario consulta los registros pendientes en Supabase:
-     ```ts
-     supabase.from('empleado_del_mes').select('*').eq('email_empleado', email).eq('dia_libre_reclamado', false)
-     ```
-  2. Muestra un selector desplegable obligatorio para que el usuario elija el período específico galardonado que desea canjear.
-  3. Al enviar la ausencia, actualiza automáticamente dicho registro en Supabase a `dia_libre_reclamado = true` y almacena `premio_empleado_mes_id`.
+### 1.4 Asignación Múltiple Acumulativa y Protección del Último Admin
+- **Múltiples Roles por Usuario**: La relación entre usuarios y roles (`user_roles`) es de muchos a muchos. Un colaborador puede tener asignados múltiples roles (ej: `supervisor` + rol personalizado de `auditor_calidad`), sumando el conjunto acumulado de permisos efectivos.
+- **Protección del Último Administrador**: La función `rbac_set_user_roles` valida en base de datos que la operación no despoje del rol `admin` al único administrador activo en la plataforma (`errcode = '23514'`), evitando bloqueos accidentales.
+- **Principio de Denegación por Defecto (*Deny-by-Default*)**: Mientras la sesión se inicializa, o si ocurre una falla de red con Supabase, la política de seguridad asume ausencia total de permisos, bloqueando acciones protegidas hasta verificar el acceso efectivo.
 
 ---
 
-## 4. Módulo de Ausencias, Vacaciones y Planificación Semanal
+## 2. Separación Funcional: "Configuración" vs "Administración de Usuarios"
 
-### 4.1 Registro de Ausencias y Vacaciones
-- Tipos de Ausencia soportados: `Vacaciones`, `Día Libre Cumpleaños`, `Día Libre Empleado del Mes`, `Licencia / Incapacidad`.
-- **Regla de Período de Año en Vacaciones**:
-  - Al seleccionar el tipo *"Vacaciones"*, el formulario habilita un selector explícito para elegir el **Año del Período Reclamado** (`periodo_anio`, ej: 2024, 2025, 2026), independientemente de la fecha en que se otorga la ausencia.
+Para mantener la cohesión operativa y la segregación de funciones, la plataforma divide el área administrativa en dos módulos claramente delimitados:
 
-### 4.2 Matriz de Planificación Semanal de Trabajo
-- El componente `PlanificacionSemanal.tsx` genera la matriz de cobertura operativa por día de la semana.
-- **Cálculo de Capacidad Neta**: Descuenta automáticamente la capacidad operativa diaria deduciendo los colaboradores que cuentan con ausencias o vacaciones registradas en Supabase (`ausencias`) para el rango semanal seleccionado.
+```mermaid
+graph LR
+    subgraph Config["⚙️ Módulo: Configuración (AdminPanel.tsx)"]
+        C1[Parámetros Operativos & Metas]
+        C2[Catálogos Jerárquicos parent_id]
+        C3[Sincronización M365 Headcount / OneDrive]
+    end
 
----
+    subgraph UserAdmin["👥 Módulo: Administración de Usuarios (UserAdminPanel.tsx)"]
+        U1[Aprobación & Estados de Cuenta]
+        U2[Matriz RBAC Roles vs Permisos]
+        U3[Creación de Roles Personalizados]
+        U4[Asignación de Múltiples Roles a Usuarios]
+    end
+```
 
-## 5. Módulo "Iniciativas & Mejoras" (Historias de Usuario)
+### 2.1 Módulo "Configuración" (`AdminPanel.tsx` / `CatalogosAdmin.tsx`)
+- **Responsabilidad Principal**: Gestión de variables globales, parámetros de cálculo y catálogos maestros del sistema.
+- **Permisos Asociados**: `modulo:admin:ver`, `modulo:admin:gestionar_catalogos`, `modulo:admin:eliminar_catalogos`.
+- **Funcionalidades**:
+  1. **Catálogos Jerárquicos Dinámicos**: Mantenimiento de opciones para `Falta`, `ErrorProceso`, `CodigoEtica`, `Kudo`, `ProcesoArea`, `aplicativos`, `modulos` y `pantallas`.
+     - *Regla de Jerarquía*: Al registrar un Módulo, se exige seleccionar su Aplicativo Padre (`parent_id`). Al registrar una Pantalla, se exige seleccionar su Módulo Padre (`parent_id`).
+  2. **Parámetros y Metas Operativas**: Configuración de metas diarias, ponderaciones de evaluación y ponderadores SLA (`configuraciones_sistema`, `metas`).
+  3. **Sincronización de Directorio / Headcount M365**: Ejecución y monitoreo de la sincronización de colaboradores desde listas de SharePoint / OneDrive mediante flujos de Power Automate (`PowerAutomateSyncService.ts`).
+  4. **Prohibición de Datos Ficticios (*No Mock Data*)**: Si un catálogo carece de datos, los selectores despliegan el mensaje de estado `"Sin opciones disponibles (Configurar en Configuración)"`.
 
-### 5.1 Estructura del Formulario en 2 Secciones Distintas (`SolicitudMejoraForm.tsx`)
-El registro de propuestas se divide estrictamente en dos secciones visuales:
-
-#### SECCIÓN 1: Ubicación y Alcance del Sistema
-- Encabezado con ícono `Layers` y título *"1. Ubicación de la Mejora"*.
-- Layout en Grid de 3 columnas responsivo (`grid grid-cols-1 md:grid-cols-3 gap-4`).
-- **Desplegables Jerárquicos en Cascada (Dinámicos sin Mocks)**:
-  1. **Aplicativo** (`*` Obligatorio): Carga ítems activos de `catalogos` donde `categoria === 'aplicativos'`.
-  2. **Módulo** (`*` Obligatorio): Se habilita tras seleccionar Aplicativo. Filtra ítems donde `categoria === 'modulos'` y `parent_id === aplicativoSeleccionado`.
-  3. **Pantalla / Sección** (`*` **OBLIGATORIO**): Se habilita tras seleccionar Módulo. Filtra ítems donde `categoria === 'pantallas'` y `parent_id === moduloSeleccionado`.
-- **REGLA DE VALIDACIÓN**: La selección de **Pantalla** es obligatoria. El botón de registro permanece deshabilitado hasta contar con una Pantalla seleccionada.
-
-#### SECCIÓN 2: Detalle de Historia de Usuario (Estilo Azure DevOps Work Item)
-- Encabezado con ícono `GitGraph` y título *"2. Historia de Usuario (Work Item)"*.
-- **Título de la Iniciativa**: Input destacado a ancho completo (`text-lg font-semibold bg-slate-900/90 border-slate-800 text-white`).
-- **Plantilla Guiada con Badges de Azure DevOps**:
-  - 👤 **Como...** (Badge azul: `bg-blue-950/60 text-blue-400 border-blue-800/50`) ➔ Rol del usuario.
-  - ✨ **Quiero...** (Badge índigo: `bg-indigo-950/60 text-indigo-400 border-indigo-800/50`) ➔ Funcionalidad/Acción.
-  - 🎯 **Para...** (Badge púrpura: `bg-purple-950/60 text-purple-400 border-purple-800/50`) ➔ Valor de negocio.
-- **Vista Previa de Work Item**: Genera la narrativa formateada en tiempo real.
-- **Criterios de Aceptación**: Textarea amplio a ancho completo con borde destacado en azul tenue (`border-blue-900/40`).
-
-### 5.2 Cola de Aprobación de Supervisores (`AprobacionMejorasQueue.tsx`)
-- Permite a los supervisores consultar las solicitudes en estado `Pendiente_Aprobacion`.
-- **Modal de Respuesta Obligatorio**:
-  - Al presionar *Aprobar* o *Declinar*, se despliega un modal estilizado (`backdrop-blur-sm bg-black/70`).
-  - **Regla de Validación de Comentario**: El comentario de retroalimentación exige un mínimo de **10 caracteres obligatorios**. Si el comentario es menor a 10 caracteres, el botón de confirmación se deshabilita.
-
-### 5.3 Vista "Mis Solicitudes" (`MisSolicitudesMejora.tsx`)
-- Muestra al colaborador el listado de sus iniciativas registradas con los distintivos de estado (`Pendiente`, `Aprobada`, `Declinada`), etiquetas de aplicativo/módulo/pantalla y la retroalimentación emitida por el supervisor.
+### 2.2 Módulo "Administración de Usuarios" (`UserAdminPanel.tsx` / `RolesPermissionsAdmin.tsx`)
+- **Responsabilidad Principal**: Gobierno de identidades, perfiles, asignación de roles y control granular de la matriz de permisos.
+- **Permisos Asociados**: `modulo:admin:gestionar_usuarios`, `modulo:admin:gestionar_permisos`.
+- **Funcionalidades**:
+  1. **Gestión del Ciclo de Vida de Cuentas**: Aprobación de registros pendientes (`Pending_Admin_Approval`), activación (`Active`) o deshabilitación (`Disabled`) de usuarios.
+  2. **Centro de Matriz RBAC (`RolesPermissionsAdmin.tsx`)**:
+     - Visualización y edición en tiempo real de permisos agrupados por módulo.
+     - Asignación de permisos a roles canónicos y personalizados mediante `rbac_set_role_permissions`.
+     - Modal accesible para la creación de nuevos roles dinámicos mediante `rbac_create_role`.
+     - Asignación y persistencia de múltiples roles por usuario mediante `rbac_set_user_roles`.
 
 ---
 
-## 6. Módulo de Administración y Catálogos
+## 3. Módulo "Iniciativas & Mejoras" (Historias de Usuario v2.4.0)
 
-### 6.1 Control de Accesos y Roles
-- Definición de jerarquía de roles: `Master_Admin` > `Admin` > `Gerente` > `Supervisor` > `Analista` > `Asistente` > `Oficial`.
-- `Master_Admin` y `Admin` poseen acceso total al panel de administración (`UserAdminPanel.tsx` y `AdminPanel.tsx`), modificación de configuraciones del sistema y eliminación de registros.
+El módulo de Iniciativas (`IniciativasMejorasView.tsx` / `improvementsDomain.ts`) proporciona un entorno integral para la captura, revisión y exportación de mejoras continuas bajo estándares ágiles (*User Stories*).
 
-### 6.2 Gestión de Catálogos Jerárquicos con `parent_id` (`CatalogosAdmin.tsx` / `AdminPanel.tsx`)
-- Habilita al administrador la creación y mantenimiento de opciones para las categorías: `Falta`, `ErrorProceso`, `CodigoEtica`, `Kudo`, `ProcesoArea`, `aplicativos`, `modulos` y `pantallas`.
-- **Vinculación Jerárquica**:
-  - Al agregar un **Módulo**, el administrador debe seleccionar obligatoriamente el **Aplicativo Padre** (`parent_id`).
-  - Al agregar una **Pantalla**, el administrador debe seleccionar obligatoriamente el **Módulo Padre** (`parent_id`).
-  - `parent_id` se persiste en la tabla `catalogos`.
+### 3.1 Estructura Obligatoria de Historia de Usuario (*Como / Quiero / Para*)
+La captura de historias erradica los campos de texto no estructurados e impone la plantilla estándar con badges visuales distintivos:
+- 👤 **Como...** (Badge Azul / `actor`): Especifica el rol o perfil del usuario beneficiario (ej: *"Como Supervisor de Operaciones"*).
+- ✨ **Quiero...** (Badge Índigo / `necesidad`): Describe la acción, comportamiento o funcionalidad requerida (ej: *"Quiero filtrar los reportes de productividad por rango semanal"*).
+- 🎯 **Para...** (Badge Púrpura / `beneficio`): Expresa el valor de negocio o impacto esperado (ej: *"Para reducir el tiempo de auditoría de 30 a 5 minutos"*).
 
-### 6.3 Eliminación Estricta de Mock Data y Datos Ficticios
-- Está **estrictamente prohibido** utilizar listas estáticas o fallbacks hardcoded (`DEFAULT_APLICATIVOS`, etc.).
-- Si un catálogo no posee opciones en la base de datos, el selector desplegable muestra:
-  `"Sin opciones disponibles (Configurar en Admin)"`.
+La narrativa combinada se autogenera mediante:
+```
+Como [actor], quiero [necesidad], para [beneficio].
+```
+
+### 3.2 Criterios de Aceptación Dinámicos (Gherkin & Checklist)
+El editor soporta dos modalidades de criterios de aceptación conmutables mediante pestañas:
+1. **Modo Checklist**: Texto directo con casillas de verificación para marcar avances o completitud (`verified: boolean`).
+2. **Modo Gherkin**: Estructura formal *Dado [contexto], cuando [acción], entonces [resultado]* distribuida en tres campos amplios al 100% del ancho del contenedor.
+
+### 3.3 Layout Ergonómico 7/5 y Live Preview
+- **Disposición en Pantallas Grandes (Grid 12 columnas)**:
+  - **Columna Izquierda (7 columnas)**: Formulario del editor estructurado (Título, Selectores de Módulo/Prioridad/Estado, Bloque Como/Quiero/Para, y Gestor de Criterios de Aceptación).
+  - **Columna Derecha (5 columnas)**: Tarjeta de *Live Preview* fijada en modo `sticky`, renderizando en tiempo real la Historia de Usuario final con sus etiquetas de prioridad, estado, módulo, narrativa estructurada y checklist interactivo.
+- **Disposición en Dispositivos Móviles**: Apilamiento vertical fluido priorizando el ingreso de datos y visualización posterior de la vista previa.
+
+### 3.4 Estados del Ciclo de Vida y Reglas de Transición
+| Estado (`estado_ciclo`) | Descripción | Regla de Validación |
+| :--- | :--- | :--- |
+| **Borrador** | Idea preliminar guardada por el autor | Permite guardado incompleto (solo requiere título). |
+| **En Revision** | Enviada formalmente para evaluación | Requiere título, los 3 campos Como/Quiero/Para y al menos 1 criterio completo. |
+| **Aprobada** | Validada favorablemente por supervisor/gerente | Requiere revisión formal con comentario >= 10 caracteres. |
+| **En Desarrollo** | En proceso de construcción técnica | Asignada al roadmap de desarrollo. |
+| **Implementada** | Desplegada exitosamente en producción | Cierre exitoso del ciclo de vida. |
+| **Descartada** | Declinada justificadamente por el revisor | Requiere motivo y feedback >= 10 caracteres. |
+
+### 3.5 Flujo de Revisión y Modal de Retroalimentación Obligatoria
+- Los usuarios con permiso `modulo:iniciativas:aprobar` (Supervisores, Gerentes y Admin) pueden evaluar historias en estado `En Revision`.
+- **Regla del Comentario Obligatorio**: Al Aprobar o Descartar una solicitud, se despliega un modal accesible (`AppDialog`). El botón de confirmación se mantiene **deshabilitado hasta que el revisor ingrese al menos 10 caracteres de justificación/retroalimentación**.
+- La persistencia se ejecuta a través del RPC seguro `iniciativas_review(target_id, target_status, review_comment, reviewer_email, reviewer_name)`.
+
+### 3.6 Exportación Multiformato para Azure DevOps / Jira
+El módulo ofrece copiado al portapapeles con un solo clic en tres formatos estandarizados:
+1. **Markdown**: Formato estructurado con encabezados, metadatos en negrita y checkboxes `- [x]` / `- [ ]` listo para incidencias de GitHub/GitLab o wikis corporativas.
+2. **HTML Limpio**: Marcado semántico estructurado (`<article>`, `<h1>`, `<p>`, `<ul>`, `<li>`) diseñado para pegado directo en campos de descripción enriquecida en **Azure DevOps** o **Jira**.
+3. **TSV (Tab-Separated Values)**: Estructura tabular copiable para importación masiva en Microsoft Excel o Google Sheets.
 
 ---
-*Fin de Especificación Funcional de Reglas de Negocio.*
+
+## 4. Módulo de Productividad Operativa
+
+### 4.1 Líneas de Proceso y Métricas
+El registro diario de productividad (`ProductividadForm.tsx`) captura las siguientes líneas operativas:
+1. **Casos Atendidos / SLA**: Total de casos atendidos y casos atendidos dentro del tiempo de SLA.
+2. **Emisiones**: Transacciones (`emisiones_tx`), Procesados (`emisiones_pg`) y Devoluciones (`devoluciones_emisiones`).
+3. **Movimientos**: Transacciones (`movimientos_tx`), Procesados (`movimientos_pg`) y Devoluciones (`devoluciones_movimientos`).
+4. **Escaneo**: Transacciones (`escaneo_tx`), Procesados (`escaneo_pg`) y Devoluciones (`devoluciones_escaneo`).
+5. **Gestión de Carnets**: Transacciones (`carnets_tx`) y Procesados (`carnets_pg`).
+
+### 4.2 Regla de Devoluciones Condicionales
+- El campo de **Devoluciones** es visible y requerido **EXCLUSIVAMENTE** para los procesos de **Emisiones**, **Movimientos** y **Escaneo**.
+- En las demás líneas (Casos Atendidos, Gestión de Carnets), el campo se oculta completamente para evitar inconsistencias estadísticas.
+
+### 4.3 Bloqueo Estricto de Períodos en Curso (Día Actual y Futuro)
+- **Política de Registro**: Solo se permite registrar productividad correspondiente a jornadas operativas concluidas.
+- **Validación**: La fecha seleccionada debe ser estrictamente anterior a la fecha actual (`fecha < fechaActualSinHora`). Si se selecciona la fecha de hoy o una fecha futura, el formulario bloquea el envío y muestra advertencia.
+
+### 4.4 Eliminación Segura y Auditada
+- La eliminación de registros en la lista de productividad requiere el permiso `modulo:productividad:eliminar` o pertenecer al rol `admin`.
+- Toda eliminación exige confirmación explícita mediante el modal modal oscuro `DeleteConfirmModal` identificando el registro por su UUID / `audit_id`.
+
+---
+
+## 5. Módulo de Faltas y Errores Operativos
+
+### 5.1 Tipificación y Categorización
+- **Falta Disciplinaria**: Tardanzas en minutos, inasistencias injustificadas, incumplimientos de horario.
+- **Error de Proceso**: Errores en captura o digitación, reprocesos operativos, omisión de políticas de verificación.
+- **Código de Ética**: Violación de confidencialidad, uso indebido de herramientas, faltas a normas corporativas.
+
+### 5.2 Parámetros de Auditoría y Aprobación Automática
+- **Campos Requeridos**: Impacto (Bajo, Medio, Alto, Crítico), Horas Perdidas (`horas_perdidas`), Minutos de Tardanza (`minutos_tardanza`), Hora de Llegada (`hora_llegada`), Ticket de Referencia (`id_caso_helpdesk`), Proceso del Área (`proceso_area`), Comentarios y Plan de Acción / Capacitación (`comentarios_capacitacion`).
+- **Aprobación Automática**:
+  - Registros creados por usuarios con rol `Supervisor`, `Gerente` o `Admin` quedan en estado `Aprobado` automáticamente.
+  - Registros ingresados por usuarios con rol `Asistente` o `Agente` ingresan en estado `Pendiente` a la espera de validación por su supervisor.
+
+---
+
+## 6. Módulo de Reconocimientos, Kudos y Empleado del Mes
+
+### 6.1 Envío de Kudos
+- Reconocimiento entre compañeros basado en atributos culturales definidos en catálogos (Trabajo en Equipo, Orientación al Cliente, Innovación, Excelencia Operativa).
+- Asignación de puntaje y dedicatoria personalizada, registrando el correo del remitente para auditoría.
+
+### 6.2 Publicación y Beneficio de Día Libre (Empleado del Mes)
+- Al publicar el galardón mensual en `empleado_del_mes`, el registro se inicializa con `dia_libre_reclamado = false`.
+- **Canje Obligatorio en Ausencias**:
+  - Al solicitar una ausencia de tipo *"Día Libre Empleado del Mes"* en `AusenciasForm.tsx`, el sistema consulta los registros de premiación pendientes de canje para ese colaborador.
+  - El usuario debe seleccionar obligatoriamente el período del premio a canjear.
+  - Al persistir la ausencia, el sistema actualiza de inmediato el premio a `dia_libre_reclamado = true` y almacena la referencia cruzada `premio_empleado_mes_id`.
+
+---
+
+## 7. Módulo de Ausencias, Vacaciones y Planificación Semanal
+
+### 7.1 Tipos de Ausencia y Regla de Período Anual
+- Tipos soportados: `Vacaciones`, `Día Libre Cumpleaños`, `Día Libre Empleado del Mes`, `Licencia / Incapacidad`.
+- **Selector de Período en Vacaciones**: Al seleccionar *"Vacaciones"*, se habilita el selector del **Año del Período Reclamado** (`periodo_anio`, ej: 2024, 2025, 2026) para imputar correctamente el balance de días pendientes del colaborador.
+
+### 7.2 Matriz de Planificación Semanal y Capacidad Neta
+- El componente `PlanificacionSemanal.tsx` consolida la matriz de asistencia por turno y día de la semana.
+- **Deducción Dinámica de Capacidad**: La capacidad operativa neta descuenta automáticamente a los colaboradores que registran ausencias aprobadas en Supabase dentro de la ventana semanal visualizada.
+
+---
+
+## 8. Módulo Operativo End-to-End (Radicaciones y SLA)
+
+### 8.1 Aislamiento de Fotografías Operativas (*User Isolation*)
+- Cada analista o custodio que importa un reporte de radicaciones genera una fotografía independiente identificada por su `owner_id` / `user_id`.
+- Las consultas operativas aíslan las sesiones para evitar que la carga de un analista sobreescriba las radicaciones activas de otro usuario.
+
+### 8.2 Métricas de SLA y Conciliación
+- Cálculo automático de cumplimiento de SLA en base a la fecha de radicación, tipo de trámite y calendario operativo.
+- Registro de feriados y días inhábiles en `end_to_end_calendars`.
+
+### 8.3 Exclusión Auditada y Resolución de Conflictos
+- **Exclusión de Filas Críticas**: Permite excluir radicaciones anómalas exigiendo motivo justificado y registrando autor y marca de tiempo en `end_to_end_audit_log`.
+- **Marcado de Reportadas**: Los custodios y supervisores pueden alternar el flag de radicaciones ya reportadas a entes de control.
+- **Resolución de Conflictos**: Mecanismo de resolución para fotografías cargadas con la misma fecha de corte.
+- **Portal de Copiado de Columnas**: Herramienta integrada (`CopyColumnsPortal.tsx`) para copiar subconjuntos tabulares directamente a hojas de trabajo.
+
+---
+
+## 9. Módulo de Evaluación de Rendimiento
+
+- Consolida de manera ponderada los resultados de productividad diaria, índice de calidad (deducción por faltas y errores de proceso) y cumplimiento de tiempos de ocupación y SLA.
+- Genera el reporte consolidado de desempeño individual y por equipo para soporte de revisiones gerenciales.

@@ -12,8 +12,10 @@ import {
   Text,
   TextField
 } from '@fluentui/react';
+import { CalendarDays } from 'lucide-react';
 
 import { cloudDbClient } from '../../../../services/CloudDbClient';
+import { useRBAC } from '../../../../auth/RBACContext';
 import type { IEmpleadoDelMes } from '../../../../types';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
@@ -21,6 +23,7 @@ import SharePointService, {
   type IRegistrarAusenciaData
 } from '../../services/SharePointService';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
+import { PageHeader, SurfaceCard } from '../Common';
 import styles from './AusenciasForm.module.scss';
 
 export interface IAusenciasFormProps {
@@ -89,6 +92,8 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
   isLoadingAgents = false,
   onSaved
 }) => {
+  const { hasPermission } = useRBAC();
+  const canRequestAbsence = hasPermission('modulo:ausencias:solicitar');
   const sharePointService = React.useMemo(() => new SharePointService(), []);
   const [selectedAgent, setSelectedAgent] = React.useState<
     IDirectReport | undefined
@@ -168,6 +173,10 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
   };
 
   const submitAbsence = async (): Promise<void> => {
+    if (!canRequestAbsence) {
+      setErrorMessage('No posee permiso para solicitar ausencias.');
+      return;
+    }
     clearMessages();
 
     if (!selectedAgent) {
@@ -268,13 +277,11 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       <Stack tokens={{ childrenGap: 18 }}>
-        <Stack tokens={{ childrenGap: 4 }}>
-          <Text variant="xxLarge">Registrar Ausencia / Vacaciones</Text>
-          <Text className={styles.description}>
-            Programa vacaciones, licencias y días libres sin perder visibilidad
-            sobre la capacidad del equipo.
-          </Text>
-        </Stack>
+        <PageHeader
+          icon={<CalendarDays aria-hidden="true" size={24} />}
+          subtitle="Programa vacaciones, licencias y días libres sin perder visibilidad sobre la capacidad del equipo."
+          title="Control de Ausencias y Planificación"
+        />
 
         {successMessage && (
           <MessageBar messageBarType={MessageBarType.success}>
@@ -288,7 +295,8 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
           </MessageBar>
         )}
 
-        <Stack className={styles.formCard} tokens={{ childrenGap: 18 }}>
+        <SurfaceCard className={styles.formCard}>
+          <Stack tokens={{ childrenGap: 18 }}>
           {isLoadingAgents && (
             <Spinner
               label="Cargando colaboradores disponibles..."
@@ -411,6 +419,7 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
           >
             <PrimaryButton
               disabled={
+                !canRequestAbsence ||
                 isSubmitting ||
                 isLoadingAgents ||
                 agentOptions.length === 0
@@ -428,7 +437,8 @@ const AusenciasForm: React.FC<IAusenciasFormProps> = ({
               />
             )}
           </Stack>
-        </Stack>
+          </Stack>
+        </SurfaceCard>
       </Stack>
     </form>
   );

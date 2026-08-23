@@ -32,8 +32,22 @@ ReactDOM.render(
   document.getElementById('root')
 );
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
-  });
+if ('serviceWorker' in navigator) {
+  if (import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    });
+  } else {
+    // Un worker de un preview productivo previo puede servir módulos Vite
+    // obsoletos con su estrategia cache-first. DEV siempre debe leer /src.
+    void navigator.serviceWorker.getRegistrations().then((registrations) =>
+      Promise.all(registrations.map((registration) => registration.unregister()))
+    );
+    if ('caches' in window) {
+      void caches.keys().then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith('humano-ops-hub-'))
+          .map((key) => caches.delete(key))
+      ));
+    }
+  }
 }

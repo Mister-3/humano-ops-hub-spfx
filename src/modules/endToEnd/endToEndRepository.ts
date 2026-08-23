@@ -1,4 +1,7 @@
-import { isSupabaseConfigured, supabase } from '../../services/supabase';
+import {
+  endToEndSupabase,
+  isSupabaseConfigured
+} from '../../services/supabase';
 import type {
   IEndToEndAnalyzedRow,
   IEndToEndClosure,
@@ -75,6 +78,17 @@ const requireDatabase = (): void => {
   }
 };
 
+const requireOwnerId = async (): Promise<string> => {
+  requireDatabase();
+  const { data, error } = await endToEndSupabase.auth.getUser();
+  if (error || !data.user) {
+    throw new Error(
+      'La sesión segura End-to-End no está disponible. Cierre sesión e ingrese nuevamente.'
+    );
+  }
+  return data.user.id;
+};
+
 const snapshotFromDatabase = (
   row: IDatabaseSnapshot,
   rows: IEndToEndAnalyzedRow[] = []
@@ -104,22 +118,30 @@ const actionFromDatabase = (row: IDatabaseAction): IEndToEndReportAction => ({
 
 export class EndToEndRepository {
   public async purgeExpiredData(): Promise<void> {
-    requireDatabase();
+    const ownerId = await requireOwnerId();
     const cutoff = getRetentionCutoff();
-    const { error } = await supabase.from('e2e_snapshots').delete().lt('imported_at', cutoff);
+    const { error } = await endToEndSupabase
+      .from('e2e_snapshots')
+      .delete()
+      .eq('owner_id', ownerId)
+      .lt('imported_at', cutoff);
     if (error) throw databaseError('No se pudo aplicar la retención de siete días', error);
   }
 
   public async loadWorkspace(): Promise<IEndToEndWorkspace> {
-    requireDatabase();
+    const ownerId = await requireOwnerId();
+    const claimResponse = await endToEndSupabase.rpc('e2e_claim_legacy_snapshots');
+    if (claimResponse.error) {
+      throw databaseError('No se pudieron reclamar las fotografías heredadas del usuario', claimResponse.error);
+    }
     await this.purgeExpiredData();
     const cutoff = getRetentionCutoff();
     const [snapshotsResponse, closuresResponse, aliasesResponse, actionsResponse, conflictsResponse] = await Promise.all([
-      supabase.from('e2e_snapshots').select('*').gte('imported_at', cutoff).order('generation_at', { ascending: false }),
-      supabase.from('e2e_non_working_periods').select('*').eq('active', true).order('date'),
-      supabase.from('e2e_cancellation_aliases').select('alias').eq('active', true).order('alias'),
-      supabase.from('e2e_report_actions').select('*').gte('created_at', cutoff).order('created_at', { ascending: true }),
-      supabase.from('e2e_version_conflicts').select('*').is('resolved_at', null).order('created_at', { ascending: false })
+      endToEndSupabase.from('e2e_snapshots').select('*').eq('owner_id', ownerId).gte('imported_at', cutoff).order('generation_at', { ascending: false }),
+      endToEndSupabase.from('e2e_non_working_periods').select('*').eq('active', true).order('date'),
+      endToEndSupabase.from('e2e_cancellation_aliases').select('alias').eq('active', true).order('alias'),
+      endToEndSupabase.from('e2e_report_actions').select('*').eq('owner_id', ownerId).gte('created_at', cutoff).order('created_at', { ascending: true }),
+      endToEndSupabase.from('e2e_version_conflicts').select('*').eq('owner_id', ownerId).is('resolved_at', null).order('created_at', { ascending: false })
     ]);
     if (snapshotsResponse.error) throw databaseError('No se pudieron consultar las fotografías End-to-End', snapshotsResponse.error);
     if (closuresResponse.error) throw databaseError('No se pudo consultar el calendario laborable', closuresResponse.error);
@@ -130,10 +152,11 @@ export class EndToEndRepository {
     const snapshots = (snapshotsResponse.data as IDatabaseSnapshot[]).map((row) => snapshotFromDatabase(row));
     const activeMetadata = snapshots.find((snapshot) => snapshot.status === 'active') || snapshots[0];
     if (activeMetadata) {
-      const { data, error } = await supabase
+      const { data, error } = await endToEndSupabase
         .from('e2e_rows')
         .select('row_number,normalized_data,sla_result,manually_excluded,exclusion_reason')
         .eq('snapshot_id', activeMetadata.id)
+        .eq('owner_id', ownerId)
         .order('row_number');
       if (error) throw databaseError('No se pudieron consultar las filas de la fotografía activa', error);
       activeMetadata.rows = (data as IDatabaseRow[]).map((row) => ({
@@ -154,9 +177,10 @@ export class EndToEndRepository {
       .filter((snapshot) => snapshot.id !== activeMetadata?.id)
       .map((snapshot) => snapshot.id);
     if (previousSnapshotIds.length > 0) {
-      const { data, error } = await supabase
+      const { data, error } = await endToEndSupabase
         .from('e2e_rows')
         .select('radicacion')
+        .eq('owner_id', ownerId)
         .in('snapshot_id', previousSnapshotIds);
       if (error) throw databaseError('No se pudo calcular la memoria operativa', error);
       (data as Array<{ radicacion: string }>).forEach((row) => previousRadications.add(row.radicacion));
@@ -174,10 +198,11 @@ export class EndToEndRepository {
 
     let disappearedRadications: string[] = [];
     if (activeMetadata) {
-      const { data, error } = await supabase
+      const { data, error } = await endToEndSupabase
         .from('e2e_presence_events')
         .select('radicacion')
         .eq('snapshot_id', activeMetadata.id)
+        .eq('owner_id', ownerId)
         .eq('status', 'Ya no aparece en el reporte');
       if (error) throw databaseError('No se pudieron consultar las desapariciones del reporte', error);
       disappearedRadications = (data || []).map((row: { radicacion: string }) => row.radicacion);
@@ -225,19 +250,21 @@ export class EndToEndRepository {
     exclusions: ReadonlyMap<number, string>,
     importedBy: string
   ): Promise<IEndToEndSnapshot> {
-    requireDatabase();
+    const ownerId = await requireOwnerId();
     if (!report.summary.generationAt) throw new Error('La fecha de generación es obligatoria.');
-    const duplicate = await supabase
+    const duplicate = await endToEndSupabase
       .from('e2e_snapshots')
       .select('id')
+      .eq('owner_id', ownerId)
       .eq('file_hash', report.summary.fileHash)
       .maybeSingle();
     if (duplicate.error) throw databaseError('No se pudo verificar el hash del archivo', duplicate.error);
     if (duplicate.data) throw new Error('Este archivo ya fue importado; no se creó una fotografía duplicada.');
 
-    const current = await supabase
+    const current = await endToEndSupabase
       .from('e2e_snapshots')
       .select('*')
+      .eq('owner_id', ownerId)
       .eq('status', 'active')
       .order('generation_at', { ascending: false })
       .limit(1)
@@ -250,7 +277,8 @@ export class EndToEndRepository {
       currentSnapshot?.generation_at
     );
 
-    const snapshotResponse = await supabase.from('e2e_snapshots').insert({
+    const snapshotResponse = await endToEndSupabase.from('e2e_snapshots').insert({
+      owner_id: ownerId,
       file_name: report.summary.fileName,
       file_hash: report.summary.fileHash,
       generation_at: generationAt,
@@ -273,6 +301,7 @@ export class EndToEndRepository {
       for (let index = 0; index < analyzedRows.length; index += 100) {
         const batch = analyzedRows.slice(index, index + 100).map((row) => ({
           snapshot_id: inserted.id,
+          owner_id: ownerId,
           row_number: row.rowNumber,
           radicacion: row.radicacion,
           flow: row.flow,
@@ -282,14 +311,15 @@ export class EndToEndRepository {
           manually_excluded: Boolean(row.manuallyExcluded),
           exclusion_reason: row.exclusionReason || null
         }));
-        const { error } = await supabase.from('e2e_rows').insert(batch);
+        const { error } = await endToEndSupabase.from('e2e_rows').insert(batch);
         if (error) throw databaseError('No se pudieron guardar las filas originales', error);
       }
       const groupedRows = groupEndToEndRows(analyzedRows);
       for (let index = 0; index < groupedRows.length; index += 100) {
-        const { error } = await supabase.from('e2e_groups').insert(
+        const { error } = await endToEndSupabase.from('e2e_groups').insert(
           groupedRows.slice(index, index + 100).map((group) => ({
             snapshot_id: inserted.id,
+            owner_id: ownerId,
             radicacion: group.radicacion,
             group_result: group
           }))
@@ -297,9 +327,10 @@ export class EndToEndRepository {
         if (error) throw databaseError('No se pudieron guardar los resultados agrupados', error);
       }
       if (exclusions.size > 0) {
-        const { error } = await supabase.from('e2e_exclusions').insert(
+        const { error } = await endToEndSupabase.from('e2e_exclusions').insert(
           Array.from(exclusions.entries()).map(([rowNumber, reason]) => ({
             snapshot_id: inserted.id,
+            owner_id: ownerId,
             row_number: rowNumber,
             excluded_by: importedBy.trim().toLocaleLowerCase(),
             reason
@@ -309,7 +340,7 @@ export class EndToEndRepository {
       }
       if (status === 'active' && currentSnapshot) {
         const [{ data: previousRows, error: previousError }] = await Promise.all([
-          supabase.from('e2e_rows').select('radicacion').eq('snapshot_id', currentSnapshot.id)
+          endToEndSupabase.from('e2e_rows').select('radicacion').eq('snapshot_id', currentSnapshot.id).eq('owner_id', ownerId)
         ]);
         if (previousError) throw databaseError('No se pudo conciliar la fotografía anterior', previousError);
         const currentRadications = new Set(analyzedRows.map((row) => row.radicacion));
@@ -317,9 +348,10 @@ export class EndToEndRepository {
           (previousRows as Array<{ radicacion: string }>).map((row) => row.radicacion)
         )).filter((radicacion) => !currentRadications.has(radicacion));
         if (disappeared.length > 0) {
-          const { error } = await supabase.from('e2e_presence_events').insert(
+          const { error } = await endToEndSupabase.from('e2e_presence_events').insert(
             disappeared.map((radicacion) => ({
               snapshot_id: inserted.id,
+              owner_id: ownerId,
               previous_snapshot_id: currentSnapshot.id,
               radicacion,
               status: 'Ya no aparece en el reporte'
@@ -329,14 +361,16 @@ export class EndToEndRepository {
         }
       }
       if (status === 'active' && currentSnapshot) {
-        const { error } = await supabase
+        const { error } = await endToEndSupabase
           .from('e2e_snapshots')
           .update({ status: 'older' })
-          .eq('id', currentSnapshot.id);
+          .eq('id', currentSnapshot.id)
+          .eq('owner_id', ownerId);
         if (error) throw databaseError('No se pudo cambiar la fotografía activa anterior', error);
       }
       if (status === 'conflict' && currentSnapshot) {
-        const { error } = await supabase.from('e2e_version_conflicts').insert({
+        const { error } = await endToEndSupabase.from('e2e_version_conflicts').insert({
+          owner_id: ownerId,
           generation_at: generationAt,
           first_snapshot_id: currentSnapshot.id,
           candidate_snapshot_id: inserted.id
@@ -344,7 +378,7 @@ export class EndToEndRepository {
         if (error) throw databaseError('No se pudo registrar el conflicto de versiones', error);
       }
     } catch (error) {
-      await supabase.from('e2e_snapshots').delete().eq('id', inserted.id);
+      await endToEndSupabase.from('e2e_snapshots').delete().eq('id', inserted.id).eq('owner_id', ownerId);
       throw error;
     }
 
@@ -352,8 +386,9 @@ export class EndToEndRepository {
   }
 
   public async recordAction(action: Omit<IEndToEndReportAction, 'id' | 'createdAt'>): Promise<void> {
-    requireDatabase();
-    const { error } = await supabase.from('e2e_report_actions').insert({
+    const ownerId = await requireOwnerId();
+    const { error } = await endToEndSupabase.from('e2e_report_actions').insert({
+      owner_id: ownerId,
       snapshot_id: action.snapshotId,
       radicaciones: action.radicaciones,
       action: action.action,
@@ -367,8 +402,8 @@ export class EndToEndRepository {
     resolvedSnapshotId: string,
     resolvedBy: string
   ): Promise<void> {
-    requireDatabase();
-    const { error } = await supabase.rpc('e2e_resolve_version_conflict', {
+    await requireOwnerId();
+    const { error } = await endToEndSupabase.rpc('e2e_resolve_version_conflict', {
       p_conflict_id: conflictId,
       p_resolved_snapshot_id: resolvedSnapshotId,
       p_resolved_by: resolvedBy.trim().toLocaleLowerCase()
@@ -377,7 +412,7 @@ export class EndToEndRepository {
   }
 
   public async saveClosure(closure: IEndToEndClosure): Promise<void> {
-    requireDatabase();
+    await requireOwnerId();
     const payload = {
       date: closure.date,
       description: closure.description.trim(),
@@ -391,8 +426,8 @@ export class EndToEndRepository {
       source: closure.source?.trim() || null
     };
     const response = closure.id
-      ? await supabase.from('e2e_non_working_periods').update(payload).eq('id', closure.id)
-      : await supabase.from('e2e_non_working_periods').insert(payload);
+      ? await endToEndSupabase.from('e2e_non_working_periods').update(payload).eq('id', closure.id)
+      : await endToEndSupabase.from('e2e_non_working_periods').insert(payload);
     if (response.error) throw databaseError('No se pudo guardar el período no laborable', response.error);
   }
 }

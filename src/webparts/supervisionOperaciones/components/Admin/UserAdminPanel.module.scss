@@ -13,6 +13,102 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26);
 }
 
+.tableCard {
+  min-width: 0;
+  overflow: visible;
+  padding-top: 24px;
+}
+
+.tableViewport {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-top: 2px;
+
+  :global(.ms-DetailsList) {
+    min-width: 1050px;
+    color: #f8fafc;
+    background: transparent;
+  }
+
+  :global(.ms-DetailsList-headerWrapper) {
+    overflow: visible;
+  }
+
+  :global(.ms-DetailsHeader) {
+    box-sizing: border-box;
+    height: 56px;
+    min-height: 56px;
+    overflow: visible;
+    padding: 0;
+    line-height: 1.25;
+    background: rgba(2, 6, 23, 0.6);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :global(.ms-DetailsHeader-cell) {
+    box-sizing: border-box;
+    height: 56px;
+    padding: 14px 16px;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: left;
+    text-transform: uppercase;
+    vertical-align: middle;
+    letter-spacing: 0.05em;
+    background: rgba(2, 6, 23, 0.6);
+  }
+
+  :global(.ms-DetailsHeader-cell:hover) {
+    color: #cbd5e1;
+    background: #0f172a;
+  }
+
+  :global(.ms-DetailsHeader-cellTitle) {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    align-items: center;
+  }
+
+  :global(.ms-DetailsHeader-cellName) {
+    overflow: visible;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    text-overflow: clip;
+  }
+
+  :global(.ms-DetailsRow) {
+    min-height: 64px;
+    color: #e2e8f0;
+    background: transparent;
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :global(.ms-DetailsRow:hover) {
+    background: rgba(30, 41, 59, 0.55);
+  }
+
+  :global(.ms-DetailsRow-cell) {
+    display: inline-flex;
+    height: auto;
+    min-height: 64px;
+    align-items: center;
+    padding: 16px;
+    color: #e2e8f0;
+    vertical-align: middle;
+  }
+
+  :global(.ms-Dropdown-container),
+  :global(.ms-Dropdown) {
+    width: 100%;
+  }
+}
+
 .headerRow {
   display: flex;
   align-items: flex-start;
@@ -155,7 +251,7 @@
   }
 
   .tableCard {
-    overflow-x: auto;
     padding: 12px;
+    padding-top: 16px;
   }
 }

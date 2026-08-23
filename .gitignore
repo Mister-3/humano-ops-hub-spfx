@@ -45,3 +45,6 @@ obj
 # Local environment credentials
 .env.local
 .env.*.local
+
+# Local QA reference report (never versioned)
+Reportes_EndToEnd_20260811.xlsx

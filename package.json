@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "test": "node --experimental-strip-types src/modules/endToEnd/endToEndDomain.test.mts",
+    "test": "node --experimental-strip-types --test src/modules/endToEnd/endToEndDomain.test.mts src/auth/rbacPolicy.test.mts src/modules/improvements/improvementsDomain.test.mts && vitest run",
+    "test:ui": "vitest run",
     "test:end-to-end-reference": "node --experimental-strip-types scripts/analyze-end-to-end-reference.mts",
     "build": "tsc -p tsconfig.app.json && vite build",
     "build:vercel": "npm run build",
@@ -20,6 +21,7 @@
     "@supabase/supabase-js": "^2.112.0",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.33.0",
     "react": "17.0.1",
     "react-dom": "17.0.1",
     "tslib": "2.3.1"
@@ -27,8 +29,13 @@
   "devDependencies": {
     "@types/react": "17.0.45",
     "@types/react-dom": "17.0.17",
+    "autoprefixer": "^10.5.4",
+    "jsdom": "^30.0.1",
+    "postcss": "^8.5.26",
     "sass": "^1.102.0",
+    "tailwindcss": "^3.4.17",
     "typescript": "~5.8.0",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.11"
   }
 }

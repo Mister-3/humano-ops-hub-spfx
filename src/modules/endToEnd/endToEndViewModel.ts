@@ -1,5 +1,8 @@
 import type { IEndToEndGroup } from '../../types';
-import { normalizeEndToEndText } from './endToEndDomain.ts';
+import {
+  isCriticalEndToEndGroup,
+  normalizeEndToEndText
+} from './endToEndDomain.ts';
 
 export interface IEndToEndFilters {
   search: string;
@@ -32,7 +35,7 @@ export const applyEndToEndFilters = (
     const matchesSearch = !search || normalizeEndToEndText(group.radicacion).includes(search);
     const matchesSeverity = !filters.severity ||
       (filters.severity === 'critica'
-        ? group.severity === 'rojo' || group.severity === 'naranja'
+        ? isCriticalEndToEndGroup(group)
         : group.severity === filters.severity);
     const matchesStage = !filters.stage || group.stage === filters.stage;
     const matchesFlow = !filters.flow || group.flow === filters.flow;

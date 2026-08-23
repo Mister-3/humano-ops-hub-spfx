@@ -7,11 +7,45 @@
 
 .tableContainer {
   color: #ffffff;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+  overflow-y: visible;
+
+  :global(.ms-DetailsList) {
+    min-width: 920px;
+  }
+
+  :global(.ms-DetailsHeader),
+  :global(.ms-DetailsHeader-cell) {
+    min-height: 56px;
+    background: #020617;
+  }
+
+  :global(.ms-DetailsHeader-cell) {
+    display: flex;
+    align-items: center;
+  }
+}
+
+.historyHeader {
+  padding: 20px;
+
+  :global(.ms-SearchBox) {
+    min-height: 42px;
+    color: #f8fafc;
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+  }
+
+  :global(.ms-SearchBox:focus-within) {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 1px #06b6d4;
+  }
+
+  :global(.ms-SearchBox-field) {
+    color: #f8fafc;
+    background: transparent;
+  }
 }
 
 :global(body.dark-mode) .tableContainer,

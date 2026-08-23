@@ -3,6 +3,7 @@ import * as React from 'react';
 import { useAuth } from './auth/AuthProvider';
 import AuthView from './auth/AuthView';
 import ChangePasswordDialog from './auth/ChangePasswordDialog';
+import { RBACProvider } from './auth/RBACContext';
 import SupervisionOperaciones from './webparts/supervisionOperaciones/components/SupervisionOperaciones';
 import GraphService from './webparts/supervisionOperaciones/services/GraphService';
 
@@ -21,17 +22,19 @@ const App: React.FC = () => {
     <div className="standaloneApp">
       <AuthView>
         {currentUser && currentUser.status === 'Active' ? (
-          <SupervisionOperaciones
-            currentUser={{
-              id: currentUser.id,
-              email: currentUser.email,
-              displayName: currentUser.displayName,
-              rol: currentUser.role
-            }}
-            graphService={graphService}
-            onChangePassword={() => setIsChangePasswordOpen(true)}
-            onSignOut={() => void handleSignOut()}
-          />
+          <RBACProvider userEmail={currentUser.email}>
+            <SupervisionOperaciones
+              currentUser={{
+                id: currentUser.id,
+                email: currentUser.email,
+                displayName: currentUser.displayName,
+                rol: currentUser.role
+              }}
+              graphService={graphService}
+              onChangePassword={() => setIsChangePasswordOpen(true)}
+              onSignOut={() => void handleSignOut()}
+            />
+          </RBACProvider>
         ) : null}
       </AuthView>
 

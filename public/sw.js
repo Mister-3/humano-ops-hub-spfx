@@ -1,4 +1,4 @@
-const CACHE_NAME = 'humano-ops-hub-v1';
+const CACHE_NAME = 'humano-ops-hub-v2';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {

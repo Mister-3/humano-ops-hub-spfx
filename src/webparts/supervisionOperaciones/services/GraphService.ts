@@ -27,13 +27,13 @@ const DEFAULT_HEADCOUNT: ReadonlyArray<Omit<IHeadcountRow, 'Id'>> = [
   {
     ID: 'HC-000001',
     EmailEmpleado: 'admin@humano.com.do',
-    NombreEmpleado: 'Administrador Maestro',
-    Cargo: 'Master Admin',
+    NombreEmpleado: 'Administrador de Plataforma',
+    Cargo: 'Admin',
     Departamento: 'Operaciones',
     EmailSupervisor: '',
     EstadoActivo: true,
     AgenteObjectID: 'local-master-admin-001',
-    Rol: 'Master_Admin',
+    Rol: 'Admin',
     SyncStatus: 'Sincronizado'
   }
 ];
@@ -64,7 +64,7 @@ const getRowRole = (row: IHeadcountRow): IHeadcountRow['Rol'] =>
   row.Rol || (
     (row.Cargo || '').toLocaleLowerCase().includes('supervisor')
       ? 'Supervisor'
-      : 'Oficial'
+      : 'Agente'
   );
 
 const toDirectReport = (row: IHeadcountRow): IDirectReport => ({
@@ -134,7 +134,7 @@ export default class GraphService {
             id: stored.id || `local-${configuredEmail}`,
             displayName: stored.displayName || configuredEmail,
             email: configuredEmail,
-            jobTitle: stored.jobTitle || stored.role || 'Oficial',
+            jobTitle: stored.jobTitle || stored.role || 'Agente',
             department: stored.department || '',
             role: stored.role
           };
@@ -154,7 +154,7 @@ export default class GraphService {
       id: row.AgenteObjectID || `headcount-${row.Id}`,
       displayName: getRowName(row),
       email: getRowEmail(row),
-      jobTitle: getRowRole(row) || 'Oficial',
+      jobTitle: getRowRole(row) || 'Agente',
       department: row.Departamento,
       role: getRowRole(row)
     };

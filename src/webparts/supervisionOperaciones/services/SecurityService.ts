@@ -1,19 +1,10 @@
 import type { IUsuario, RoleType } from '../models/AppModels';
+import { normalizeRoleType } from '../../../types';
 import GraphService, {
   type IDirectReport,
   type IGraphCurrentUser
 } from './GraphService';
 import { SharePointService } from './SharePointService';
-
-const ROLES: ReadonlyArray<RoleType> = [
-  'Master_Admin',
-  'Admin',
-  'Gerente',
-  'Supervisor',
-  'Analista',
-  'Asistente',
-  'Oficial'
-];
 
 const stableNumericId = (value: string): number => {
   let hash = 0;
@@ -62,29 +53,29 @@ export default class SecurityService {
       (item) => item.Title.trim().toLocaleLowerCase() === normalizedEmail
     );
 
-    if (matchingOverride && this.isRoleType(matchingOverride.RolAsignado)) {
-      return matchingOverride.RolAsignado;
+    if (matchingOverride?.RolAsignado) {
+      return normalizeRoleType(matchingOverride.RolAsignado);
     }
 
     const currentUser = await this.graphService.getCurrentUser();
 
     if (
       currentUser.email.trim().toLocaleLowerCase() === normalizedEmail &&
-      currentUser.role &&
-      this.isRoleType(currentUser.role)
+      currentUser.role
     ) {
-      return currentUser.role;
+      return normalizeRoleType(currentUser.role);
     }
 
     const jobTitle = currentUser.jobTitle.trim().toLocaleLowerCase();
 
-    if (jobTitle.includes('master_admin') || jobTitle.includes('master admin')) return 'Master_Admin';
+    if (jobTitle.includes('master_admin') || jobTitle.includes('master admin')) return 'Admin';
     if (jobTitle.includes('admin')) return 'Admin';
     if (jobTitle.includes('gerente')) return 'Gerente';
     if (jobTitle.includes('supervisor')) return 'Supervisor';
-    if (jobTitle.includes('analista')) return 'Analista';
-    if (jobTitle.includes('asistente')) return 'Asistente';
-    return 'Oficial';
+    if (jobTitle.includes('analista') || jobTitle.includes('asistente') || jobTitle.includes('custodio')) {
+      return 'Asistente';
+    }
+    return 'Agente';
   }
 
   public async getVisibleAgents(userRole: RoleType): Promise<IDirectReport[]> {
@@ -92,12 +83,11 @@ export default class SecurityService {
     const currentUserAsAgent = this.toVisibleAgent(currentUser);
     const normalizedRole = (userRole || '').toString().toLowerCase();
 
-    if (normalizedRole === 'agente' || normalizedRole === 'oficial') {
+    if (normalizedRole === 'agente') {
       return [currentUserAsAgent];
     }
 
     switch (userRole) {
-      case 'Master_Admin':
       case 'Admin':
         return this.deduplicateAgents(await this.graphService.getAllUsers());
 
@@ -113,7 +103,6 @@ export default class SecurityService {
           await this.graphService.getDirectReports()
         );
 
-      case 'Analista':
       case 'Asistente':
         return this.deduplicateAgents([
           ...(await this.graphService.getSupervisorPeers()),
@@ -121,14 +110,9 @@ export default class SecurityService {
         ]);
 
       case 'Agente':
-      case 'Oficial':
       default:
         return [currentUserAsAgent];
     }
-  }
-
-  private isRoleType(value: string): value is RoleType {
-    return ROLES.indexOf(value as RoleType) >= 0;
   }
 
   private toVisibleAgent(user: IGraphCurrentUser): IDirectReport {

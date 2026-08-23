@@ -13,10 +13,17 @@ import type {
   IUserAuthorizationResult
 } from './AuthModels';
 import { generateAuditID } from '../webparts/supervisionOperaciones/utils/auditUtils';
+import {
+  clearEndToEndAuthSession,
+  establishEndToEndAuthSession,
+  restoreEndToEndAuthSession,
+  updateEndToEndAuthPassword
+} from './EndToEndAuthSession';
+import { normalizeRoleType } from '../types';
 
 export const CORPORATE_EMAIL_DOMAIN = '@humano.com.do';
 export const MASTER_ADMIN_EMAIL = 'admin@humano.com.do';
-export const MASTER_ADMIN_NAME = 'Administrador Maestro';
+export const MASTER_ADMIN_NAME = 'Administrador de Plataforma';
 export const ADMIN_NOTIFICATION_EMAIL = '3urek4.ventalm@gmail.com';
 export const SECURITY_PASSWORD_NOTICE =
   '⚠️ AVISO DE SEGURIDAD: Por políticas de ciberseguridad, NO utilices tu contraseña corporativa de Microsoft / Office 365. Esta plataforma utiliza una clave local independiente.';
@@ -165,7 +172,7 @@ const toAuthenticatedUser = (
   externalId: user.ID,
   email: normalizeEmail(user.Email),
   displayName: user.Nombre,
-  role: user.Rol,
+  role: normalizeRoleType(user.Rol),
   status: user.Estado,
   isProfileValidatedByPA: user.IsProfileValidatedByPA
 });
@@ -198,8 +205,8 @@ export class AuthService {
           ID: normalized === normalizeEmail(ADMIN_NOTIFICATION_EMAIL) ? 'USR-000000' : 'USR-000001',
           Email: normalized,
           PasswordHash: await hashPassword('HumSupHub8890-'),
-          Nombre: normalized === normalizeEmail(ADMIN_NOTIFICATION_EMAIL) ? 'Master Admin' : MASTER_ADMIN_NAME,
-          Rol: 'Master_Admin',
+          Nombre: normalized === normalizeEmail(ADMIN_NOTIFICATION_EMAIL) ? 'Admin de plataforma' : MASTER_ADMIN_NAME,
+          Rol: 'Admin',
           Estado: 'Active',
           IsProfileValidatedByPA: true,
           FechaRegistro: now,
@@ -211,7 +218,7 @@ export class AuthService {
         throw new Error('Esta cuenta se encuentra deshabilitada.');
       }
 
-      await this.createSession(user);
+      await this.createSession(user, password);
       return toAuthenticatedUser(user);
     }
 
@@ -225,7 +232,7 @@ export class AuthService {
       throw new Error('Esta cuenta se encuentra deshabilitada.');
     }
 
-    await this.createSession(user);
+    await this.createSession(user, password);
     return toAuthenticatedUser(user);
   }
 
@@ -254,22 +261,22 @@ export class AuthService {
     }
 
     const now = new Date().toISOString();
-    const isMasterAdmin = email === normalizeEmail(ADMIN_NOTIFICATION_EMAIL);
+    const isBootstrapAdmin = email === normalizeEmail(ADMIN_NOTIFICATION_EMAIL);
     const user = await cloudDbClient.createUsuario({
       ID: `USR-${Date.now().toString(36).toUpperCase()}`,
       Email: email,
       PasswordHash: await hashPassword(input.password),
       Nombre: name,
-      Rol: isMasterAdmin ? 'Master_Admin' : 'Agente',
-      Estado: isMasterAdmin ? 'Active' : 'Pending_Admin_Approval',
-      IsProfileValidatedByPA: isMasterAdmin,
+      Rol: isBootstrapAdmin ? 'Admin' : 'Agente',
+      Estado: isBootstrapAdmin ? 'Active' : 'Pending_Admin_Approval',
+      IsProfileValidatedByPA: isBootstrapAdmin,
       FechaRegistro: now,
-      FechaAprobacion: isMasterAdmin ? now : '',
+      FechaAprobacion: isBootstrapAdmin ? now : '',
       SyncStatus: 'Pendiente',
       UpdatedAt: now
     }) as IAppUserRecord & { Id: number };
 
-    await this.createSession(user);
+    await this.createSession(user, input.password);
     return toAuthenticatedUser(user);
   }
 
@@ -289,6 +296,7 @@ export class AuthService {
     }
 
     if (!stored.email || !stored.token) {
+      await clearEndToEndAuthSession();
       return null;
     }
 
@@ -310,6 +318,11 @@ export class AuthService {
 
     const user = await this.findUserByEmail(stored.email);
     if (!user || user.Estado === 'Disabled') {
+      await this.clearSession();
+      return null;
+    }
+
+    if (!await restoreEndToEndAuthSession(user.Email)) {
       await this.clearSession();
       return null;
     }
@@ -353,6 +366,8 @@ export class AuthService {
       throw new Error('La nueva contraseña debe ser diferente de la actual.');
     }
 
+    await updateEndToEndAuthPassword(newPassword);
+
     await this.database.put(LOCAL_STORES.users, {
       ...user,
       Id: user.Id,
@@ -392,7 +407,7 @@ export class AuthService {
     await this.ensureMasterAdmin();
     const masterAdmin = await this.findUserByEmail(MASTER_ADMIN_EMAIL);
     if (!masterAdmin?.Id) {
-      throw new Error('No fue posible localizar la cuenta Master Admin local.');
+      throw new Error('No fue posible localizar la cuenta Admin de plataforma local.');
     }
 
     const provisionalPassword = generateRecoveryPassword();
@@ -403,7 +418,7 @@ export class AuthService {
       ...masterAdmin,
       Id: masterAdmin.Id,
       PasswordHash: await hashPassword(provisionalPassword),
-      Rol: 'Master_Admin',
+      Rol: 'Admin',
       Estado: 'Active',
       IsProfileValidatedByPA: true,
       SyncStatus: 'Pendiente'
@@ -416,7 +431,7 @@ export class AuthService {
         AuditID: auditId,
         Tipo: 'MasterAdminRecovery',
         Destinatario: ADMIN_NOTIFICATION_EMAIL,
-        Mensaje: `Recuperación local Master Admin solicitada para ${MASTER_ADMIN_EMAIL}. AuditID: ${auditId}.`,
+        Mensaje: `Recuperación local del Admin de plataforma solicitada para ${MASTER_ADMIN_EMAIL}. AuditID: ${auditId}.`,
         Fecha: now,
         Sincronizado: false,
         SyncStatus: 'Pendiente',
@@ -442,11 +457,11 @@ export class AuthService {
 
   public async authorizeUser(
     userId: number,
-    role: Extract<AppUserRole, 'Admin' | 'Supervisor' | 'Asistente'>
+    role: AppUserRole
   ): Promise<IUserAuthorizationResult> {
     const currentUser = await this.restoreSession();
-    if (currentUser?.role !== 'Master_Admin' || currentUser.status !== 'Active') {
-      throw new Error('Solo el Master Admin puede autorizar usuarios.');
+    if (currentUser?.role !== 'Admin' || currentUser.status !== 'Active') {
+      throw new Error('Solo un Admin activo puede autorizar usuarios.');
     }
 
     const target = await this.database.getById<IAppUserRecord>(
@@ -487,15 +502,15 @@ export class AuthService {
       const existing = await this.findUserByEmail(adminEmail);
       if (existing) {
         if (!existing.PasswordHash) {
-          await cloudDbClient.updateUsuarioStatus(adminEmail, 'Active', 'Master_Admin', true);
+          await cloudDbClient.updateUsuarioStatus(adminEmail, 'Active', 'Admin', true);
         }
       } else {
         await cloudDbClient.createUsuario({
           ID: adminEmail === ADMIN_NOTIFICATION_EMAIL ? 'USR-000000' : 'USR-000001',
           Email: adminEmail,
           PasswordHash: MASTER_ADMIN_BOOTSTRAP_HASH,
-          Nombre: adminEmail === ADMIN_NOTIFICATION_EMAIL ? 'Master Admin' : MASTER_ADMIN_NAME,
-          Rol: 'Master_Admin',
+          Nombre: adminEmail === ADMIN_NOTIFICATION_EMAIL ? 'Admin de plataforma' : MASTER_ADMIN_NAME,
+          Rol: 'Admin',
           Estado: 'Active',
           IsProfileValidatedByPA: true,
           FechaRegistro: now,
@@ -527,8 +542,10 @@ export class AuthService {
   }
 
   private async createSession(
-    user: IAppUserRecord & { Id: number }
+    user: IAppUserRecord & { Id: number },
+    password: string
   ): Promise<void> {
+    await establishEndToEndAuthSession(user.Email, password);
     const token = randomToken();
     const session: IAuthSessionEntity = {
       Id: 1,
@@ -546,12 +563,16 @@ export class AuthService {
   }
 
   private async clearSession(): Promise<void> {
-    await this.database.replaceAll(LOCAL_STORES.sessions, []);
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    }
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(DIRECTORY_IDENTITY_STORAGE_KEY);
+    try {
+      await clearEndToEndAuthSession();
+    } finally {
+      await this.database.replaceAll(LOCAL_STORES.sessions, []);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(DIRECTORY_IDENTITY_STORAGE_KEY);
+      }
     }
   }
 
@@ -566,8 +587,8 @@ export class AuthService {
       id: user.ID,
       email: normalizeEmail(user.Email),
       displayName: user.Nombre,
-      role: user.Rol,
-      jobTitle: user.Rol,
+      role: normalizeRoleType(user.Rol),
+      jobTitle: normalizeRoleType(user.Rol),
       department: ''
     }));
   }

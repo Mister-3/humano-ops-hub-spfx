@@ -768,7 +768,7 @@ const EvaluacionRendimiento: React.FC<IEvaluacionRendimientoProps> = ({
 
   const hasGlobalScope = isGlobalRole(userRole);
   const canViewPreventiveAlerts = userRole === 'Supervisor' ||
-    userRole === 'Gerente' || userRole === 'Admin' || userRole === 'Master_Admin';
+    userRole === 'Gerente' || userRole === 'Admin';
   const availableReports = React.useMemo(() => {
     const reportsByKey = new Map<string, IDirectReport>();
 

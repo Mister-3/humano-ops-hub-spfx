@@ -10,7 +10,6 @@ import type {
   Worksheet
 } from 'exceljs';
 import {
-  ACTIVE_USER_ROLES,
   APP_USER_STATUSES
 } from '../auth/AuthModels';
 import IndexedDbAdapter, {
@@ -19,6 +18,7 @@ import IndexedDbAdapter, {
   type LocalStoreName
 } from './IndexedDbAdapter';
 import { cloudDbClient } from './CloudDbClient';
+import { normalizeRoleType } from '../types';
 
 export interface IHeadcountRow extends ILocalEntity {
   Id: number;
@@ -169,9 +169,6 @@ const isPendingUser = (user: IAppUserRecord): boolean =>
   user.Estado === 'Pending_Admin_Approval' ||
   user.Estado === 'Pending_Validation' ||
   user.IsProfileValidatedByPA === false;
-
-const isAppUserRole = (value: string): value is AppUserRole =>
-  ACTIVE_USER_ROLES.includes(value as AppUserRole);
 
 const isAppUserStatus = (value: string): value is AppUserStatus =>
   APP_USER_STATUSES.includes(value as AppUserStatus);
@@ -824,16 +821,14 @@ export class PowerAutomateSyncService {
         ? directoryNamesByEmail.get(email) || toText((rawRow as any).Nombre || (rawRow as any).nombre)
         : '';
 
-      const calculatedRol: AppUserRole = isAppUserRole(extractedRol)
-        ? (extractedRol as AppUserRole)
-        : 'Agente';
+      const calculatedRol: AppUserRole = normalizeRoleType(extractedRol);
 
-      const currentRole = current?.Rol;
+      const currentRole = current?.Rol ? normalizeRoleType(current.Rol) : undefined;
       const isRoleOverridden = Boolean(current?.IsRoleManuallyOverridden);
-      const isAdminOrMaster = currentRole === 'Master_Admin' || (currentRole as string) === 'Master Admin' || currentRole === 'Admin';
+      const isPlatformAdmin = currentRole === 'Admin';
 
       let finalRole: AppUserRole;
-      if ((isRoleOverridden || isAdminOrMaster) && currentRole) {
+      if ((isRoleOverridden || isPlatformAdmin) && currentRole) {
         finalRole = currentRole;
       } else {
         finalRole = calculatedRol;

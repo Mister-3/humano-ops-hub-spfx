@@ -16,31 +16,29 @@ import {
 } from '@fluentui/react';
 
 import { useAuth } from '../../../../auth/AuthProvider';
-import { ADMIN_NOTIFICATION_EMAIL } from '../../../../auth/AuthService';
+import { useRBAC } from '../../../../auth/RBACContext';
+import {
+  ADMIN_NOTIFICATION_EMAIL,
+  MASTER_ADMIN_EMAIL
+} from '../../../../auth/AuthService';
 import type {
   AppUserRole,
   IAppUserRecord
 } from '../../../../auth/AuthModels';
+import { ACTIVE_USER_ROLES } from '../../../../auth/AuthModels';
 import { cloudDbClient } from '../../../../services/CloudDbClient';
+import { normalizeRoleType } from '../../../../types';
 import styles from './UserAdminPanel.module.scss';
+import { NoAccessMessage } from '../Common/PermissionGuard';
+import RolesPermissionsAdmin from './RolesPermissionsAdmin';
 
-const roleOptions: IDropdownOption[] = [
-  { key: 'Agente', text: 'Agente' },
-  { key: 'Supervisor', text: 'Supervisor' },
-  { key: 'Admin', text: 'Admin' },
-  { key: 'Master_Admin', text: 'Master Admin' }
-];
+const roleOptions: IDropdownOption[] = ACTIVE_USER_ROLES.map((role) => ({
+  key: role,
+  text: role
+}));
 
-const isMasterAdminRole = (role?: string): boolean => {
-  if (!role) return false;
-  const normalized = role.trim().toLowerCase().replace(/[\s_-]+/g, '_');
-  return (
-    normalized === 'master_admin' ||
-    role === 'Master Admin' ||
-    role === 'Master_Admin' ||
-    role.toLowerCase().includes('master')
-  );
-};
+const isProtectedPlatformAdmin = (user: IAppUserRecord): boolean =>
+  [ADMIN_NOTIFICATION_EMAIL, MASTER_ADMIN_EMAIL].includes(user.Email.trim().toLocaleLowerCase());
 
 const formatStatusText = (status: string): string => {
   switch (status) {
@@ -56,7 +54,10 @@ const formatStatusText = (status: string): string => {
 };
 
 const UserAdminPanel: React.FC = () => {
-  const { currentUser, listUsers } = useAuth();
+  const { listUsers } = useAuth();
+  const { hasPermission } = useRBAC();
+  const canManageUsers = hasPermission('modulo:admin:gestionar_usuarios');
+  const canManagePermissions = hasPermission('modulo:admin:gestionar_permisos');
   const [users, setUsers] = React.useState<Array<IAppUserRecord & { Id: number }>>([]);
   const [selectedRoles, setSelectedRoles] = React.useState<Record<number, AppUserRole>>({});
   const [statusFilter, setStatusFilter] = React.useState<string>('ALL');
@@ -91,7 +92,7 @@ const UserAdminPanel: React.FC = () => {
       setUsers(loaded);
       setSelectedRoles((current) => loaded.reduce<Record<number, AppUserRole>>(
         (result, user) => {
-          result[user.Id] = current[user.Id] || user.Rol || 'Agente';
+          result[user.Id] = normalizeRoleType(current[user.Id] || user.Rol);
           return result;
         },
         {}
@@ -107,8 +108,9 @@ const UserAdminPanel: React.FC = () => {
   }, [listUsers]);
 
   React.useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    if (canManageUsers) void loadUsers();
+    else setIsLoading(false);
+  }, [canManageUsers, loadUsers]);
 
   const approveUser = async (user: IAppUserRecord & { Id: number }): Promise<void> => {
     const role = selectedRoles[user.Id] || user.Rol || 'Agente';
@@ -220,11 +222,11 @@ const UserAdminPanel: React.FC = () => {
       name: 'Rol asignado',
       minWidth: 170,
       onRender: (item: IAppUserRecord & { Id: number }) => {
-        const isMaster = isMasterAdminRole(item.Rol);
+        const isProtectedAdmin = isProtectedPlatformAdmin(item);
         return (
           <Dropdown
             ariaLabel={`Rol para ${item.Nombre}`}
-            disabled={isMaster || processingId === item.Id}
+            disabled={isProtectedAdmin || processingId === item.Id}
             onChange={(_, option) => {
               const value = String(option?.key || '') as AppUserRole;
               if (value) {
@@ -232,7 +234,7 @@ const UserAdminPanel: React.FC = () => {
               }
             }}
             options={roleOptions}
-            selectedKey={selectedRoles[item.Id] || item.Rol || 'Agente'}
+            selectedKey={normalizeRoleType(selectedRoles[item.Id] || item.Rol)}
           />
         );
       }
@@ -242,7 +244,7 @@ const UserAdminPanel: React.FC = () => {
       name: 'Acciones de administración',
       minWidth: 260,
       onRender: (item: IAppUserRecord & { Id: number }) => {
-        const isMaster = isMasterAdminRole(item.Rol);
+        const isProtectedAdmin = isProtectedPlatformAdmin(item);
         const isActive = item.Estado === 'Active';
         const isDisabled = item.Estado === 'Disabled';
         const isProcessing = processingId === item.Id;
@@ -251,17 +253,17 @@ const UserAdminPanel: React.FC = () => {
           <Stack horizontal tokens={{ childrenGap: 6 }}>
             {!isActive && (
               <PrimaryButton
-                disabled={isMaster || isProcessing}
+                disabled={isProtectedAdmin || isProcessing}
                 onClick={() => void approveUser(item)}
                 text="Aprobar"
               />
             )}
             <DefaultButton
-              disabled={isMaster || isProcessing}
+              disabled={isProtectedAdmin || isProcessing}
               onClick={() => void updateUserRole(item)}
               text="Guardar Rol"
             />
-            {!isDisabled && !isMaster && (
+            {!isDisabled && !isProtectedAdmin && (
               <DefaultButton
                 disabled={isProcessing}
                 onClick={() => void disableUser(item)}
@@ -274,12 +276,8 @@ const UserAdminPanel: React.FC = () => {
     }
   ], [processingId, selectedRoles]);
 
-  if (!isMasterAdminRole(currentUser?.role)) {
-    return (
-      <MessageBar messageBarType={MessageBarType.blocked}>
-        Acceso exclusivo para el Master Admin.
-      </MessageBar>
-    );
+  if (!canManageUsers && !canManagePermissions) {
+    return <NoAccessMessage detail="Se requiere permiso para administrar usuarios, roles o perfiles de acceso." />;
   }
 
   return (
@@ -289,7 +287,7 @@ const UserAdminPanel: React.FC = () => {
           <div>
             <h3 className={styles.title}>Administración de Usuarios</h3>
             <p className={styles.description}>
-              Gestiona el estado y rol de todos los usuarios del sistema. Autoriza solicitudes pendientes y actualiza asignaciones de rol en tiempo real.
+              Centro único para cuentas, los cinco roles canónicos, perfiles de acceso y la matriz RBAC.
             </p>
             <p className={styles.adminRecipient}>
               Alertas administrativas: <a href={`mailto:${ADMIN_NOTIFICATION_EMAIL}`}>{ADMIN_NOTIFICATION_EMAIL}</a>
@@ -321,20 +319,24 @@ const UserAdminPanel: React.FC = () => {
         </MessageBar>
       )}
 
-      <div className={styles.tableCard}>
+      {canManageUsers && <div className={styles.tableCard}>
         {isLoading ? (
           <Spinner label="Cargando usuarios..." size={SpinnerSize.large} />
         ) : filteredUsers.length === 0 ? (
           <div className={styles.emptyState}>No existen usuarios registrados para este filtro.</div>
         ) : (
-          <DetailsList
-            columns={columns}
-            items={filteredUsers}
-            layoutMode={DetailsListLayoutMode.justified}
-            selectionMode={SelectionMode.none}
-          />
+          <div className={styles.tableViewport}>
+            <DetailsList
+              columns={columns}
+              items={filteredUsers}
+              layoutMode={DetailsListLayoutMode.justified}
+              selectionMode={SelectionMode.none}
+            />
+          </div>
         )}
-      </div>
+      </div>}
+
+      {canManagePermissions && <RolesPermissionsAdmin />}
     </section>
   );
 };

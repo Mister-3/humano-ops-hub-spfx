@@ -1,14 +1,7 @@
 import type { ILocalEntity } from '../services/IndexedDbAdapter';
+import { CANONICAL_ROLES, type RoleType } from '../types';
 
-export type AppUserRole =
-  | 'Master_Admin'
-  | 'Admin'
-  | 'Gerente'
-  | 'Supervisor'
-  | 'Analista'
-  | 'Asistente'
-  | 'Agente'
-  | 'Oficial';
+export type AppUserRole = RoleType;
 
 export type AppUserStatus =
   | 'Pending_Validation'
@@ -74,13 +67,7 @@ export interface IAuthSessionEntity extends ILocalEntity {
 }
 
 export const ACTIVE_USER_ROLES: ReadonlyArray<AppUserRole> = [
-  'Master_Admin',
-  'Admin',
-  'Gerente',
-  'Supervisor',
-  'Analista',
-  'Asistente',
-  'Oficial'
+  ...CANONICAL_ROLES
 ];
 
 export const APP_USER_STATUSES: ReadonlyArray<AppUserStatus> = [

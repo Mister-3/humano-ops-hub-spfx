@@ -9,6 +9,7 @@ import {
   Stack,
   Text
 } from '@fluentui/react';
+import { CalendarRange } from 'lucide-react';
 
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
@@ -17,6 +18,12 @@ import SharePointService, {
 import AgentComboBox, {
   type IAgentComboBoxScopeOption
 } from '../AgentSelector/AgentComboBox';
+import {
+  PageHeader,
+  StatusBadge,
+  SurfaceCard,
+  type StatusBadgeVariant
+} from '../Common';
 import styles from './PlanificacionSemanal.module.scss';
 
 export interface IPlanificacionSemanalProps {
@@ -155,18 +162,18 @@ const getRangeWorkDays = (startDate: Date, endDate: Date): Date[] => {
 
 const getAbsencePresentation = (
   absenceType: IAusenciaItem['TipoAusencia']
-): { emoji: string; text: string } => {
+): { text: string; variant: StatusBadgeVariant } => {
   switch (absenceType) {
     case 'Vacaciones':
-      return { emoji: '🌴', text: 'Vacaciones' };
+      return { text: 'Vacaciones', variant: 'info' };
     case 'Día Libre Cumpleaños':
-      return { emoji: '🎂', text: 'Día Libre Cumpleaños' };
+      return { text: 'Día Libre Cumpleaños', variant: 'success' };
     case 'Día Libre Empleado del Mes':
-      return { emoji: '🏆', text: 'Día Libre Empleado del Mes' };
+      return { text: 'Día Libre Empleado del Mes', variant: 'role' };
     case 'Licencia / Incapacidad':
-      return { emoji: '🩺', text: 'Licencia / Incapacidad' };
+      return { text: 'Licencia / Incapacidad', variant: 'warning' };
     default:
-      return { emoji: '⚠️', text: absenceType };
+      return { text: absenceType, variant: 'neutral' };
   }
 };
 
@@ -367,12 +374,16 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
   return (
     <section className={styles.planning}>
       <Stack tokens={{ childrenGap: 20 }}>
-        <Stack tokens={{ childrenGap: 4 }}>
-          <Text variant="xxLarge">Planificación Semanal de Trabajo</Text>
-          <Text className={styles.description}>
-            Consulta la disponibilidad operativa del equipo de lunes a sábado.
-          </Text>
-        </Stack>
+        <PageHeader
+          badge={(
+            <StatusBadge variant="neutral">
+              Admin · Gerente · Supervisor · Asistente · Agente
+            </StatusBadge>
+          )}
+          icon={<CalendarRange aria-hidden="true" size={24} />}
+          subtitle="Consulta la disponibilidad operativa del equipo de lunes a sábado."
+          title="Control de Ausencias y Planificación"
+        />
 
         {errorMessage && (
           <MessageBar messageBarType={MessageBarType.error}>
@@ -380,7 +391,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
           </MessageBar>
         )}
 
-        <div className={styles.controlsCard}>
+        <SurfaceCard className={styles.controlsCard}>
           <div className={styles.agentField}>
             <AgentComboBox
               agents={roster}
@@ -438,7 +449,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
             onClick={handleQuery}
             text="Actualizar planificación"
           />
-        </div>
+        </SurfaceCard>
 
         {isLoadingAgents && (
           <Spinner
@@ -447,7 +458,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
           />
         )}
 
-        <article className={`${styles.capacityCard} ${capacityClassName}`}>
+        <SurfaceCard className={`${styles.capacityCard} ${capacityClassName}`}>
           <div>
             <Text className={styles.kpiEyebrow}>Capacidad Operativa</Text>
             <div className={styles.capacityValue}>
@@ -469,17 +480,17 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
                 : 'No hay colaboradores dentro del alcance seleccionado.'}
             </span>
           </div>
-        </article>
+        </SurfaceCard>
 
-        <article className={styles.gridCard}>
+        <SurfaceCard className={styles.gridCard}>
           <div className={styles.gridHeader}>
             <div>
               <Text className={styles.gridEyebrow}>Cobertura del equipo</Text>
               <h3>Semana operativa</h3>
             </div>
-            <span className={styles.rangeBadge}>
+            <StatusBadge variant="info" size="md">
               {formatDate(startDate)} — {formatDate(endDate)}
-            </span>
+            </StatusBadge>
           </div>
 
           {isLoading ? (
@@ -501,7 +512,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
               <table className={styles.scheduleTable}>
                 <thead>
                   <tr>
-                    <th scope="col">Oficial / Agente</th>
+                    <th scope="col">Colaborador / Rol operativo</th>
                     {workDays.map((day) => (
                       <th key={day.toISOString()} scope="col">
                         <span>{formatDayName(day)}</span>
@@ -536,30 +547,26 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
 
                                   return (
                                     <span
-                                      className={styles.absenceBadge}
                                       key={absence.Id}
                                       title={[
                                         absence.Comentarios || presentation.text,
                                         auditId ? `Audit ID: ${auditId}` : ''
                                       ].filter(Boolean).join(' · ')}
                                     >
-                                      <span aria-hidden="true">
-                                        {presentation.emoji}
-                                      </span>
-                                      <span className={styles.absenceBadgeCopy}>
-                                        <span>{presentation.text}</span>
-                                        {auditId && (
-                                          <small>Audit ID: {auditId}</small>
-                                        )}
-                                      </span>
+                                      <StatusBadge variant={presentation.variant}>
+                                        <span className={styles.absenceBadgeCopy}>
+                                          <span>{presentation.text}</span>
+                                          {auditId && (
+                                            <small>Audit ID: {auditId}</small>
+                                          )}
+                                        </span>
+                                      </StatusBadge>
                                     </span>
                                   );
                                 })}
                               </div>
                             ) : (
-                              <span className={styles.availableBadge}>
-                                Disponible
-                              </span>
+                              <StatusBadge variant="success">Disponible</StatusBadge>
                             )}
                           </td>
                         );
@@ -570,7 +577,7 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
               </table>
             </div>
           )}
-        </article>
+        </SurfaceCard>
       </Stack>
     </section>
   );

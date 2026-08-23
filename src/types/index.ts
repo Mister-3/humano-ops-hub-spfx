@@ -20,15 +20,53 @@ export type {
   IEndToEndVersionConflict
 } from './endToEnd';
 
-export type RoleType =
-  | 'Master_Admin'
-  | 'Admin'
-  | 'Gerente'
-  | 'Supervisor'
-  | 'Analista'
-  | 'Asistente'
-  | 'Agente'
-  | 'Oficial';
+export const CANONICAL_ROLES = [
+  'Admin',
+  'Gerente',
+  'Supervisor',
+  'Asistente',
+  'Agente'
+] as const;
+
+export type RoleType = typeof CANONICAL_ROLES[number];
+export type RoleSlug = 'admin' | 'gerente' | 'supervisor' | 'asistente' | 'agente';
+export const CANONICAL_ROLE_SLUGS: ReadonlyArray<RoleSlug> = [
+  'admin',
+  'gerente',
+  'supervisor',
+  'asistente',
+  'agente'
+];
+
+export const ROLE_SLUGS: Record<RoleType, RoleSlug> = {
+  Admin: 'admin',
+  Gerente: 'gerente',
+  Supervisor: 'supervisor',
+  Asistente: 'asistente',
+  Agente: 'agente'
+};
+
+export const canonicalizeRoleSlug = (value?: string | null): RoleSlug | undefined => {
+  const normalized = (value || '').trim().toLocaleLowerCase().replace(/[\s-]+/g, '_');
+  if (normalized === 'admin' || normalized === 'master_admin') return 'admin';
+  if (normalized === 'gerente') return 'gerente';
+  if (normalized === 'supervisor') return 'supervisor';
+  if (normalized === 'asistente' || normalized === 'analista' || normalized === 'custodio') {
+    return 'asistente';
+  }
+  if (normalized === 'agente' || normalized === 'oficial' || normalized === 'colaborador') {
+    return 'agente';
+  }
+  return undefined;
+};
+
+export const normalizeRoleType = (value?: string | null): RoleType => {
+  const slug = canonicalizeRoleSlug(value) || 'agente';
+  return CANONICAL_ROLES[CANONICAL_ROLE_SLUGS.indexOf(slug)];
+};
+
+export const toRoleSlug = (value?: string | null): RoleSlug =>
+  canonicalizeRoleSlug(value) || 'agente';
 
 export type FaltaApprovalStatus =
   | 'Pendiente'
@@ -187,9 +225,31 @@ export interface IPublicarEmpleadoMesData {
   fechaPublicacion?: Date;
 }
 
+export type InitiativePriority = 'Baja' | 'Media' | 'Alta' | 'Critica';
+export type InitiativeLifecycleStatus =
+  | 'Borrador'
+  | 'En Revision'
+  | 'Aprobada'
+  | 'En Desarrollo'
+  | 'Implementada'
+  | 'Descartada';
+
+export type AcceptanceCriterionMode = 'checklist' | 'gherkin';
+
+export interface IAcceptanceCriterion {
+  id: string;
+  mode: AcceptanceCriterionMode;
+  text: string;
+  given?: string;
+  when?: string;
+  then?: string;
+  verified: boolean;
+}
+
 export interface ISolicitudMejora {
   id?: string;
   audit_id?: string;
+  owner_id?: string;
   autor_nombre: string;
   autor_email: string;
   aplicativo?: string;
@@ -198,12 +258,20 @@ export interface ISolicitudMejora {
   titulo: string;
   descripcion: string;
   criterios_aceptacion: string;
+  criterios_aceptacion_json?: IAcceptanceCriterion[];
+  actor?: string;
+  necesidad?: string;
+  beneficio?: string;
+  modulo_clave?: string;
+  prioridad?: InitiativePriority;
+  estado_ciclo?: InitiativeLifecycleStatus;
   estado: 'Pendiente_Aprobacion' | 'Aprobada' | 'Declinada';
   comentario_supervisor?: string;
   supervisor_email?: string;
   supervisor_nombre?: string;
   fecha_revision?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface IRegistrarFaltaData {

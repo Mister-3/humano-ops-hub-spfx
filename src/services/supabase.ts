@@ -4,7 +4,7 @@ export const SUPABASE_QA_PROJECT_ID = 'xoevilnaffroexyhfhze';
 export const SUPABASE_PRODUCTION_PROJECT_ID = 'hjvzinpdzexkgmmlpwwr';
 
 export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
 export const supabaseConfigurationError: string | null =
   !supabaseUrl || !supabaseAnonKey
@@ -43,5 +43,24 @@ const unavailableSupabaseClient = new Proxy({} as SupabaseClient, {
 export const supabase: SupabaseClient = supabaseConfigurationError
   ? unavailableSupabaseClient
   : createClient(supabaseUrl as string, supabaseAnonKey as string);
+
+/**
+ * Cliente aislado para las tablas End-to-End. Mantiene una sesión real de
+ * Supabase Auth sin cambiar el rol JWT del cliente histórico usado por el
+ * resto de Humano Ops Hub.
+ */
+export const authenticatedSupabase: SupabaseClient = supabaseConfigurationError
+  ? unavailableSupabaseClient
+  : createClient(supabaseUrl as string, supabaseAnonKey as string, {
+    auth: {
+      storageKey: 'humano-ops-e2e-auth',
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false
+    }
+  });
+
+// Alias conservado para no romper el repositorio End-to-End existente.
+export const endToEndSupabase = authenticatedSupabase;
 
 export default supabase;

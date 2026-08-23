@@ -120,12 +120,12 @@ const LoginForm: React.FC = () => {
         }}
         type="button"
       >
-        Acceso de emergencia Master Admin
+        Acceso de emergencia Admin
       </button>
 
       {isRecoveryVisible && (
         <section
-          aria-label="Recuperación de emergencia Master Admin"
+          aria-label="Recuperación de emergencia del Admin de plataforma"
           className={styles.emergencyPanel}
         >
           <MessageBar messageBarType={MessageBarType.severeWarning}>
@@ -142,7 +142,7 @@ const LoginForm: React.FC = () => {
             disabled={isRecovering}
             label="Correo autorizado de recuperación"
             onChange={(_, value) => setRecoveryEmail(value || '')}
-            placeholder="Correo Master Admin"
+            placeholder="Correo del Admin de plataforma"
             type="email"
             value={recoveryEmail}
           />
@@ -286,7 +286,7 @@ export const AuthView: React.FC<IAuthViewProps> = ({ children }) => {
           <h1 className={styles.title}>Acceso pendiente</h1>
           <p className={styles.subtitle}>
             {isValidated
-              ? 'Tu identidad corporativa ya fue validada. La cuenta espera autorización del Master Admin.'
+              ? 'Tu identidad corporativa ya fue validada. La cuenta espera autorización de un Admin.'
               : 'Tu cuenta está en proceso de validación con el directorio corporativo.'}
           </p>
           <span className={styles.emailBadge}>{currentUser.email}</span>

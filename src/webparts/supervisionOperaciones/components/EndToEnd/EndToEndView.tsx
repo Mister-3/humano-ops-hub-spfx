@@ -10,14 +10,15 @@ import type {
 } from '../../../../types';
 import {
   analyzeEndToEndRows,
-  DEFAULT_END_TO_END_CAPABILITIES,
   formatSantoDomingoLocalInput,
   formatSantoDomingoDateTime,
   groupEndToEndRows,
+  isCriticalEndToEndGroup,
   normalizeEndToEndText,
   parseSantoDomingoLocalInput,
   resolveReportFreshness
 } from '../../../../modules/endToEnd/endToEndDomain';
+import { useRBAC } from '../../../../auth/RBACContext';
 import { parseEndToEndFile } from '../../../../modules/endToEnd/endToEndParser';
 import {
   endToEndRepository,
@@ -33,6 +34,7 @@ import {
   EMPTY_END_TO_END_FILTERS,
   type IEndToEndFilters
 } from '../../../../modules/endToEnd/endToEndViewModel';
+import CopyColumnsPortal from './CopyColumnsPortal';
 import styles from './EndToEndView.module.scss';
 
 interface IEndToEndViewProps {
@@ -43,7 +45,7 @@ interface IEndToEndViewProps {
 const SEVERITY_LABELS: Record<EndToEndSeverity, string> = {
   verde: 'Cumple / < 4 h',
   amarillo: 'Atención · 4–6 h',
-  naranja: 'Prioridad · 6–8 h',
+  naranja: 'Crítica · 6–<8 h',
   rojo: 'Vencida / incumplida',
   gris: 'Excluida',
   error: 'Error de datos'
@@ -72,6 +74,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   currentUserEmail,
   currentUserName
 }) => {
+  const { hasPermission } = useRBAC();
   const [workspace, setWorkspace] = React.useState<IEndToEndWorkspace>();
   const [workspaceError, setWorkspaceError] = React.useState('');
   const [parsedReport, setParsedReport] = React.useState<IEndToEndParsedReport>();
@@ -92,30 +95,64 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   const [loadUnit, setLoadUnit] = React.useState<'radicaciones' | 'paginas'>('radicaciones');
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [copyColumns, setCopyColumns] = React.useState<Set<EndToEndOptionalCopyColumn>>(new Set());
-  const capabilities = DEFAULT_END_TO_END_CAPABILITIES;
+  const capabilities = React.useMemo(() => ({
+    canImport: hasPermission('modulo:end_to_end:importar'),
+    canResolveConflicts: hasPermission('modulo:end_to_end:resolver_conflictos'),
+    canManageCalendar: hasPermission('modulo:end_to_end:gestionar_calendario'),
+    canExcludeRows: hasPermission('modulo:end_to_end:excluir_filas'),
+    canMarkReported: hasPermission('modulo:end_to_end:marcar_reportada')
+  }), [hasPermission]);
   const [calendarDraft, setCalendarDraft] = React.useState<IEndToEndClosure>({
     date: '', description: '', type: 'interno', allDay: true, active: true
   });
+  const activeIdentityRef = React.useRef(currentUserEmail.trim().toLocaleLowerCase());
 
   const loadWorkspace = React.useCallback(async (): Promise<void> => {
+    const requestedIdentity = currentUserEmail.trim().toLocaleLowerCase();
     setIsLoading(true);
     setWorkspaceError('');
     try {
       const loaded = await endToEndRepository.loadWorkspace();
+      if (activeIdentityRef.current !== requestedIdentity) return;
       setWorkspace(loaded);
       setReported(new Set(loaded.reportedRadications));
     } catch (loadError: unknown) {
+      if (activeIdentityRef.current !== requestedIdentity) return;
       setWorkspaceError(loadError instanceof Error
         ? `${loadError.message}. Aplique la migración End-to-End incluida en el repositorio.`
         : 'No se pudo cargar el módulo End-to-End.');
     } finally {
-      setIsLoading(false);
+      if (activeIdentityRef.current === requestedIdentity) {
+        setIsLoading(false);
+      }
     }
-  }, []);
+  }, [currentUserEmail]);
 
   React.useEffect(() => {
+    const requestedIdentity = currentUserEmail.trim().toLocaleLowerCase();
+    activeIdentityRef.current = requestedIdentity;
+    // Toda referencia de la identidad anterior se purga antes de consultar RLS.
+    setWorkspace(undefined);
+    setParsedReport(undefined);
+    setSelectedFile(undefined);
+    setExclusions(new Map());
+    setSelected(new Set());
+    setExpanded(new Set());
+    setReported(new Set());
+    setFilters({ ...EMPTY_END_TO_END_FILTERS });
+    setCopyColumns(new Set());
+    setMessage('');
+    setError('');
+    setWorkspaceError('');
+    setActiveTab('emisiones');
+    setCalendarOpen(false);
     loadWorkspace().catch(() => undefined);
-  }, [loadWorkspace]);
+    return () => {
+      if (activeIdentityRef.current === requestedIdentity) {
+        activeIdentityRef.current = '';
+      }
+    };
+  }, [currentUserEmail, loadWorkspace]);
 
   const activeRows = React.useMemo(() => {
     const snapshot = workspace?.activeSnapshot;
@@ -341,7 +378,12 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   }
 
   const distribution = (['rojo', 'naranja', 'amarillo', 'verde', 'error'] as EndToEndSeverity[])
-    .map((severity) => ({ severity, count: operationalGroups.filter((group) => group.severity === severity).length }));
+    .map((severity) => ({
+      severity,
+      count: severity === 'naranja'
+        ? operationalGroups.filter(isCriticalEndToEndGroup).length
+        : operationalGroups.filter((group) => group.severity === severity).length
+    }));
   const maximumDistribution = Math.max(1, ...distribution.map((item) => item.count));
   const stageLoads = Array.from(new Set(operationalGroups.map((group) => group.stage))).map((stage) => ({
     stage,
@@ -473,7 +515,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
             <div><h5>Errores críticos</h5>{parsedReport.summary.issues.filter((issue) => issue.level === 'critical').length === 0 ? <p className={styles.okText}>Sin errores críticos.</p> : parsedReport.summary.issues.filter((issue) => issue.level === 'critical').map((issue, index) => <p key={`${issue.code}-${index}`} className={styles.issueCritical}>{issue.message}</p>)}</div>
             <div><h5>Advertencias</h5>{parsedReport.summary.issues.filter((issue) => issue.level === 'warning').map((issue, index) => <p key={`${issue.code}-${index}`} className={styles.issueWarning}>{issue.message}</p>)}</div>
           </div>
-          {parsedReport.summary.criticalRows.length > 0 && (
+          {capabilities.canExcludeRows && parsedReport.summary.criticalRows.length > 0 && (
             <div className={styles.exclusionPanel}>
               <h5>Exclusión manual auditada</h5><p>Una fila crítica bloquea toda la fotografía. Indique un motivo explícito para excluirla.</p>
               {parsedReport.summary.criticalRows.map((rowNumber) => <label key={rowNumber}>Fila {rowNumber}<input value={exclusions.get(rowNumber) || ''} onChange={(e) => setExclusion(rowNumber, e.target.value)} placeholder="Motivo obligatorio de exclusión" /></label>)}
@@ -500,7 +542,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
               ['Radicaciones gestionables', operationalGroups.length, () => setFilters({ ...EMPTY_END_TO_END_FILTERS })],
               ['Páginas pendientes', operationalGroups.filter((group) => !group.completed).reduce((sum, group) => sum + group.pages, 0), () => setFilters({ ...EMPTY_END_TO_END_FILTERS })],
               ['SLA vencidas', operationalGroups.filter((group) => group.severity === 'rojo').length, () => selectDecisionFilter({ severity: 'rojo' })],
-              ['Críticas', operationalGroups.filter((group) => group.severity === 'rojo' || group.severity === 'naranja').length, () => selectDecisionFilter({ severity: 'critica' })],
+              ['Críticas', operationalGroups.filter(isCriticalEndToEndGroup).length, () => selectDecisionFilter({ severity: 'critica' })],
               ['Escaladas', escalatedGroups.length, () => selectDecisionFilter({ escalated: 'true' })],
               ['Reincidentes hoy', operationalGroups.filter((group) => group.reincidenteHoy).length, () => selectDecisionFilter({ recurrent: 'true' })],
               ['Errores / advertencias', dataErrors.length + (parsedReport?.summary.issues.length || 0), () => selectDecisionFilter({ dataError: 'true' })],
@@ -516,7 +558,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           )}
 
           <section className={styles.dashboardGrid}>
-            <article className={styles.chartCard}><h4>Distribución por semáforo</h4>{distribution.map((item) => <button type="button" key={item.severity} onClick={() => selectDecisionFilter({ severity: item.severity })} className={styles.barRow}><span>{SEVERITY_LABELS[item.severity]}</span><i style={{ width: `${(item.count / maximumDistribution) * 100}%` }} data-severity={item.severity} /><strong>{item.count}</strong></button>)}</article>
+            <article className={styles.chartCard}><h4>Distribución por semáforo</h4>{distribution.map((item) => <button type="button" key={item.severity} onClick={() => selectDecisionFilter({ severity: item.severity === 'naranja' ? 'critica' : item.severity })} className={styles.barRow}><span>{SEVERITY_LABELS[item.severity]}</span><i style={{ width: `${(item.count / maximumDistribution) * 100}%` }} data-severity={item.severity} /><strong>{item.count}</strong></button>)}</article>
             <article className={styles.chartCard}><div className={styles.chartTitle}><h4>Carga por etapa</h4><select value={loadUnit} onChange={(e) => setLoadUnit(e.target.value as typeof loadUnit)}><option value="radicaciones">Radicaciones</option><option value="paginas">Páginas</option></select></div>{stageLoads.map((item) => <button type="button" key={item.stage} onClick={() => selectDecisionFilter({ stage: item.stage })} className={styles.barRow}><span>{item.stage}</span><i style={{ width: `${(item.value / maxStageLoad) * 100}%` }} /><strong>{item.value}</strong></button>)}</article>
             <article className={styles.chartCard}><h4>Páginas pendientes por canal</h4>{channelLoads.map((item) => <button type="button" key={item.channel} onClick={() => selectDecisionFilter({ channel: item.channel })} className={styles.barRow}><span>{item.channel}</span><i style={{ width: `${(item.pages / maxChannelPages) * 100}%` }} /><strong>{item.pages}</strong></button>)}</article>
             <article className={styles.chartCard}><h4>Escaladas · Estado Distro</h4><button type="button" className={styles.distroSplit} onClick={() => selectDecisionFilter({ escalated: 'true' })}><span><strong>{escalatedGroups.filter((group) => normalizeEndToEndText(group.estadoDistro).includes('revisado') && !normalizeEndToEndText(group.estadoDistro).includes('no revisado')).length}</strong>Revisadas</span><span><strong>{escalatedGroups.filter((group) => normalizeEndToEndText(group.estadoDistro).includes('no revisado') || normalizeEndToEndText(group.estadoDistro) === 'n a').length}</strong>No revisadas</span></button></article>
@@ -545,7 +587,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
 
           <section className={styles.filtersPanel}>
             <input value={filters.search} onChange={(e) => updateFilter('search', e.target.value)} placeholder="Buscar radicación" aria-label="Buscar radicación" />
-            <select value={filters.severity} onChange={(e) => updateFilter('severity', e.target.value)}><option value="">Todos los semáforos</option><option value="critica">Críticas (rojo + naranja)</option>{Object.entries(SEVERITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <select value={filters.severity} onChange={(e) => updateFilter('severity', e.target.value)}><option value="">Todos los semáforos</option><option value="critica">Críticas (naranja · 6–&lt;8 h)</option>{Object.entries(SEVERITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
             <select value={filters.stage} onChange={(e) => updateFilter('stage', e.target.value)}><option value="">Todas las etapas</option>{uniqueValues(tabGroups, (group) => group.stage).map((value) => <option key={value}>{value}</option>)}</select>
             <select value={filters.flow} onChange={(e) => updateFilter('flow', e.target.value)}><option value="">Todos los flujos</option>{Object.entries(FLOW_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
             <select value={filters.lotType} onChange={(e) => updateFilter('lotType', e.target.value)}><option value="">Todos los lotes</option>{uniqueValues(tabGroups, (group) => group.tipoLote).map((value) => <option key={value}>{value}</option>)}</select>
@@ -562,13 +604,10 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           <div className={styles.tableToolbar}>
             <span>{filteredGroups.length} radicaciones · {selected.size} seleccionadas</span>
             {capabilities.canMarkReported && <div>
-              <details className={styles.columnChooser}>
-                <summary>Personalizar copia</summary>
-                <div>{([
-                  ['poliza', 'Póliza'], ['intermediario', 'Intermediario'],
-                  ['director', 'Director'], ['gerente', 'Gerente']
-                ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={copyColumns.has(key)} onChange={(event) => setCopyColumns((current) => { const next = new Set(current); if (event.target.checked) next.add(key); else next.delete(key); return next; })} />{label}</label>)}</div>
-              </details>
+              <CopyColumnsPortal
+                selectedColumns={copyColumns}
+                onChange={setCopyColumns}
+              />
               <button type="button" className={styles.primaryButton} onClick={() => void performCopy(true)}>Copiar y marcar como reportadas</button>
               <button type="button" className={styles.secondaryButton} onClick={() => void performCopy(false)}>Copiar sin marcar</button>
               <button type="button" className={styles.secondaryButton} onClick={() => void undoReported()}>Deshacer marcado</button>
@@ -577,7 +616,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
 
           <div className={styles.tableWrap}>
             <table className={styles.operationalTable}>
-              <thead><tr><th><input type="checkbox" aria-label="Seleccionar resultados visibles" checked={filteredGroups.length > 0 && filteredGroups.every((group) => selected.has(group.radicacion))} onChange={(e) => setSelected(e.target.checked ? new Set(filteredGroups.map((group) => group.radicacion)) : new Set())} /></th><th>Semáforo</th><th>Tiempo restante</th><th>Radicación</th><th>Páginas</th><th>Tipo de lote / novedades</th><th>Radicación</th><th>Etapa</th><th>Canal / modalidad</th><th>Estado</th><th>Distro / escalado</th><th>Acción</th><th /></tr></thead>
+              <thead><tr><th><input type="checkbox" aria-label="Seleccionar resultados visibles" checked={filteredGroups.length > 0 && filteredGroups.every((group) => selected.has(group.radicacion))} onChange={(e) => setSelected(e.target.checked ? new Set(filteredGroups.map((group) => group.radicacion)) : new Set())} /></th><th>Semáforo</th><th>Tiempo restante</th><th>Radicación</th><th>Páginas</th><th>Tipo de lote / novedades</th><th>Fecha de radicación</th><th>Etapa</th><th>Canal / modalidad</th><th>Estado</th><th>Distro / escalado</th><th>Acción</th><th /></tr></thead>
               <tbody>{filteredGroups.map((group) => <React.Fragment key={group.radicacion}>
                 <tr className={group.reported ? styles.reportedRow : ''}>
                   <td><input type="checkbox" aria-label={`Seleccionar ${group.radicacion}`} checked={selected.has(group.radicacion)} onChange={(e) => setSelected((current) => { const next = new Set(current); if (e.target.checked) next.add(group.radicacion); else next.delete(group.radicacion); return next; })} /></td>

@@ -7,8 +7,6 @@ import {
   MaskedTextField,
   MessageBar,
   MessageBarType,
-  Pivot,
-  PivotItem,
   PrimaryButton,
   Spinner,
   SpinnerSize,
@@ -16,14 +14,17 @@ import {
   Text,
   TextField
 } from '@fluentui/react';
+import { ClipboardPlus, Clock3, FilePlus2, History } from 'lucide-react';
 
 import type { IFalta, RoleType } from '../../models/AppModels';
+import { useRBAC } from '../../../../auth/RBACContext';
 import type { IDirectReport } from '../../services/GraphService';
 import SharePointService, {
   type ICatalogoItem,
   type IRegistrarFaltaData
 } from '../../services/SharePointService';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
+import { PageHeader, SurfaceCard } from '../Common';
 import HistorialView from '../Historial/HistorialView';
 import AprobacionesView from './AprobacionesView';
 import styles from './FaltasForm.module.scss';
@@ -43,6 +44,7 @@ const ASSISTANT_SUBCATEGORY = 'Error de Digitación';
 const NO_PENALTY_IMPACT = 'Sin penalidad';
 
 type ArrivalPeriod = 'AM' | 'PM';
+type FaltasViewKey = 'nuevo' | 'historial' | 'aprobaciones';
 
 interface ITardinessCalculation {
   formattedArrivalTime: string;
@@ -194,19 +196,20 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   isLoadingAgents = false,
   userRole
 }) => {
+  const { hasPermission } = useRBAC();
+  const canRegisterFaltas = hasPermission('modulo:faltas:registrar');
   const isAssistant = userRole === 'Asistente';
   const requiresApproval = isAssistant ||
-    userRole === 'Analista' ||
-    userRole === 'Oficial';
+    userRole === 'Agente';
   const canRegisterOfficial = userRole === 'Supervisor' ||
     userRole === 'Gerente' ||
-    userRole === 'Admin' || userRole === 'Master_Admin';
+    userRole === 'Admin';
   const canSubmit = requiresApproval || canRegisterOfficial;
-  const canReviewApprovals = userRole === 'Supervisor' || userRole === 'Admin' || userRole === 'Master_Admin';
+  const canReviewApprovals = hasPermission('modulo:faltas:aprobar');
   const approvalAuthorEmails = React.useMemo<
     ReadonlyArray<string> | undefined
   >(
-    () => userRole === 'Admin' || userRole === 'Master_Admin'
+    () => userRole === 'Admin'
       ? undefined
       : availableAgents
           .map((agent) => agent.email.trim())
@@ -215,6 +218,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   );
 
   const [selectedAgentKey, setSelectedAgentKey] = React.useState<string>('');
+  const [activeView, setActiveView] = React.useState<FaltasViewKey>('nuevo');
   const [teamMembers, setTeamMembers] = React.useState<IDirectReport[]>([]);
   const [fecha, setFecha] = React.useState<Date | null>(new Date());
   const [categoria, setCategoria] = React.useState<string>(
@@ -453,6 +457,11 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
     setErrorMessage('');
     setSuccessMessage('');
 
+    if (!canRegisterFaltas) {
+      setErrorMessage('No posee permiso para registrar faltas o errores.');
+      return;
+    }
+
     if (
       !selectedAgent ||
       !fecha ||
@@ -596,13 +605,57 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
   };
 
   return (
-    <Pivot className={styles.modulePivot} aria-label="Vistas del módulo de faltas">
-      <PivotItem headerText="➕ Nuevo Registro" itemKey="nuevo">
-        <form className={styles.form} onSubmit={handleSubmit}>
-          <Stack
-            className={styles.formCard}
-            tokens={{ childrenGap: 15 }}
+    <div className="space-y-6">
+      <PageHeader
+        action={(
+          <button
+            className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition-colors hover:bg-cyan-500"
+            onClick={() => setActiveView('nuevo')}
+            type="button"
           >
+            <FilePlus2 aria-hidden="true" size={18} />
+            Nuevo registro
+          </button>
+        )}
+        icon={<ClipboardPlus aria-hidden="true" size={24} />}
+        subtitle="Registra, consulta y revisa incidencias operativas con trazabilidad completa."
+        title="Registro y Gestión de Oportunidades"
+      />
+
+      <nav
+        aria-label="Vistas de oportunidades operativas"
+        className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2 shadow-lg"
+      >
+        {([
+          { key: 'nuevo' as const, label: 'Nuevo registro', icon: FilePlus2 },
+          { key: 'historial' as const, label: 'Historial y consultas', icon: History },
+          ...(canReviewApprovals
+            ? [{ key: 'aprobaciones' as const, label: 'Cola de aprobación', icon: Clock3 }]
+            : [])
+        ]).map((tab) => {
+          const TabIcon = tab.icon;
+          const isActive = activeView === tab.key;
+          return (
+            <button
+              aria-current={isActive ? 'page' : undefined}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${isActive
+                ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                : 'border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-200'}`}
+              key={tab.key}
+              onClick={() => setActiveView(tab.key)}
+              type="button"
+            >
+              <TabIcon aria-hidden="true" size={17} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {activeView === 'nuevo' && (
+        <form className={styles.form} onSubmit={handleSubmit}>
+          <SurfaceCard className={styles.formCard}>
+            <Stack tokens={{ childrenGap: 15 }}>
             {!canSubmit && (
               <MessageBar messageBarType={MessageBarType.warning}>
                 El rol {userRole} posee acceso de consulta, pero no puede registrar faltas.
@@ -960,7 +1013,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                   </Text>
                 )}
               </Stack>
-              <p style={{ fontSize: '12px', color: '#605e5c', margin: '4px 0 0 0' }}>
+              <p className="mt-1 text-xs text-slate-400">
                 Límite máximo por archivo: 50 MB (Imágenes y PDFs)
               </p>
             </Stack>
@@ -968,6 +1021,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
             <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
               <PrimaryButton
                 disabled={
+                  !canRegisterFaltas ||
                   !canSubmit ||
                   isSubmitting ||
                   isLoadingTeam ||
@@ -990,11 +1044,12 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                 />
               )}
             </Stack>
-          </Stack>
+            </Stack>
+          </SurfaceCard>
         </form>
-      </PivotItem>
+      )}
 
-      <PivotItem headerText="📊 Historial y Consultas" itemKey="historial">
+      {activeView === 'historial' && (
         <HistorialView
           currentUserEmail={currentUserEmail}
           currentUserName={currentUserName}
@@ -1003,14 +1058,12 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
           moduleType="faltas"
           userRole={userRole}
         />
-      </PivotItem>
-
-      {canReviewApprovals && (
-        <PivotItem headerText="⏳ Cola de Aprobación" itemKey="aprobaciones">
-          <AprobacionesView allowedAuthorEmails={approvalAuthorEmails} />
-        </PivotItem>
       )}
-    </Pivot>
+
+      {canReviewApprovals && activeView === 'aprobaciones' && (
+        <AprobacionesView allowedAuthorEmails={approvalAuthorEmails} />
+      )}
+    </div>
   );
 };
 

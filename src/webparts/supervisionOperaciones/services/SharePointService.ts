@@ -63,13 +63,11 @@ export const PRODUCTIVITY_OVERLAP_ERROR_MESSAGE =
   '⚠️ Conflicto de Fechas: Ya existe un registro de productividad guardado para este colaborador que se traslapa con el rango ingresado.';
 
 const ROLE_VALUES: ReadonlyArray<RoleType> = [
-  'Master_Admin',
   'Admin',
   'Gerente',
   'Supervisor',
-  'Analista',
   'Asistente',
-  'Oficial'
+  'Agente'
 ];
 
 const CATALOG_CATEGORIES: ReadonlyArray<CatalogCategory> = [

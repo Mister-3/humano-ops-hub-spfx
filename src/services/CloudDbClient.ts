@@ -1,6 +1,7 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { authenticatedSupabase, supabase, isSupabaseConfigured } from './supabase';
 import IndexedDbAdapter, { LOCAL_STORES } from './IndexedDbAdapter';
 import type { IAppUserRecord, AppUserStatus, AppUserRole } from '../auth/AuthModels';
+import { normalizeRoleType, toRoleSlug } from '../types';
 import type { IHeadcountRow } from './PowerAutomateSyncService';
 import type {
   AusenciaType,
@@ -182,7 +183,7 @@ export class CloudDbClient {
               ID: String(row.id || `USR-${numericId}`),
               Email: row.email || '',
               Nombre: row.nombre || '',
-              Rol: (row.rol as AppUserRole) || 'Agente',
+              Rol: normalizeRoleType(row.rol),
               Estado: (row.estado as AppUserStatus) || 'Pending_Admin_Approval',
               IsProfileValidatedByPA: Boolean(row.is_profile_validated_pa),
               IsRoleManuallyOverridden: Boolean(row.is_role_manually_overridden),
@@ -208,7 +209,11 @@ export class CloudDbClient {
     }
 
     // Fallback to IndexedDB
-    return indexedDb.getAll<IAppUserRecord>(LOCAL_STORES.users);
+    const cachedUsers = await indexedDb.getAll<IAppUserRecord>(LOCAL_STORES.users);
+    return cachedUsers.map((user) => ({
+      ...user,
+      Rol: normalizeRoleType(user.Rol)
+    }));
   }
 
   public async createUsuario(user: Partial<IAppUserRecord>): Promise<IAppUserRecord> {
@@ -216,7 +221,7 @@ export class CloudDbClient {
       ID: user.ID || `USR-${Date.now().toString(36).toUpperCase()}`,
       Email: user.Email || '',
       Nombre: user.Nombre || '',
-      Rol: user.Rol || 'Agente',
+      Rol: normalizeRoleType(user.Rol),
       Estado: user.Estado || 'Pending_Admin_Approval',
       IsProfileValidatedByPA: Boolean(user.IsProfileValidatedByPA),
       FechaRegistro: user.FechaRegistro || new Date().toISOString(),
@@ -230,7 +235,7 @@ export class CloudDbClient {
       const payload: ISupabaseUserRow = {
         email: newUserRecord.Email,
         nombre: newUserRecord.Nombre,
-        rol: newUserRecord.Rol,
+        rol: toRoleSlug(newUserRecord.Rol),
         estado: newUserRecord.Estado,
         is_profile_validated_pa: newUserRecord.IsProfileValidatedByPA,
         fecha_registro: newUserRecord.FechaRegistro,
@@ -273,7 +278,7 @@ export class CloudDbClient {
       try {
         const updatePayload: Record<string, unknown> = {};
         if (estado) updatePayload.estado = estado;
-        if (rol) updatePayload.rol = rol;
+        if (rol) updatePayload.rol = toRoleSlug(rol);
         if (typeof isProfileValidatedByPA === 'boolean') {
           updatePayload.is_profile_validated_pa = isProfileValidatedByPA;
         }
@@ -336,7 +341,7 @@ export class CloudDbClient {
     if (isSupabaseConfigured()) {
       try {
         const updatePayload = {
-          rol: newRole
+          rol: toRoleSlug(newRole)
         };
         console.log('Enviando PATCH a Supabase para:', identifier, updatePayload);
 
@@ -372,7 +377,7 @@ export class CloudDbClient {
         await indexedDb.put(LOCAL_STORES.users, {
           ...target,
           Id: target.Id,
-          Rol: newRole as AppUserRole,
+      Rol: normalizeRoleType(newRole),
           IsRoleManuallyOverridden: true,
           SyncStatus: 'Pendiente'
         });
@@ -400,11 +405,11 @@ export class CloudDbClient {
             EmailEmpleado: row.member_email || row.email_empleado || (row as any).email || '',
             NombreEmpleado: row.member_name || row.nombre_empleado || (row as any).nombre || '',
             EmailSupervisor: row.supervisor_email || row.email_supervisor || '',
-            Cargo: row.member_puesto || row.cargo || 'Oficial',
+            Cargo: row.member_puesto || row.cargo || 'Agente',
             Departamento: row.member_area || row.departamento || 'Operaciones',
             EstadoActivo: row.estado_activo !== false,
             AgenteObjectID: (row as any).agente_object_id || '',
-            Rol: (row.rol as any) || 'Oficial',
+            Rol: normalizeRoleType(row.rol),
             SyncStatus: 'Sincronizado'
           }));
 
@@ -441,11 +446,11 @@ export class CloudDbClient {
             EmailEmpleado: row.member_email || row.email_empleado || (row as any).email || '',
             NombreEmpleado: row.member_name || row.nombre_empleado || (row as any).nombre || '',
             EmailSupervisor: row.supervisor_email || row.email_supervisor || '',
-            Cargo: row.member_puesto || row.cargo || 'Oficial',
+            Cargo: row.member_puesto || row.cargo || 'Agente',
             Departamento: row.member_area || row.departamento || 'Operaciones',
             EstadoActivo: row.estado_activo !== false,
             AgenteObjectID: (row as any).agente_object_id || '',
-            Rol: (row.rol as any) || 'Oficial',
+            Rol: normalizeRoleType(row.rol),
             SyncStatus: 'Sincronizado'
           }));
         }
@@ -478,7 +483,7 @@ export class CloudDbClient {
       ).toString().trim().toLowerCase();
       const memberPuesto = (
         r.member_puesto || r.memberpuesto || r.MemberPuesto || r.Cargo || r.cargo || r.puesto || ''
-      ).toString().trim() || 'Oficial';
+      ).toString().trim() || 'Agente';
       const memberArea = (
         r.member_area || r.memberarea || r.MemberArea || r.Departamento || r.departamento || r.area || ''
       ).toString().trim() || 'Operaciones';
@@ -1530,7 +1535,7 @@ export class CloudDbClient {
       criterios_aceptacion: data.criterios_aceptacion.trim(),
       estado: 'Pendiente_Aprobacion'
     };
-    const { data: insertedRows, error } = await supabase
+    const { data: insertedRows, error } = await authenticatedSupabase
       .from('solicitudes_mejora')
       .insert([payload])
       .select();
@@ -1549,7 +1554,7 @@ export class CloudDbClient {
       throw new Error('Supabase no está configurado; no se pueden consultar las iniciativas.');
     }
 
-    let query = supabase
+    let query = authenticatedSupabase
       .from('solicitudes_mejora')
       .select('*')
       .order('created_at', { ascending: false });
@@ -1604,8 +1609,8 @@ export class CloudDbClient {
 
         const isUuid = id.includes('-');
       const response = isUuid
-        ? await supabase.from('solicitudes_mejora').update(payload).eq('id', id).select('id')
-        : await supabase.from('solicitudes_mejora').update(payload).or(`id.eq.${id},audit_id.eq.${id}`).select('id');
+        ? await authenticatedSupabase.from('solicitudes_mejora').update(payload).eq('id', id).select('id')
+        : await authenticatedSupabase.from('solicitudes_mejora').update(payload).or(`id.eq.${id},audit_id.eq.${id}`).select('id');
 
       if (response.error) {
         throw formatSupabaseError('No se pudo responder la iniciativa', response.error);
@@ -1768,7 +1773,7 @@ export async function fetchHeadcountBySupervisor(supervisorEmail: string) {
         return data.map((row: ISupabaseHeadcountRow) => ({
           member_name: row.member_name || row.nombre_empleado || (row as any).nombre || '',
           member_email: row.member_email || row.email_empleado || (row as any).email || '',
-          member_puesto: row.member_puesto || row.cargo || 'Oficial',
+          member_puesto: row.member_puesto || row.cargo || 'Agente',
           member_area: row.member_area || row.departamento || 'Operaciones',
           supervisor_email: row.supervisor_email || row.email_supervisor || normSupervisor,
           estado_activo: row.estado_activo !== false

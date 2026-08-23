@@ -13,6 +13,9 @@ export type AppModuleKey =
   | 'productividad'
   | 'Ocupacion'
   | 'mejoras'
+  | 'iniciativas'
+  | 'oportunidades'
+  | 'solicitudes_mejora'
   | 'endToEnd'
   | 'userAdmin'
   | 'admin';
@@ -77,7 +80,7 @@ export const defaultSidebarItems: ReadonlyArray<ISidebarNavItem> = [
   },
   {
     key: 'admin',
-    label: 'Administración',
+    label: 'Configuración',
     iconName: 'Settings'
   }
 ];

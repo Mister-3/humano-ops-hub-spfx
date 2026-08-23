@@ -12,11 +12,14 @@ import {
   Stack,
   Text
 } from '@fluentui/react';
+import { ShieldCheck, Ticket } from 'lucide-react';
 
 import SharePointService, {
   type FaltaApprovalStatus,
   type IFaltaAprobacionItem
 } from '../../services/SharePointService';
+import { useRBAC } from '../../../../auth/RBACContext';
+import { AppDialog, StatusBadge, SurfaceCard } from '../Common';
 import { SkeletonLoader } from '../Common/SkeletonLoader';
 import styles from './AprobacionesView.module.scss';
 
@@ -32,6 +35,11 @@ interface IFeedbackMessage {
 
 interface IProcessingItems {
   [itemId: number]: boolean;
+}
+
+interface IPendingDecision {
+  item: IFaltaAprobacionItem;
+  status: ApprovalAction;
 }
 
 export interface IAprobacionesViewProps {
@@ -84,12 +92,16 @@ const formatHelpdeskCase = (value?: string): string => {
 export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
   allowedAuthorEmails
 }) => {
+  const { hasPermission } = useRBAC();
+  const canApprove = hasPermission('modulo:faltas:aprobar');
   const sharePointService = React.useMemo(() => new SharePointService(), []);
   const [items, setItems] = React.useState<IFaltaAprobacionItem[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [feedback, setFeedback] = React.useState<IFeedbackMessage>();
   const [processingItems, setProcessingItems] =
     React.useState<IProcessingItems>({});
+  const [pendingDecision, setPendingDecision] =
+    React.useState<IPendingDecision>();
 
   const loadPendingItems = React.useCallback(async (): Promise<void> => {
     const pendingItems = await sharePointService.getFaltasPendientes(
@@ -200,6 +212,12 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
     }
   }, [loadPendingItems, sharePointService]);
 
+  const confirmPendingDecision = React.useCallback(async (): Promise<void> => {
+    if (!pendingDecision) return;
+    await handleApprovalAction(pendingDecision.item, pendingDecision.status);
+    setPendingDecision(undefined);
+  }, [handleApprovalAction, pendingDecision]);
+
   const columns = React.useMemo<IColumn[]>(() => [
     {
       key: 'auditId',
@@ -250,9 +268,10 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
         const helpdeskCase = formatHelpdeskCase(item?.CasoRef);
 
         return helpdeskCase ? (
-          <span className={styles.helpdeskBadge} title={item?.CasoRef}>
-            🎫 Helpdesk: {helpdeskCase}
-          </span>
+          <StatusBadge variant="info">
+            <Ticket aria-hidden="true" size={13} />
+            Helpdesk: {helpdeskCase}
+          </StatusBadge>
         ) : (
           <Text className={styles.emptyValue}>Sin ID registrado</Text>
         );
@@ -324,27 +343,28 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
             <PrimaryButton
               ariaLabel={`Aprobar registro ${item.AuditID || item.Id}`}
               className={styles.approveButton}
-              disabled={isProcessing}
+              disabled={isProcessing || !canApprove}
               iconProps={{ iconName: 'Accept' }}
-              onClick={() => handleApprovalAction(item, 'Aprobado').catch(() => undefined)}
+              onClick={() => setPendingDecision({ item, status: 'Aprobado' })}
               text={isProcessing ? 'Procesando' : 'Aprobar'}
             />
             <DefaultButton
               ariaLabel={`Rechazar registro ${item.AuditID || item.Id}`}
               className={styles.rejectButton}
-              disabled={isProcessing}
+              disabled={isProcessing || !canApprove}
               iconProps={{ iconName: 'Cancel' }}
-              onClick={() => handleApprovalAction(item, 'Rechazado').catch(() => undefined)}
+              onClick={() => setPendingDecision({ item, status: 'Rechazado' })}
               text="Rechazar"
             />
           </Stack>
         );
       }
     }
-  ], [handleApprovalAction, processingItems]);
+  ], [canApprove, handleApprovalAction, processingItems]);
 
   return (
-    <section className={styles.approvalCard}>
+    <>
+    <SurfaceCard className={styles.approvalCard}>
       <Stack tokens={{ childrenGap: 18 }}>
         <Stack
           horizontal
@@ -364,9 +384,9 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
           </Stack>
 
           <Stack horizontal tokens={{ childrenGap: 10 }} verticalAlign="center">
-            <span className={styles.pendingBadge}>
+            <StatusBadge variant="warning" size="md">
               {items.length} pendiente{items.length === 1 ? '' : 's'}
-            </span>
+            </StatusBadge>
             <DefaultButton
               disabled={isLoading}
               iconProps={{ iconName: 'Refresh' }}
@@ -414,7 +434,50 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
           </div>
         )}
       </Stack>
-    </section>
+    </SurfaceCard>
+
+    <AppDialog
+      description={`Registro ${pendingDecision?.item.AuditID || (pendingDecision ? `#${pendingDecision.item.Id}` : '')}`}
+      isOpen={Boolean(pendingDecision)}
+      maxWidth="md"
+      onClose={() => {
+        if (!pendingDecision || !processingItems[pendingDecision.item.Id]) {
+          setPendingDecision(undefined);
+        }
+      }}
+      title={pendingDecision?.status === 'Aprobado'
+        ? 'Aprobar registro operativo'
+        : 'Rechazar registro operativo'}
+    >
+      <div className="space-y-5">
+        <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+          <ShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-cyan-400" size={20} />
+          <p className="m-0 text-sm leading-6 text-slate-300">
+            Confirma que deseas {pendingDecision?.status === 'Aprobado' ? 'aprobar' : 'rechazar'} este registro. Se conservarán exactamente sus datos y trazabilidad actuales.
+          </p>
+        </div>
+        <div className="flex justify-end gap-3">
+          <button
+            className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700"
+            onClick={() => setPendingDecision(undefined)}
+            type="button"
+          >
+            Cancelar
+          </button>
+          <button
+            className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-50 ${pendingDecision?.status === 'Aprobado'
+              ? 'bg-emerald-600 hover:bg-emerald-500'
+              : 'bg-rose-600 hover:bg-rose-500'}`}
+            disabled={Boolean(pendingDecision && processingItems[pendingDecision.item.Id])}
+            onClick={() => void confirmPendingDecision()}
+            type="button"
+          >
+            {pendingDecision?.status === 'Aprobado' ? 'Confirmar aprobación' : 'Confirmar rechazo'}
+          </button>
+        </div>
+      </div>
+    </AppDialog>
+    </>
   );
 };
 

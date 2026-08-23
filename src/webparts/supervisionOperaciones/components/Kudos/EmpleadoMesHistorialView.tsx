@@ -12,9 +12,11 @@ import {
   Stack,
   Text
 } from '@fluentui/react';
+import { History } from 'lucide-react';
 
 import { getHistorialEmpleadoMes } from '../../../../services/CloudDbClient';
 import type { IEmpleadoDelMes } from '../../../../types';
+import { StatusBadge, SurfaceCard } from '../Common';
 import styles from './EmpleadoMesHistorialView.module.scss';
 
 const NOMBRES_MESES = [
@@ -131,7 +133,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
         onRender: (item: IEmpleadoDelMes) => (
           <Stack tokens={{ childrenGap: 2 }}>
             <Text style={{ fontWeight: 500 }}>{item.nombre_empleado || 'Colaborador'}</Text>
-            <Text variant="small" style={{ color: '#64748b' }}>
+            <Text className="text-slate-400" variant="small">
               {item.email_empleado}
             </Text>
           </Stack>
@@ -149,7 +151,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
             <Text style={{ fontWeight: 500 }}>
               {item.supervisor_nombre || 'Sistema / Supervisor'}
             </Text>
-            <Text variant="small" style={{ color: '#64748b' }}>
+            <Text className="text-slate-400" variant="small">
               {item.supervisor_email || '-'}
             </Text>
           </Stack>
@@ -167,13 +169,11 @@ export const EmpleadoMesHistorialView: React.FC = () => {
           return (
             <div>
               {isClaimed ? (
-                <span className={styles.badgeClaimed}>
-                  🟢 Reclamado el {formatDateStr(item.fecha_reclamado)}
-                </span>
+                <StatusBadge variant="success">
+                  Reclamado el {formatDateStr(item.fecha_reclamado)}
+                </StatusBadge>
               ) : (
-                <span className={styles.badgePending}>
-                  🟡 Pendiente por Reclamar
-                </span>
+                <StatusBadge variant="warning">Pendiente por reclamar</StatusBadge>
               )}
             </div>
           );
@@ -185,25 +185,30 @@ export const EmpleadoMesHistorialView: React.FC = () => {
 
   return (
     <Stack className={styles.container} tokens={{ childrenGap: 16 }}>
-      <Stack horizontal wrap verticalAlign="center" horizontalAlign="space-between" tokens={{ childrenGap: 12 }}>
-        <Stack tokens={{ childrenGap: 2 }}>
-          <Text variant="xLarge" style={{ fontWeight: 600 }}>
-            📜 Histórico de Empleado del Mes
-          </Text>
-          <Text style={{ color: '#64748b' }}>
-            Registro de todas las premiaciones otorgadas y el estado de sus días libres.
-          </Text>
-        </Stack>
+      <SurfaceCard className={styles.historyHeader}>
+        <Stack horizontal wrap verticalAlign="center" horizontalAlign="space-between" tokens={{ childrenGap: 12 }}>
+          <Stack tokens={{ childrenGap: 4 }}>
+            <div className="flex items-center gap-3">
+              <History aria-hidden="true" className="text-cyan-400" size={22} />
+              <Text variant="xLarge" style={{ fontWeight: 600 }}>
+                Histórico de Empleado del Mes
+              </Text>
+            </div>
+            <Text className="text-slate-300">
+              Registro de todas las premiaciones otorgadas y el estado de sus días libres.
+            </Text>
+          </Stack>
 
-        <div className={styles.searchBar}>
-          <SearchBox
-            placeholder="Buscar por colaborador, supervisor o período..."
-            value={searchQuery}
-            onChange={(_, newValue) => handleSearch(newValue || '')}
-            onClear={() => handleSearch('')}
-          />
-        </div>
-      </Stack>
+          <div className={styles.searchBar}>
+            <SearchBox
+              placeholder="Buscar por colaborador, supervisor o período..."
+              value={searchQuery}
+              onChange={(_, newValue) => handleSearch(newValue || '')}
+              onClear={() => handleSearch('')}
+            />
+          </div>
+        </Stack>
+      </SurfaceCard>
 
       {errorMessage && (
         <MessageBar messageBarType={MessageBarType.error}>
@@ -214,7 +219,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
       {isLoading ? (
         <Spinner label="Cargando historial de Empleado del Mes..." size={SpinnerSize.large} />
       ) : filteredItems.length > 0 ? (
-        <div className={`${styles.tableContainer} bg-slate-900/95 border border-slate-800 text-white rounded-2xl shadow-2xl backdrop-blur-md`}>
+        <SurfaceCard className={styles.tableContainer}>
           <DetailsList
             columns={columns}
             compact
@@ -223,7 +228,7 @@ export const EmpleadoMesHistorialView: React.FC = () => {
             layoutMode={DetailsListLayoutMode.justified}
             selectionMode={SelectionMode.none}
           />
-        </div>
+        </SurfaceCard>
       ) : (
         <MessageBar messageBarType={MessageBarType.info}>
           No se encontraron registros de Empleado del Mes.

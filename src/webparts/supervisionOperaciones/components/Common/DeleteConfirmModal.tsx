@@ -22,6 +22,31 @@ export const DeleteConfirmModal: React.FC<IDeleteConfirmModalProps> = ({
   onConfirm,
   onCancel
 }) => {
+  const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  React.useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !isDeleting) {
+        event.preventDefault();
+        onCancel();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    const focusTimer = window.setTimeout(() => cancelButtonRef.current?.focus(), 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isDeleting, isOpen, onCancel]);
+
   if (!isOpen) return null;
 
   return (
@@ -35,6 +60,7 @@ export const DeleteConfirmModal: React.FC<IDeleteConfirmModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
+        aria-describedby="confirm-modal-description"
       >
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-rose-800/50 bg-rose-950/50 text-xl text-rose-400">
@@ -45,10 +71,11 @@ export const DeleteConfirmModal: React.FC<IDeleteConfirmModalProps> = ({
           </h3>
         </div>
 
-        <p className="m-0 text-sm leading-relaxed text-slate-300">{description}</p>
+        <p id="confirm-modal-description" className="m-0 text-sm leading-relaxed text-slate-300">{description}</p>
 
         <div className="mt-1 flex items-center justify-end gap-3">
           <button
+            ref={cancelButtonRef}
             type="button"
             className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onCancel}

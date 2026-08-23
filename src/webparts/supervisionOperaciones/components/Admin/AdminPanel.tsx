@@ -16,28 +16,16 @@ import {
 } from '@fluentui/react';
 import PowerAutomateSyncService from '../../../../services/PowerAutomateSyncService';
 import { cloudDbClient } from '../../../../services/CloudDbClient';
+import { useRBAC } from '../../../../auth/RBACContext';
 
-import type { RoleType } from '../../models/AppModels';
 import SharePointService, {
   type CatalogCategory,
   type ICatalogoItem,
   type IConfiguracionMetricasUpdate
 } from '../../services/SharePointService';
 import DeleteConfirmModal from '../Common/DeleteConfirmModal';
+import { NoAccessMessage } from '../Common/PermissionGuard';
 import styles from './AdminPanel.module.scss';
-
-export interface IAdminPanelProps {
-  userRole: RoleType;
-}
-
-const roleOptions: IDropdownOption[] = [
-  { key: 'Admin', text: 'Admin' },
-  { key: 'Gerente', text: 'Gerente' },
-  { key: 'Supervisor', text: 'Supervisor' },
-  { key: 'Analista', text: 'Analista' },
-  { key: 'Asistente', text: 'Asistente' },
-  { key: 'Oficial', text: 'Oficial' }
-];
 
 const catalogCategories: ReadonlyArray<CatalogCategory> = [
   'Falta',
@@ -68,9 +56,6 @@ const catalogCategoryOptions: IDropdownOption[] = catalogCategories.map(
     text: catalogCategoryLabels[category]
   })
 );
-
-const isRoleType = (value: string): value is RoleType =>
-  roleOptions.some((option) => option.key === value);
 
 const isCatalogCategory = (value: string): value is CatalogCategory =>
   catalogCategories.indexOf(value as CatalogCategory) >= 0;
@@ -121,6 +106,8 @@ const NumericConfigurationField: React.FC<
 );
 
 const AdminConfiguration: React.FC = () => {
+  const { hasPermission } = useRBAC();
+  const canDeleteCatalogs = hasPermission('modulo:admin:eliminar_catalogos');
   const [configurationId, setConfigurationId] = React.useState<number>();
   const [pesoCasos, setPesoCasos] = React.useState<number>(20);
   const [pesoEmisionesTx, setPesoEmisionesTx] = React.useState<number>(15);
@@ -145,11 +132,6 @@ const AdminConfiguration: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string>('');
-  const [overrideEmail, setOverrideEmail] = React.useState<string>('');
-  const [overrideRole, setOverrideRole] = React.useState<RoleType>('Oficial');
-  const [isRoleSubmitting, setIsRoleSubmitting] = React.useState<boolean>(false);
-  const [roleSuccessMessage, setRoleSuccessMessage] = React.useState<string>('');
-  const [roleErrorMessage, setRoleErrorMessage] = React.useState<string>('');
   const [catalogItems, setCatalogItems] = React.useState<ICatalogoItem[]>([]);
   const [catalogCategory, setCatalogCategory] =
     React.useState<CatalogCategory>('Falta');
@@ -355,36 +337,6 @@ const AdminConfiguration: React.FC = () => {
     }
   };
 
-  const saveRoleOverride = async (): Promise<void> => {
-    setRoleSuccessMessage('');
-    setRoleErrorMessage('');
-
-    const normalizedEmail = overrideEmail.trim().toLocaleLowerCase();
-    const hasValidEmail = /^[^\s@]+@humano\.com\.do$/i.test(normalizedEmail);
-
-    if (!hasValidEmail) {
-      setRoleErrorMessage('Ingrese un correo corporativo válido.');
-      return;
-    }
-
-    setIsRoleSubmitting(true);
-
-    try {
-      await sharePointService.setRoleOverride(normalizedEmail, overrideRole);
-      setOverrideEmail('');
-      setRoleSuccessMessage(
-        `El rol ${overrideRole} fue asignado a ${normalizedEmail}.`
-      );
-    } catch (error: unknown) {
-      const detail = error instanceof Error
-        ? error.message
-        : 'Ocurrió un error inesperado al guardar la asignación.';
-      setRoleErrorMessage(detail);
-    } finally {
-      setIsRoleSubmitting(false);
-    }
-  };
-
   const [catalogParentId, setCatalogParentId] = React.useState<string>('');
 
   const saveCatalogItem = async (): Promise<void> => {
@@ -541,11 +493,11 @@ const AdminConfiguration: React.FC = () => {
         </MessageBar>
       )}
 
-      <Stack className={styles.roleCard} tokens={{ childrenGap: 18 }}>
+      <Stack className={`${styles.roleCard} ${styles.syncCard}`} tokens={{ childrenGap: 18 }}>
         <Stack tokens={{ childrenGap: 4 }}>
-          <Text variant="xLarge">Sincronización EntraID y SharePoint</Text>
+          <Text variant="xLarge">Sincronización de Headcount y Directorio (SharePoint / M365)</Text>
           <Text className={styles.description}>
-            Exporta las novedades hacia AppDB.xlsx para ser procesadas mediante Power Automate e importa las respuestas de validación corporativa.
+            Importa y actualiza la lista oficial de colaboradores, cargos y estructura operativa desde el repositorio corporativo.
           </Text>
         </Stack>
 
@@ -585,7 +537,7 @@ const AdminConfiguration: React.FC = () => {
           {isSyncing && (
             <Spinner label="Sincronizando..." size={SpinnerSize.small} />
           )}
-          <p style={{ fontSize: '12px', color: '#605e5c', margin: '4px 0 0 0' }}>
+          <p className={styles.syncHint}>
             Límite máximo por archivo: 50 MB
           </p>
         </Stack>
@@ -829,69 +781,6 @@ const AdminConfiguration: React.FC = () => {
         </Stack>
       </Stack>
 
-      <Stack className={styles.roleCard} tokens={{ childrenGap: 18 }}>
-        <Stack tokens={{ childrenGap: 4 }}>
-          <Text variant="xLarge">
-            Gestión de Roles (Asignación Manual / Override)
-          </Text>
-          <Text className={styles.description}>
-            La asignación manual tiene prioridad sobre el cargo detectado en
-            Microsoft Entra ID.
-          </Text>
-        </Stack>
-
-        {roleSuccessMessage && (
-          <MessageBar messageBarType={MessageBarType.success}>
-            {roleSuccessMessage}
-          </MessageBar>
-        )}
-
-        {roleErrorMessage && (
-          <MessageBar messageBarType={MessageBarType.error}>
-            {roleErrorMessage}
-          </MessageBar>
-        )}
-
-        <Stack horizontal wrap tokens={{ childrenGap: 20 }}>
-          <Stack.Item className={styles.roleEmailField} grow>
-            <TextField
-              disabled={isRoleSubmitting}
-              label="Correo del colaborador"
-              onChange={(_, value) => setOverrideEmail(value || '')}
-              placeholder="nombre.apellido@humano.com.do"
-              value={overrideEmail}
-            />
-          </Stack.Item>
-
-          <Stack.Item className={styles.roleField}>
-            <Dropdown
-              disabled={isRoleSubmitting}
-              label="Rol asignado"
-              onChange={(_, option) => {
-                const selectedRole = String(option?.key || '');
-
-                if (isRoleType(selectedRole)) {
-                  setOverrideRole(selectedRole);
-                }
-              }}
-              options={roleOptions}
-              selectedKey={overrideRole}
-            />
-          </Stack.Item>
-        </Stack>
-
-        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
-          <PrimaryButton
-            disabled={isRoleSubmitting || overrideEmail.trim().length === 0}
-            onClick={() => saveRoleOverride().catch(() => undefined)}
-            text="Guardar Asignación de Rol"
-          />
-          {isRoleSubmitting && (
-            <Spinner label="Guardando rol..." size={SpinnerSize.small} />
-          )}
-        </Stack>
-      </Stack>
-
       <Stack className={styles.catalogCard} tokens={{ childrenGap: 18 }}>
         <Stack tokens={{ childrenGap: 4 }}>
           <Text variant="xLarge">Gestión de Catálogos Operativos</Text>
@@ -1031,7 +920,7 @@ const AdminConfiguration: React.FC = () => {
                           <span className={styles.catalogItemValue}>
                             {item.Valor}
                           </span>
-                          <IconButton
+                          {canDeleteCatalogs && <IconButton
                             ariaLabel={`Eliminar ${item.Valor}`}
                             className={styles.catalogDeleteButton}
                             disabled={
@@ -1047,7 +936,7 @@ const AdminConfiguration: React.FC = () => {
                               setCatalogItemToDelete(item);
                             }}
                             title={`Eliminar ${item.Valor}`}
-                          />
+                          />}
                         </div>
                       ))}
                     </div>
@@ -1079,21 +968,24 @@ const AdminConfiguration: React.FC = () => {
   );
 };
 
-const AdminPanel: React.FC<IAdminPanelProps> = ({ userRole }) => {
-  const normalized = String(userRole || '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
-  const isAuthorized = normalized === 'admin' || normalized === 'master_admin';
+const AdminPanel: React.FC = () => {
+  const { hasAnyPermission, hasPermission } = useRBAC();
+  const isAuthorized = hasAnyPermission([
+    'modulo:admin:gestionar_catalogos',
+    'modulo:admin:eliminar_catalogos'
+  ]);
 
   if (!isAuthorized) {
     return (
-      <Stack className={styles.panel}>
-        <MessageBar messageBarType={MessageBarType.blocked}>
-          Acceso Denegado: Esta vista es exclusiva para Administradores.
-        </MessageBar>
-      </Stack>
+      <NoAccessMessage detail="Tu cuenta puede ver Configuración, pero no posee permisos para administrar parámetros o catálogos." />
     );
   }
 
-  return <AdminConfiguration />;
+  return (
+    <Stack tokens={{ childrenGap: 20 }}>
+      {hasPermission('modulo:admin:gestionar_catalogos') && <AdminConfiguration />}
+    </Stack>
+  );
 };
 
 export default AdminPanel;

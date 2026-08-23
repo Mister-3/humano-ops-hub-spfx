@@ -1,12 +1,14 @@
 import * as React from 'react';
 import { Icon, MessageBar, MessageBarType, Spinner, SpinnerSize } from '@fluentui/react';
 
-import { cloudDbClient } from '../../../../services/CloudDbClient';
+import { useRBAC } from '../../../../auth/RBACContext';
+import { improvementsRepository } from '../../../../modules/improvements/improvementsRepository';
 import type { ISolicitudMejora } from '../../services/SharePointService';
 
 export interface IAprobacionMejorasQueueProps {
   currentUserEmail: string;
   currentUserName: string;
+  onChanged?: () => void;
 }
 
 const getInitials = (name?: string): string => {
@@ -45,8 +47,11 @@ const formatDateRelative = (isoStr?: string): string => {
 
 export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
   currentUserEmail,
-  currentUserName
+  currentUserName,
+  onChanged
 }) => {
+  const { hasPermission } = useRBAC();
+  const canApprove = hasPermission('modulo:iniciativas:aprobar');
   const [queueItems, setQueueItems] = React.useState<ISolicitudMejora[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
@@ -57,13 +62,14 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
   const [targetAction, setTargetAction] = React.useState<'Aprobada' | 'Declinada' | null>(null);
   const [comentarioRevision, setComentarioRevision] = React.useState<string>('');
   const [isSubmittingResponse, setIsSubmittingResponse] = React.useState<boolean>(false);
+  const responseTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const loadQueue = React.useCallback(async () => {
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const data = await cloudDbClient.getSolicitudesMejora();
-      const pending = data.filter((it) => it.estado === 'Pendiente_Aprobacion');
+      const data = await improvementsRepository.list();
+      const pending = data.filter((it) => it.estado_ciclo === 'En Revision');
       setQueueItems(pending);
     } catch (err) {
       console.error('Error al cargar la cola de aprobación de mejoras:', err);
@@ -83,13 +89,40 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
     setComentarioRevision('');
   };
 
-  const closeResponseModal = () => {
+  const closeResponseModal = React.useCallback(() => {
     setTargetItem(null);
     setTargetAction(null);
     setComentarioRevision('');
-  };
+  }, []);
+
+  React.useEffect(() => {
+    if (!targetItem || !targetAction) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !isSubmittingResponse) {
+        event.preventDefault();
+        closeResponseModal();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    const focusTimer = window.setTimeout(() => responseTextareaRef.current?.focus(), 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [closeResponseModal, isSubmittingResponse, targetAction, targetItem]);
 
   const handleSubmitResponse = async () => {
+    if (!canApprove) {
+      setErrorMessage('No posee permiso para aprobar iniciativas.');
+      return;
+    }
     if (!targetItem || !targetAction) return;
     if (comentarioRevision.trim().length < 10) {
       setErrorMessage('El comentario de revisión exige un mínimo de 10 caracteres.');
@@ -102,9 +135,9 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
 
     try {
       const id = targetItem.id || targetItem.audit_id || '';
-      await cloudDbClient.responderSolicitudMejora(
+      await improvementsRepository.review(
         id,
-        targetAction,
+        targetAction === 'Aprobada' ? 'Aprobada' : 'Descartada',
         comentarioRevision.trim(),
         currentUserEmail,
         currentUserName
@@ -112,6 +145,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
 
       setSuccessMessage(`Iniciativa "${targetItem.titulo}" marcada como ${targetAction} exitosamente.`);
       closeResponseModal();
+      onChanged?.();
       loadQueue().catch(() => undefined);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al guardar la respuesta.';
@@ -214,6 +248,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
               <div className="flex items-center gap-3 pt-2">
                 <button
                   type="button"
+                  disabled={!canApprove}
                   onClick={() => openResponseModal(item, 'Aprobada')}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl px-5 py-2.5 shadow-sm transition-all inline-flex items-center gap-2 text-sm cursor-pointer"
                 >
@@ -222,6 +257,7 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={!canApprove}
                   onClick={() => openResponseModal(item, 'Declinada')}
                   className="bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl px-5 py-2.5 shadow-sm transition-all inline-flex items-center gap-2 text-sm cursor-pointer"
                 >
@@ -247,6 +283,10 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
           <div
             className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full flex flex-col gap-5 animate-slideUp"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="initiative-review-dialog-title"
+            aria-describedby="initiative-review-dialog-description"
           >
             <div className="flex items-center gap-3">
               <div
@@ -259,20 +299,22 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                 <Icon iconName={targetAction === 'Aprobada' ? 'CheckMark' : 'Cancel'} />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">
+                <h3 id="initiative-review-dialog-title" className="text-lg font-bold text-white">
                   {targetAction === 'Aprobada' ? 'Aprobar Iniciativa de Mejora' : 'Declinar Iniciativa de Mejora'}
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p id="initiative-review-dialog-description" className="text-xs text-slate-400">
                   Propuesta: "{targetItem.titulo}" por {targetItem.autor_nombre}
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-200">
+              <label htmlFor="initiative-review-comment" className="text-sm font-semibold text-slate-200">
                 Comentario / Retroalimentación de Revisión <span className="text-rose-500">*</span>
               </label>
               <textarea
+                ref={responseTextareaRef}
+                id="initiative-review-comment"
                 disabled={isSubmittingResponse}
                 rows={4}
                 className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium resize-none"

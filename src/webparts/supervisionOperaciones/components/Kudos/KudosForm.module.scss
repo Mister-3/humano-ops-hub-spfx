@@ -1,31 +1,46 @@
 .modulePivot {
   width: 100%;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid #1e293b;
+  border-radius: 16px;
 
   :global(.ms-Pivot-link) {
+    margin-right: 4px;
+    color: #94a3b8;
     font-size: 13px;
+    font-weight: 650;
+    border-radius: 12px;
+  }
+
+  :global(.ms-Pivot-link:hover) {
+    color: #e2e8f0;
+    background: #1e293b;
+  }
+
+  :global(.ms-Pivot-link.is-selected) {
+    color: #67e8f9;
+    background: rgba(6, 182, 212, 0.12);
+  }
+
+  :global(.ms-Pivot-link::before) {
+    display: none;
   }
 }
 
 .form {
   box-sizing: border-box;
   width: 100%;
-  padding: 24px 0;
+  padding: 20px 0 0;
   color: #ffffff;
 }
 
 .formCard {
   box-sizing: border-box;
   width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: none;
+  padding: clamp(22px, 3vw, 32px);
   color: #ffffff;
-  background: #1a1a1e;
-  border: 1px solid #2d2d35;
-  border-radius: 8px;
-  box-shadow:
-    0 16px 38px rgba(0, 0, 0, 0.34),
-    0 0 20px rgba(0, 120, 212, 0.08);
 
   :global(.ms-Label),
   :global(.ms-Spinner-label) {
@@ -39,8 +54,9 @@
   :global(.ms-TextField-field),
   :global(.ms-TextField-fieldGroup) {
     color: #ffffff;
-    background: #121216;
-    border-color: #3b3b45;
+    background: #020617;
+    border-color: #1e293b;
+    border-radius: 12px;
   }
 
   :global(.ms-ComboBox-CaretDown-button),
@@ -48,8 +64,17 @@
     color: #d0d0d0;
   }
 
+  :global(.ms-ComboBox:focus-within),
+  :global(.ms-Dropdown:focus-within .ms-Dropdown-title),
+  :global(.ms-DatePicker .ms-TextField-fieldGroup:focus-within),
+  :global(.ms-TextField-fieldGroup:focus-within) {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 1px #06b6d4, 0 0 14px rgba(6, 182, 212, 0.2);
+  }
+
   :global(.ms-Button--primary) {
-    box-shadow: 0 0 14px rgba(0, 120, 212, 0.24);
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(8, 145, 178, 0.2);
   }
 }
 
@@ -76,9 +101,9 @@
   box-sizing: border-box;
   width: 100%;
   padding: 14px;
-  background: #121216;
-  border: 1px solid #3b3b45;
-  border-radius: 6px;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
 }
 
 .evidenceLabel {
@@ -108,9 +133,9 @@
   box-sizing: border-box;
   width: 100%;
   padding: 10px;
-  background: rgba(0, 120, 212, 0.07);
-  border: 1px solid rgba(0, 183, 195, 0.24);
-  border-radius: 6px;
+  background: rgba(6, 182, 212, 0.07);
+  border: 1px solid rgba(6, 182, 212, 0.24);
+  border-radius: 12px;
 }
 
 .fileListTitle {
@@ -127,7 +152,7 @@
   padding: 7px 9px;
   background: #1a1a1e;
   border: 1px solid #2d2d35;
-  border-radius: 4px;
+  border-radius: 10px;
 }
 
 .fileName {
@@ -158,12 +183,6 @@
   box-sizing: border-box;
   width: 100%;
   padding: 20px;
-  background: #1a1a1e;
-  border: 1px solid #2d2d35;
-  border-radius: 8px;
-  box-shadow:
-    0 16px 38px rgba(0, 0, 0, 0.28),
-    0 0 20px rgba(0, 120, 212, 0.06);
 }
 
 .publicationControls {
@@ -175,17 +194,19 @@
   :global(.ms-TextField-field),
   :global(.ms-TextField-fieldGroup) {
     color: #ffffff;
-    background: #121216;
-    border-color: #3b3b45;
+    background: #020617;
+    border-color: #1e293b;
+    border-radius: 12px;
   }
 
   :global(.ms-TextField-fieldGroup:focus-within) {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 1px #0078d4;
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 1px #06b6d4;
   }
 
   :global(.ms-Button--primary) {
-    box-shadow: 0 0 16px rgba(0, 120, 212, 0.28);
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(8, 145, 178, 0.2);
   }
 }
 
@@ -197,7 +218,7 @@
     radial-gradient(circle at 50% 25%, rgba(0, 183, 195, 0.1), transparent 42%),
     #151519;
   border: 1px solid rgba(0, 183, 195, 0.28);
-  border-radius: 8px;
+  border-radius: 16px;
 }
 
 .previewEyebrow {

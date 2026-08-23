@@ -1,307 +1,385 @@
 # Project Context and Technical Architecture: Humano Ops Hub
 
-Este documento constituye la fuente oficial de arquitectura técnica, mapa de componentes, esquema de base de datos y sistema de diseño del portal de operaciones **Humano Ops Hub**. Su propósito es guiar a desarrolladores y agentes de IA para el mantenimiento, extensión y compilación sin pérdida de contexto.
+Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Humano Ops Hub (v2.4.0)**.
 
 ---
 
 ## 1. Visión General e Infraestructura
 
 ### 1.1 Resumen del Sistema
-**Humano Ops Hub** es una plataforma web integral de gestión operativa y analítica diseñada para supervisores, gerentes y analistas de operaciones. El sistema centraliza el control de productividad diaria, registro de faltas/errores operativos, conteo de ocupación (llamadas y correos), reconocimientos corporativos (Kudos y Empleado del Mes), gestión de ausencias/vacaciones, matriz de planificación semanal, solicitudes de mejora mediante Historias de Usuario estructuradas y administración de catálogos jerárquicos.
+**Humano Ops Hub** es una plataforma web corporativa de gestión operativa, control disciplinario y analítica avanzada de rendimiento diseñada para equipos de operaciones, supervisores, gerentes y analistas. El sistema centraliza:
+- Control y registro diario de productividad operativa con validación de devoluciones condicionales.
+- Registro, amonestación y tipificación de faltas disciplinarias y errores de proceso con aprobación jerárquica.
+- Medición de tiempos de ocupación (llamadas telefónicas y gestión de correos).
+- Sistema de reconocimientos corporativos (*Kudos*) y gestión de galardones (*Empleado del Mes*) con control de días libres.
+- Registro de ausencias, licencias e incapacidades, asignación de vacaciones por período anual y cálculo dinámico de capacidad en la matriz de planificación semanal.
+- Gestión ágil de iniciativas y mejoras continuas estructuradas en Historias de Usuario (*Como / Quiero / Para*) con Live Preview y exportación multiformato para Azure DevOps / Jira.
+- Módulo operativo End-to-End con aislamiento de snapshots por analista, conciliación de SLA y resolución de conflictos.
+- Administración y gobierno de identidades mediante una matriz RBAC nativa de 5 roles base y soporte para roles personalizados.
 
 ### 1.2 Stack Tecnológico
 - **Frontend Core**: React 17.0.1 (Single Page Application).
 - **Lenguaje**: TypeScript 5.8 (~5.8.0) con verificación estricta (`tsconfig.app.json`).
 - **Bundler & Dev Server**: Vite 8.2.0 (`vite.config.mts`).
-- **Sistema de UI / Componentes**: Fluent UI React (`@fluentui/react` ^8.106.4) + HTML5 semántico estilizado.
-- **Estilos & Diseño**: Tailwind CSS (Tailwind v3 configurado en `tailwind.config.js` con `darkMode: 'class'`), Sass (`sass` ^1.102.0) y CSS Modules (`*.module.scss`).
+- **Sistema de UI / Primitivas**: Kit personalizado de Primitivas Dark Modern (`AppDialog`, `PageHeader`, `KpiCard`, `StatusBadge`, `SurfaceCard`) complementado con Fluent UI React (`@fluentui/react` ^8.106.4).
+- **Estilos & Diseño**: Tailwind CSS v3 (`tailwind.config.js` con `darkMode: 'class'`), Sass (`sass` ^1.102.0) y CSS Modules (`*.module.scss`).
 - **Iconografía**: Fluent UI Icons (`initializeIcons`) + Emojis de interfaz unificados.
 - **Persistencia de Datos**:
-  - **Nube (Producción)**: Supabase / PostgreSQL con `client` oficial `@supabase/supabase-js` (^2.112.0).
-  - **Caché Local / Offline**: IndexedDB personalizado (`IndexedDbAdapter.ts`) que sincroniza automáticamente transacciones locales.
-- **Librerías Complementarias**:
-  - `exceljs` (^4.4.0): Exportación/Importación de reportes analíticos en hojas de cálculo Excel (`AppDB.xlsx`).
+  - **Nube (Producción)**: Supabase / PostgreSQL con `@supabase/supabase-js` (^2.112.0).
+  - **Caché Local / Offline Fallback**: IndexedDB personalizado (`IndexedDbAdapter.ts` - *HumanoOpsHubDB v3*).
+- **Librerías de Soporte**:
+  - `exceljs` (^4.4.0): Procesamiento y exportación de reportes analíticos (`AppDB.xlsx`).
   - `jszip` (^3.10.1): Compresión y empaquetado de reportes exportables.
+- **Testing**: Vitest (`vitest.config.mts`) para pruebas unitarias y de dominio.
 
 ### 1.3 Entorno de Ejecución y Scripts de Construcción
 El proyecto se ejecuta en un entorno Linux con **Node.js (>=22.14.0 < 23.0.0)**.
 
-#### Comandos de Construcción y Despliegue:
-```fish
+#### Comandos de Construcción y Verificación:
+```bash
 # Instalación de dependencias
 npm install
 
-# Servidor de desarrollo local (Vite dev server)
+# Servidor de desarrollo local Vite
 npm run dev
 
-# Compilación de producción (TypeScript check + Vite bundle)
+# Ejecución de pruebas unitarias
+npm test
+
+# Compilación de producción (TypeScript strict check + Vite bundle)
 npm run build
 
-# Previsualización del bundle compilado
+# Previsualización del bundle de producción
 npm run preview
 
-# Scripts de exportación/datos
+# Generación de base de datos Excel
 npm run generate:appdb
 ```
 
-#### Integración y Despliegue en Vercel (Fish Shell):
-```fish
-# Construcción y despliegue a entorno de pruebas Vercel
-vercel --build
-
-# Despliegue directo a producción en Vercel
-vercel --prod --skip-domain-verification
-```
-
 ---
 
-## 2. Estructura de Directorios y Proyecto
+## 2. Estructura de Directorios y Organización del Código
 
 ```
 /home/edison-ventalm/supervision-app-new
-├── index.html                           # Entrypoint HTML de la aplicación
-├── package.json                         # Dependencias, scripts y configuración de motor Node
-├── tailwind.config.js                   # Configuración de Tailwind CSS con clase dark mode
-├── tsconfig.app.json                    # Configuración estricta de compilador TypeScript
-├── vite.config.mts                      # Configuración del empaquetador Vite
-├── AppDB.xlsx                           # Plantilla de base de datos/matriz Excel
-├── dist/                                # Output compilado de producción
-├── scripts/                             # Scripts utilitarios (ej: generate-app-db.mjs)
-└── src/                                 # Código fuente del proyecto
-    ├── App.tsx                          # Componente raíz con Auth state wrapper
-    ├── index.tsx                        # Punto de entrada de renderizado React DOM
-    ├── styles.css                       # Estilos globales y directivas de Tailwind CSS
-    ├── auth/                            # Módulo de Autenticación
-    │   ├── AppAuthContext.tsx           # Contexto global de sesión de usuario y rol
-    │   ├── ChangePasswordDialog.tsx     # Modal de cambio de contraseña obligatoria
-    │   └── LoginModal.tsx               # Pantalla de inicio de sesión integrada
-    ├── services/                        # Servicios de Backend y Base de Datos
-    │   ├── CloudDbClient.ts             # Cliente principal Supabase PostgreSQL + IndexedDB fallback
-    │   ├── IndexedDbAdapter.ts          # Adaptador local IndexedDB (HumanoOpsHubDB v3)
-    │   └── LocalStorageService.ts       # Gestor de caché y preferencias del navegador
-    └── webparts/supervisionOperaciones/ # Módulo principal de la aplicación
-        ├── components/                  # Componentes visuales por módulo funcional
-        │   ├── Admin/                   # Panel de Administración (Usuarios, Catálogos)
-        │   │   ├── AdminPanel.tsx       # Gestión de catálogos y métricas del sistema
-        │   │   ├── CatalogosAdmin.tsx   # Administración de catálogos jerárquicos
-        │   │   └── UserAdminPanel.tsx   # Gestión de cuentas, roles y accesos de usuarios
-        │   ├── Ausencias/               # Módulo de Ausencias y Vacaciones
-        │   │   ├── AusenciasForm.tsx    # Registro de ausencias, vacaciones y Día Empleado del Mes
-        │   │   └── PlanificacionSemanal.tsx # Matriz de Planificación Semanal
-        │   ├── Common/                  # Componentes reutilizables de UI
-        │   │   └── ConfirmDialog.tsx    # Modal de confirmación estilizado (Reemplaza window.confirm)
-        │   ├── Dashboard/               # Dashboard de métricas e indicadores de rendimiento
-        │   │   └── Dashboard.tsx
-        │   ├── EvaluacionRendimiento/  # Evaluación consolidada de agentes
-        │   │   └── EvaluacionRendimiento.tsx
-        │   ├── Faltas/                  # Módulo de Faltas y Errores Operativos
-        │   │   └── FaltasForm.tsx
-        │   ├── Kudos/                   # Módulo de Reconocimientos y Kudos
-        │   │   ├── EmpleadoMesView.tsx  # Histórico y publicación de Empleado del Mes
-        │   │   ├── KudosForm.tsx        # Formulario de envío de Kudos
-        │   │   └── ReconocimientosView.tsx # Vista consolidada de Reconocimientos
-        │   ├── Mejoras/                 # Módulo de Iniciativas & Mejoras (Historias de Usuario)
-        │   │   ├── AprobacionMejorasQueue.tsx # Cola de revisión y aprobación de supervisores
-        │   │   ├── IniciativasMejorasView.tsx # Vista principal con navegación por pestañas
-        │   │   ├── MejorasView.tsx      # Export de IniciativasMejorasView
-        │   │   ├── MisSolicitudesMejora.tsx # Historial de solicitudes del usuario
-        │   │   └── SolicitudMejoraForm.tsx # Formulario estructurado en 2 secciones (Work Items)
-        │   ├── Navigation/              # Navegación del sistema
-        │   │   ├── Header.tsx           # Encabezado corporativo, usuario y estado
-        │   │   └── SidebarNav.tsx       # Barra lateral de módulos con control de accesos
-        │   ├── Ocupacion/               # Módulo de Ocupación y Conteo de Llamadas/Correos
+├── index.html                               # Entrypoint HTML de la aplicación
+├── package.json                             # Dependencias, scripts y configuración de motor Node
+├── tailwind.config.js                       # Configuración de Tailwind CSS con paleta Slate/Cyan
+├── tsconfig.app.json                        # Configuración estricta de TypeScript
+├── vite.config.mts                          # Configuración del empaquetador Vite
+├── vitest.config.mts                        # Configuración de pruebas unitarias Vitest
+├── AGENTS.md                                # Protocolo y guía única para agentes de IA
+├── BUSINESS_RULES_AND_USE_CASES.md          # Cerebro maestro de reglas de negocio y casos de uso
+├── PROJECT_CONTEXT_AND_ARCHITECTURE.md      # Este documento maestro de arquitectura técnica
+├── CHANGELOG.md                             # Historial de versiones y notas de lanzamiento
+├── supabase/
+│   └── migrations/                          # Migraciones DDL SQL versionadas y transaccionales
+│       ├── 202608110001_end_to_end_operations.sql
+│       ├── 202608190001_end_to_end_user_isolation.sql
+│       ├── 202608190002_rbac_system.sql
+│       ├── 202608200001_initiatives_ux_owner.sql
+│       ├── 202608200002_unify_roles_config.sql
+│       └── 202608200003_custom_rbac_roles.sql
+└── src/
+    ├── App.tsx                              # Componente raíz con Auth & RBAC Provider wrappers
+    ├── index.tsx                            # Punto de entrada de renderizado React DOM
+    ├── styles.css                           # Estilos globales y directivas de Tailwind CSS
+    ├── types/                               # Definición de tipos y contratos globales
+    │   ├── index.ts                         # Roles canónicos, interfaces operativas y mapeos
+    │   └── endToEnd.ts                      # Tipos del dominio End-to-End
+    ├── auth/                                # Módulo de Autenticación y Políticas RBAC
+    │   ├── AuthModels.ts                    # Modelos de usuario, credenciales y estados
+    │   ├── AuthProvider.tsx                 # Contexto de autenticación y ciclo de vida de sesión
+    │   ├── AuthService.ts                   # Servicio de login, cambio de contraseña y registro
+    │   ├── AuthView.tsx                     # Vista de login integrada en Dark Modern
+    │   ├── RBACContext.tsx                  # Contexto reactivo de permisos efectivos
+    │   ├── rbacPolicy.ts                    # Evaluador deny-by-default y bypass de Admin
+    │   └── rbacRoleCatalog.ts               # Catálogo base de 5 roles, normalización y slugs
+    ├── modules/                             # Módulos de Dominio Aislados
+    │   ├── improvements/                    # Dominio de Iniciativas & Mejoras
+    │   │   ├── improvementsDomain.ts        # Lógica de Historias de Usuario, KPIs y exportación
+    │   │   ├── improvementsDomain.test.mts  # Pruebas unitarias de mejoras
+    │   │   └── improvementsRepository.ts    # Repositorio Supabase/IndexedDB con RLS
+    │   └── endToEnd/                        # Dominio de Operaciones End-to-End
+    │       ├── endToEndDomain.ts            # Cálculo de SLA, etapas y reconciliación
+    │       ├── endToEndDomain.test.mts      # Pruebas de dominio End-to-End
+    │       ├── endToEndRepository.ts        # Persistencia de snapshots aisladas por analista
+    │       ├── endToEndViewModel.ts         # Adaptador de estado de interfaz End-to-End
+    │       └── endToEndClipboard.ts         # Exportación segura al portapapeles
+    ├── services/                            # Clientes de Datos y Backend
+    │   ├── CloudDbClient.ts                 # Cliente unificado Supabase + IndexedDB fallback
+    │   ├── IndexedDbAdapter.ts              # Adaptador local IndexedDB v3 (HumanoOpsHubDB)
+    │   ├── PowerAutomateSyncService.ts      # Sincronización de Headcount M365
+    │   ├── RBACService.ts                   # Servicio de lectura y administración RBAC vía RPC
+    │   ├── SharePointService.ts             # Adaptador de catálogos y listas SharePoint
+    │   └── supabase.ts                      # Instancia configurada de `@supabase/supabase-js`
+    └── webparts/supervisionOperaciones/     # Módulo Principal del Hub
+        ├── components/
+        │   ├── Common/                      # Primitivas UI Dark Modern Reutilizables
+        │   │   ├── AppDialog.tsx            # Modal universal accesible con React Portal y Focus Trap
+        │   │   ├── PageHeader.tsx           # Encabezado estándar con slots de título, badge y acción
+        │   │   ├── KpiCard.tsx              # Tarjeta de métricas con variantes de color semánticas
+        │   │   ├── StatusBadge.tsx          # Badges de estado estandarizados
+        │   │   ├── SurfaceCard.tsx          # Contenedor base de superficie y elevación
+        │   │   ├── PermissionGuard.tsx      # Guardia declarativa de interfaz con NoAccessMessage
+        │   │   ├── DeleteConfirmModal.tsx   # Modal de confirmación para eliminaciones críticas
+        │   │   ├── SkeletonLoader.tsx       # Esqueletos de carga fluidos
+        │   │   └── index.ts                 # Barril de exportación de primitivas
+        │   ├── Admin/                       # Configuración y Administración de Usuarios
+        │   │   ├── AdminPanel.tsx           # Configuración: Catálogos jerárquicos y metas
+        │   │   ├── UserAdminPanel.tsx       # Administración de Usuarios: Aprobación y perfiles
+        │   │   └── RolesPermissionsAdmin.tsx# Matriz RBAC: Roles, permisos y asignaciones
+        │   ├── Ausencias/                   # Ausencias, Vacaciones y Planificación Semanal
+        │   │   ├── AusenciasForm.tsx
+        │   │   └── PlanificacionSemanal.tsx
+        │   ├── Dashboard/                   # Tablero general de métricas
+        │   ├── EndToEnd/                    # Radicaciones End-to-End y SLA
+        │   │   ├── EndToEndView.tsx
+        │   │   └── CopyColumnsPortal.tsx
+        │   ├── EvaluacionRendimiento/       # Evaluación consolidada de desempeño
+        │   ├── Faltas/                      # Faltas disciplinarias y errores de proceso
+        │   │   ├── FaltasForm.tsx
+        │   │   └── AprobacionesView.tsx
+        │   ├── Kudos/                       # Reconocimientos y Empleado del Mes
+        │   │   ├── KudosForm.tsx
+        │   │   └── EmpleadoMesHistorialView.tsx
+        │   ├── Mejoras/                     # Iniciativas & Mejoras (Historias de Usuario)
+        │   │   ├── IniciativasMejorasView.tsx# Dashboard y editor 7/5 con Live Preview
+        │   │   └── AprobacionMejorasQueue.tsx# Cola y modal de revisión de iniciativas
+        │   ├── Navigation/                  # Barra lateral y cabecera
+        │   │   └── SidebarNav.tsx
+        │   ├── Ocupacion/                   # Conteo de llamadas y correos
         │   │   └── SupervisorTimeView.tsx
-        │   ├── Productividad/           # Módulo de Productividad Operativa
-        │   │   ├── ProductividadForm.tsx # Registro diario de productividad con Devoluciones
-        │   │   └── ProductividadList.tsx # Listado de registros con eliminación por UUID/audit_id
-        │   └── SupervisionOperaciones.tsx # Contenedor principal con routing y lazy loading
-        ├── models/                      # Modelos de datos TypeScript (`AppModels.ts`)
-        ├── services/                    # Servicios SharePoint / Adaptadores locales (`SharePointService.ts`)
-        └── theme/                       # Configuración de tema oscuro Fluent UI (`DarkTheme.ts`)
+        │   ├── Productividad/               # Registro y listado de productividad diaria
+        │   │   └── ProductividadForm.tsx
+        │   └── SupervisionOperaciones.tsx   # Componente router y shell principal
+        └── theme/                           # Configuración Fluent UI Dark (`DarkTheme.ts`)
 ```
 
 ---
 
-## 3. Esquema Completo de Base de Datos (Supabase / PostgreSQL)
+## 3. Design System Dark Modern (Slate / Cyan)
 
-La persistencia del sistema está modelada en la base de datos PostgreSQL alojada en Supabase. A continuación se desglosa el esquema de tablas y columnas:
+El portal utiliza un sistema de diseño estricto en **Modo Oscuro**, basado en la paleta semántica Slate / Cyan de Tailwind CSS con transparencias *glassmorphic*.
 
-### 3.1 Tabla: `productividad`
-Almacena las métricas diarias de producción por colaborador.
-- `id`: `uuid` / `bigint` (Primary Key, autogenerado por Supabase).
-- `audit_id`: `text` (Identificador único de auditoría formato `PROD-YYYYMMDDHHMMSS-RAND`).
-- `agente`: `text` (Nombre completo del colaborador).
-- `email_empleado`: `text` (Correo del colaborador).
-- `fecha_registro`: `timestamptz` / `date` (Fecha del registro).
-- `fecha_inicio`: `timestamptz` (Fecha/Hora inicio del rango registrado).
-- `fecha_fin`: `timestamptz` (Fecha/Hora fin del rango registrado).
-- `casos_atendidos`: `integer` (Total de casos cerrados/atendidos).
-- `casos_a_tiempo`: `integer` (Casos cumplidos dentro del SLA).
-- `emisiones_tx`: `integer` (Transacciones de Emisiones).
-- `emisiones_pg`: `integer` (Pagos/Procesados de Emisiones).
-- `devoluciones_emisiones`: `integer` (Devoluciones en Emisiones - Requerido solo si aplica).
-- `movimientos_tx`: `integer` (Transacciones de Movimientos).
-- `movimientos_pg`: `integer` (Pagos/Procesados de Movimientos).
-- `devoluciones_movimientos`: `integer` (Devoluciones en Movimientos - Requerido solo si aplica).
-- `escaneo_tx`: `integer` (Transacciones de Escaneo).
-- `escaneo_pg`: `integer` (Pagos/Procesados de Escaneo).
-- `devoluciones_escaneo`: `integer` (Devoluciones en Escaneo - Requerido solo si aplica).
-- `carnets_tx`: `integer` (Transacciones de Gestión de Carnets).
-- `carnets_pg`: `integer` (Pagos/Procesados de Gestión de Carnets).
-- `created_at`: `timestamptz` (Fecha de creación en BD).
+### 3.1 Paleta Semántica de Colores
+- **Fondos de Superficie**:
+  - Fondo Base del Hub: `bg-slate-950` (`#020617`).
+  - Tarjetas y Paneles Elevados: `bg-slate-900/90` o `bg-slate-900/95` con `backdrop-blur-md`.
+  - Modales y Overlays: `bg-black/60` con `backdrop-blur-sm`.
+- **Bordes y Delimitadores**:
+  - Bordes de Estructura: `border-slate-800` (`#1e293b`).
+  - Bordes Interactivos / Hover: `border-slate-700` (`#334155`).
+- **Tipografía y Textos**:
+  - Títulos y Valores de Énfasis: `text-white`.
+  - Textos Principales de Contenido: `text-slate-100` o `text-slate-200`.
+  - Subtítulos y Etiquetas Secundarias: `text-slate-400`.
+  - Textos de Soporte / Placeholders: `text-slate-500`.
+- **Acento Primario**: `cyan-500` (`#06b6d4`), `cyan-400` y fondos `bg-cyan-500/10` con bordes `border-cyan-500/30`.
+- **Estados Semánticos**:
+  - **Éxito / Aprobado / Activo**: `emerald-500` (`bg-emerald-500/10 text-emerald-300 border-emerald-500/30`).
+  - **Alerta / En Revisión / Pendiente**: `amber-500` (`bg-amber-500/10 text-amber-300 border-amber-500/30`).
+  - **Peligro / Descartado / Crítico**: `rose-500` (`bg-rose-500/10 text-rose-300 border-rose-500/30`).
+  - **Roles / Identidad / Azure DevOps Story**: `purple-500` / `indigo-500` (`bg-purple-500/10 text-purple-300 border-purple-500/30`).
+  - **Neutral / Deshabilitado**: `slate-800` / `border-slate-700` (`text-slate-300`).
 
-### 3.2 Tabla: `faltas_errores`
-Registra incidencias disciplinarias o errores operativos cometidos.
-- `id`: `uuid` / `bigint` (Primary Key).
-- `audit_id`: `text` (Identificador único de auditoría).
-- `agente_nombre`: `text` (Nombre del colaborador sancionado).
-- `agente_email`: `text` (Correo del colaborador).
-- `supervisor_email`: `text` (Correo del supervisor que aplica la falta).
-- `fecha_falta`: `date` (Fecha de la falta o error).
-- `categoria`: `text` (Categoría principal: Falta, ErrorProceso, CodigoEtica).
-- `subcategoria`: `text` (Subcategoría específica del catálogo).
-- `impacto`: `text` (Bajo, Medio, Alto, Crítico).
-- `estado_aprobacion`: `text` (Pendiente, Aprobado, Rechazado).
-- `horas_perdidas`: `numeric` (Horas operativas perdidas).
-- `minutos_tardanza`: `integer` (Minutos de tardanza acumulados).
-- `hora_llegada`: `text` (Hora exacta de llegada).
-- `id_caso_helpdesk`: `text` (Número de caso o ticket de referencia).
-- `proceso_area`: `text` (Proceso del área afectado).
-- `comentarios`: `text` (Justificación / Observaciones).
-- `comentarios_capacitacion`: `text` (Plan de acción o capacitación acordada).
-- `created_at`: `timestamptz`.
+### 3.2 Reglas Fundamentales de UI/UX
+1. **Erradicación Total de Fondos Blancos (`NO bg-white`)**:
+   - Está terminantemente prohibido utilizar clases de fondo claro (`bg-white`, `bg-gray-50`, `bg-slate-100`) o fuentes oscuras planas (`text-black`, `text-gray-900`).
+2. **Inputs y Selectores Estandarizados**:
+   ```html
+   class="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 transition-all font-medium text-sm"
+   ```
+3. **Prohibición de Diálogos Nativos**:
+   - Prohibido el uso de `window.alert()` y `window.confirm()`. Toda interacción modal debe usar las primitivas `AppDialog` o `DeleteConfirmModal`.
 
-### 3.3 Tabla: `ocupacion_llamadas`
-Conteo de atención telefónica y tiempo dedicado por supervisores/agentes.
-- `id`: `uuid` / `bigint` (Primary Key).
-- `audit_id`: `text` (Identificador de auditoría).
-- `supervisor_email`: `text` (Email del usuario registrado).
-- `caso_contacto`: `text` (Descripción o número de caso).
-- `fecha_hora`: `timestamptz` (Fecha y hora de atención).
-- `duracion_minutos`: `numeric` / `integer` (Duración en minutos).
-- `comentarios`: `text`.
-- `created_at`: `timestamptz`.
+### 3.3 Catálogo de Primitivas Reutilizables (`components/Common/`)
 
-### 3.4 Tabla: `kudos`
-Módulo de reconocimiento entre pares basado en atributos de cultura.
-- `id`: `uuid` / `bigint` (Primary Key).
-- `audit_id`: `text`.
-- `agente_nombre`: `text` (Nombre del receptor).
-- `agente_email`: `text` (Correo del receptor).
-- `remitente_nombre`: `text` (Nombre de quien otorga el Kudo).
-- `remitente_email`: `text` (Correo de quien otorga).
-- `atributo`: `text` (Atributo de valor corporativo).
-- `mensaje`: `text` (Mensaje de felicitación).
-- `puntos`: `integer` (Puntaje asignado).
-- `fecha`: `date` / `timestamptz`.
-- `created_at`: `timestamptz`.
+#### 1. `PageHeader` (`PageHeader.tsx`)
+Encabezado unificado de página con soporte de ícono temático, título de sección, subtítulo explicativo, badge de estado y slot para botones de acción (`action`).
+```tsx
+import { PageHeader, StatusBadge } from '../Common';
 
-### 3.5 Tabla: `empleado_del_mes`
-Publicación de reconocimientos mensuales y control del beneficio de Día Libre.
-- `id`: `uuid` / `bigint` (Primary Key).
-- `email_empleado`: `text` (Correo del colaborador premiado).
-- `nombre_empleado`: `text` (Nombre del colaborador premiado).
-- `mes`: `integer` (Mes del galardón 1-12).
-- `anio`: `integer` (Año del galardón).
-- `dedicatoria`: `text` (Motivo de reconocimiento).
-- `supervisor_email`: `text` (Correo del supervisor originador).
-- `supervisor_nombre`: `text` (Nombre del supervisor originador).
-- `dia_libre_reclamado`: `boolean` (Default `false`. `true` cuando se registra la ausencia por este concepto).
-- `fecha_publicacion`: `timestamptz`.
-- `created_at`: `timestamptz`.
+<PageHeader
+  title="Iniciativas & Mejoras"
+  subtitle="Gestión ágil de solicitudes de mejora continua e Historias de Usuario."
+  icon={<Icon iconName="Lightbulb" />}
+  badge={<StatusBadge variant="info">v2.4.0</StatusBadge>}
+  action={<PrimaryButton text="Nueva Historia" onClick={openForm} />}
+/>
+```
 
-### 3.6 Tabla: `ausencias`
-Registro de permisos, incapacidades, vacaciones y días libres otorgados.
-- `id`: `uuid` / `bigint` (Primary Key).
-- `audit_id`: `text`.
-- `agente_nombre`: `text` (Nombre del colaborador).
-- `agente_email`: `text` (Correo del colaborador).
-- `tipo_ausencia`: `text` (Vacaciones, Día Libre Cumpleaños, Día Libre Empleado del Mes, Licencia / Incapacidad).
-- `fecha_inicio`: `date` (Fecha inicio de la ausencia).
-- `fecha_fin`: `date` (Fecha fin de la ausencia).
-- `periodo_anio`: `integer` (Año del período reclamado para Vacaciones).
-- `premio_empleado_mes_id`: `text` / `bigint` (Relación al registro de `empleado_del_mes`).
-- `comentarios`: `text`.
-- `created_at`: `timestamptz`.
+#### 2. `KpiCard` (`KpiCard.tsx`)
+Tarjeta de métricas con etiquetas semánticas, variantes de color (`default`, `cyan`, `emerald`, `amber`, `rose`, `purple`), valor destacado, subtexto e indicador visual de acento inferior.
+```tsx
+import { KpiCard } from '../Common';
 
-### 3.7 Tabla: `solicitudes_mejora`
-Gestión de Historias de Usuario e Iniciativas de mejora continua.
-- `id`: `uuid` (Primary Key autogenerado).
-- `audit_id`: `text` (Identificador de auditoría `MEJ-YYYYMMDDHHMMSS-RAND`).
-- `autor_nombre`: `text` (Nombre del colaborador solicitante).
-- `autor_email`: `text` (Correo del solicitante).
-- `aplicativo`: `text` (Nombre del aplicativo seleccionado del catálogo).
-- `modulo_afectado`: `text` (Nombre del módulo afectado).
-- `pantalla_afectada`: `text` (Nombre de la pantalla/sección específica).
-- `titulo`: `text` (Título representativo del Work Item).
-- `descripcion`: `text` (Narrativa de Historia de Usuario: "Como [rol], quiero [acción], para [beneficio]").
-- `criterios_aceptacion`: `text` (Criterios de aceptación indispensables).
-- `estado`: `text` (Valores: `Pendiente_Aprobacion`, `Aprobada`, `Declinada`).
-- `comentario_supervisor`: `text` (Retroalimentación emitida por el supervisor).
-- `supervisor_email`: `text` (Correo del supervisor revisor).
-- `supervisor_nombre`: `text` (Nombre del supervisor revisor).
-- `fecha_revision`: `timestamptz` (Fecha/Hora de aprobación o declinación).
-- `created_at`: `timestamptz`.
+<KpiCard
+  label="Total Iniciativas"
+  value={42}
+  subtext="6 en revisión activa"
+  variant="cyan"
+  icon={<Icon iconName="GitGraph" />}
+/>
+```
 
-### 3.8 Tabla: `catalogos`
-Estructura de catálogos dinámicos jerárquicos (Cascada Aplicativo ➔ Módulo ➔ Pantalla).
-- `id`: `bigint` / `uuid` (Primary Key).
-- `categoria`: `text` (Categorías: `Falta`, `ErrorProceso`, `CodigoEtica`, `Kudo`, `ProcesoArea`, `aplicativos`, `modulos`, `pantallas`).
-- `valor`: `text` (Nombre o descripción del ítem).
-- `parent_id`: `text` / `bigint` (Clave foránea opcional que apunta al `id` o `rawId` del elemento padre en la jerarquía).
-- `activo`: `boolean` (Default `true`).
-- `created_at`: `timestamptz`.
+#### 3. `StatusBadge` (`StatusBadge.tsx`)
+Píldora semántica de estado con soporte para 6 variantes (`success`, `warning`, `danger`, `info`, `role`, `neutral`) y 2 tamaños (`sm`, `md`).
+```tsx
+import { StatusBadge } from '../Common';
 
-### 3.9 Tabla: `configuraciones_sistema` y `metas`
-Parámetros globales de cálculo y ponderación de métricas.
-- `id`: `bigint` (Primary Key).
-- `clave`: `text` (Nombre de la variable de configuración).
-- `valor`: `jsonb` / `text` (Valor o estructura de la regla de cálculo).
-- `updated_at`: `timestamptz`.
+<StatusBadge variant="success" size="sm">Aprobada</StatusBadge>
+<StatusBadge variant="warning" size="sm">En Revision</StatusBadge>
+<StatusBadge variant="role" size="md">Supervisor</StatusBadge>
+```
 
-### 3.10 Tabla: `usuarios`
-Cuentas de usuario y asignación de roles.
-- `id`: `bigint` / `uuid` (Primary Key).
-- `email`: `text` (Correo electrónico único).
-- `nombre`: `text` (Nombre completo).
-- `rol`: `text` (Roles: `Master_Admin`, `Admin`, `Gerente`, `Supervisor`, `Analista`, `Asistente`, `Oficial`).
-- `estado`: `text` (Activo, Inactivo, Bloqueado).
-- `password_hash`: `text` (Hash de contraseña de acceso).
-- `is_profile_validated_pa`: `boolean` (Validación de perfil).
-- `created_at`: `timestamptz`.
+#### 4. `AppDialog` (`AppDialog.tsx`)
+Modal universal accesible implementado con React Portal (`createPortal` sobre `document.body`), cumpliendo con los estándares de accesibilidad:
+- **ARIA**: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` y `aria-describedby` dinámicos.
+- **Focus Trap**: Atrapa el foco de navegación mediante teclado (ciclo con `Tab` y `Shift+Tab`).
+- **Escape Listener**: Cierre automático e inmediato al pulsar la tecla `Escape`.
+- **Bloqueo de Scroll**: Aplica `overflow-hidden` al `<body>` mientras permanece abierto.
+- **Anchos Flexibles**: Soporte para variantes `maxWidth` (`sm`, `md`, `lg`, `xl`).
+```tsx
+import { AppDialog } from '../Common';
+
+<AppDialog
+  isOpen={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Revisión de Iniciativa"
+  description="Ingrese los comentarios de retroalimentación para el autor."
+  maxWidth="md"
+>
+  <div className="space-y-4">
+    {/* Contenido del modal */}
+  </div>
+</AppDialog>
+```
+
+#### 5. `SurfaceCard` (`SurfaceCard.tsx`)
+Contenedor base con bordes semánticos `border-slate-800`, fondo `bg-slate-900/90` y variantes de elevación `flat` (sin sombra) o `raised` (`shadow-xl`).
+```tsx
+import { SurfaceCard } from '../Common';
+
+<SurfaceCard elevation="raised" className="p-6">
+  {/* Contenido encapsulado */}
+</SurfaceCard>
+```
+
+#### 6. `PermissionGuard` & `NoAccessMessage` (`PermissionGuard.tsx`)
+Componente de renderizado condicional declarativo basado en permisos de RBAC.
+```tsx
+import { PermissionGuard } from '../Common';
+
+<PermissionGuard permission="modulo:admin:gestionar_permisos">
+  <RolesPermissionsAdmin />
+</PermissionGuard>
+```
 
 ---
 
-## 4. Sistema de Diseño y Guía de Estilos
+## 4. Esquema de Base de Datos (Supabase / PostgreSQL)
 
-El portal **Humano Ops Hub** utiliza un sistema de diseño estricto orientado a **Modo Oscuro (Dark Theme)** basado en paletas Slate y Zink de Tailwind CSS con transparencias glassmorphic.
+### 4.1 Tablas del Sistema de Seguridad y RBAC
+```mermaid
+erDiagram
+    roles ||--o{ role_permissions : "tiene"
+    permissions ||--o{ role_permissions : "asignado a"
+    roles ||--o{ user_roles : "concedido en"
+    auth_users ||--o{ user_roles : "pertenece a"
 
-### 4.1 Reglas Fundamentales de UI/UX
-1. **Erradicación de Fondos Blancos (`NO bg-white`)**:
-   - Está **estrictamente prohibido** usar clases de fondo claro (`bg-white`, `bg-slate-50`, `bg-gray-100`) o colores de texto oscuros planos (`text-black`, `text-gray-900`) en componentes del portal.
+    roles {
+        text id PK "Slug canónico (admin, gerente, etc.)"
+        text name "Nombre representativo"
+        text description "Descripción funcional"
+        boolean is_system "true si es rol base protegido"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 
-2. **Estilo Unificado para Inputs, Selects y Textareas**:
-   ```html
-   class="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-medium text-sm"
-   ```
-   - Opciones internas `<option>`:
-     ```html
-     class="bg-slate-900 text-slate-100 py-2"
-     ```
+    permissions {
+        text id PK "Código modulo:accion (ej: modulo:admin:ver)"
+        text modulo "Nombre del módulo agrupador"
+        text nombre "Nombre de la acción o pantalla"
+        text descripcion "Descripción técnica"
+        text categoria "'pantalla' o 'accion'"
+        timestamptz created_at
+    }
 
-3. **Tarjeta y Contenedores Elevados (Cards)**:
-   ```html
-   class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md"
-   ```
+    role_permissions {
+        text role_id PK, FK
+        text permission_id PK, FK
+        timestamptz created_at
+    }
 
-4. **Botón Principal Registrado (Standard Primary Button)**:
-   ```html
-   class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-   ```
+    user_roles {
+        uuid user_id PK, FK "auth.users.id"
+        text role_id PK, FK
+        timestamptz created_at
+    }
+```
 
-5. **Modales de Confirmación y Popups**:
-   - **Prohibición Total de Diálogos Nativos**: Queda eliminada cualquier llamada a `window.confirm()` o `window.alert()`.
-   - **Reemplazo Unificado**: Se utiliza exclusivamente el componente `<ConfirmDialog />` (`ConfirmDialog.tsx`) estilizado con capa oscura y desenfoque (`bg-black/70 backdrop-blur-sm fixed inset-0 z-50 flex items-center justify-center`).
+### 4.2 Tablas Operativas del Hub
+1. **`productividad`**: Registros diarios de producción (`casos_atendidos`, `casos_a_tiempo`, `emisiones_tx`, `emisiones_pg`, `devoluciones_emisiones`, `movimientos_tx`, `movimientos_pg`, `devoluciones_movimientos`, `escaneo_tx`, `escaneo_pg`, `devoluciones_escaneo`, `carnets_tx`, `carnets_pg`, `audit_id`, `email_empleado`, `fecha_registro`).
+2. **`faltas_errores`**: Amonestaciones disciplinarias y errores de proceso (`categoria`, `subcategoria`, `impacto`, `estado_aprobacion`, `horas_perdidas`, `minutos_tardanza`, `hora_llegada`, `id_caso_helpdesk`, `proceso_area`, `comentarios`, `comentarios_capacitacion`, `agente_email`, `supervisor_email`).
+3. **`ocupacion_llamadas`**: Tiempos de atención y conteo de interacciones (`caso_contacto`, `fecha_hora`, `duracion_minutos`, `supervisor_email`, `comentarios`).
+4. **`kudos`**: Reconocimientos culturales entre pares (`agente_email`, `remitente_email`, `atributo`, `mensaje`, `puntos`, `fecha`).
+5. **`empleado_del_mes`**: Galardones mensuales publicados (`email_empleado`, `nombre_empleado`, `mes`, `anio`, `dedicatoria`, `supervisor_email`, `dia_libre_reclamado`, `fecha_publicacion`).
+6. **`ausencias`**: Permisos, vacaciones e incapacidades (`agente_email`, `tipo_ausencia`, `fecha_inicio`, `fecha_fin`, `periodo_anio`, `premio_empleado_mes_id`, `comentarios`).
+7. **`solicitudes_mejora`**: Historias de usuario del módulo de iniciativas (`owner_id`, `autor_email`, `modulo_clave`, `titulo`, `descripcion`, `actor`, `necesidad`, `beneficio`, `prioridad`, `estado_ciclo`, `estado`, `criterios_aceptacion`, `criterios_aceptacion_json`, `comentario_supervisor`, `supervisor_email`, `fecha_revision`, `updated_at`).
+8. **`catalogos`**: Opciones dinámicas jerárquicas (`categoria`, `valor`, `parent_id`, `activo`).
+9. **`configuraciones_sistema` y `metas`**: Variables globales y reglas de cálculo de KPIs.
+10. **`usuarios`**: Perfiles de colaborador y estado de cuenta para compatibilidad de directorio.
+11. **Tablas End-to-End (`end_to_end_snapshots`, `end_to_end_rows`, `end_to_end_audit_log`, `end_to_end_calendars`)**: Fotografías operativas de radicaciones con aislamiento por analista (`owner_id`), métricas de SLA y exclusión auditada.
+
+### 4.3 Catálogo de Funciones RPC de Seguridad (PostgreSQL `security definer`)
+- **`public.rbac_get_my_access()`**: Devuelve un objeto JSON con los roles asignados, el arreglo de permisos efectivos (expandiendo todos los permisos para `admin`) y la versión del catálogo.
+- **`public.rbac_has_permission(permission_code text)`**: Evalúa si el usuario autenticado posee el permiso requerido o cuenta con el rol `admin`.
+- **`public.rbac_is_admin()`**: Comprueba si el usuario autenticado tiene asignado el rol canónico `admin`.
+- **`public.rbac_list_users()`**: Retorna la lista de usuarios registrados con sus roles asignados (protegida por `modulo:admin:gestionar_usuarios` / `gestionar_permisos`).
+- **`public.rbac_set_role_permissions(target_role_id text, target_permission_ids text[])`**: Actualiza los permisos asociados a un rol (asegurando que `admin` siempre conserve el catálogo completo).
+- **`public.rbac_create_role(target_role_id text, target_name text, target_description text)`**: Da de alta un nuevo rol personalizado validando formato de slug y nombres no duplicados.
+- **`public.rbac_set_user_roles(target_user_id uuid, target_role_ids text[])`**: Asigna uno o más roles a un usuario protegiendo contra la eliminación del último administrador.
+- **`public.iniciativas_review(target_id uuid, target_status text, review_comment text, reviewer_email text, reviewer_name text)`**: Evalúa y aprueba/descarta una iniciativa actualizando el estado y la auditoría de revisión.
 
 ---
-*Fin de Documento de Arquitectura.*
+
+## 5. Estrategia de Backups, Versionado y Resiliencia (3 Capas)
+
+Para garantizar cero pérdida de datos y máxima continuidad operativa, Humano Ops Hub implementa una estrategia de resiliencia estructurada en 3 capas complementarias:
+
+```mermaid
+graph TD
+    subgraph Capa1["Capa 1: Git & DDL Inmutable"]
+        L1[Historial de Migraciones SQL en Git]
+        L2[supabase/migrations/*.sql Versionadas]
+        L3[Trazabilidad y Rollback de Esquema]
+    end
+
+    subgraph Capa2["Capa 2: Supabase Postgres Engine"]
+        M1[Backups Automáticos Diarios en la Nube]
+        M2[Point-In-Time-Recovery PITR continuo]
+        M3[Restauración granular a segundo exacto]
+    end
+
+    subgraph Capa3["Capa 3: Microsoft 365 / SharePoint"]
+        S1[Historial de Versiones en AppDB.xlsx]
+        S2[Papelera de Reciclaje de Dos Etapas]
+        S3[Auditoría Documental de Headcount]
+    end
+
+    Capa1 --- Capa2
+    Capa2 --- Capa3
+```
+
+### Capa 1: Versionado DDL en Git (`supabase/migrations/`)
+- Todo cambio estructural en tablas, restricciones, políticas RLS o funciones RPC se define exclusivamente en scripts SQL cronológicos dentro del repositorio.
+- Ningún cambio se realiza ad-hoc en producción; las migraciones son idempotentes y transaccionales (`begin; ... commit;`), permitiendo reproducir el entorno desde cero o aplicar rollbacks controlados mediante migraciones inversas.
+
+### Capa 2: Backups Automáticos y PITR en Supabase Postgres
+- La instancia gestionada de PostgreSQL en Supabase ejecuta copias de seguridad automáticas diarias.
+- Soporte para **Point-In-Time-Recovery (PITR)** basado en *Write-Ahead Logging* (WAL), lo que permite a los administradores restaurar el estado completo de la base de datos a cualquier punto específico en el tiempo ante fallas humanas, corrupción lógica o incidentes de seguridad.
+
+### Capa 3: Historial de Versiones y Papelera Nativa en SharePoint / M365
+- Los archivos maestros de contingencia (`AppDB.xlsx`) y las fuentes del Headcount residen en SharePoint Online / OneDrive empresarial.
+- M365 proporciona un historial inmutable de versiones de cada archivo ante cualquier modificación y una papelera de reciclaje en dos etapas (primer nivel para usuarios, segundo nivel para administradores de colección de sitios), garantizando la recuperación de directorios de personal sin interrupción del servicio.

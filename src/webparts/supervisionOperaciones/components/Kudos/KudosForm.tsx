@@ -16,8 +16,10 @@ import {
   Text,
   TextField
 } from '@fluentui/react';
+import { Award, FilePlus2 } from 'lucide-react';
 
 import { cloudDbClient } from '../../../../services/CloudDbClient';
+import { useRBAC } from '../../../../auth/RBACContext';
 import SharePointService, {
   deduplicateKudos,
   isFaltaApprovedForScoring,
@@ -49,6 +51,7 @@ import {
   type IKudoMedal
 } from '../Dashboard/KudoMedals';
 import AgentComboBox from '../AgentSelector/AgentComboBox';
+import { KpiCard, PageHeader, SurfaceCard } from '../Common';
 import HistorialView from '../Historial/HistorialView';
 import EmpleadoMesHistorialView from './EmpleadoMesHistorialView';
 import styles from './KudosForm.module.scss';
@@ -117,6 +120,8 @@ interface IEmployeeMonthCandidate {
   agenteNombre: string;
   agenteEmail: string;
   puntosTotales: number;
+  puntosKudos: number;
+  reconocimientosMes: number;
   conceptoKudo: string;
   medals: ReadonlyArray<IKudoMedal>;
 }
@@ -510,6 +515,8 @@ const buildEmployeeMonthCandidate = (
     agenteNombre: winner.name,
     agenteEmail: winner.email,
     puntosTotales: winner.puntosTotales,
+    puntosKudos: winner.puntosKudos,
+    reconocimientosMes: winner.kudos.length,
     conceptoKudo: getKudoConcept(predominantAttribute),
     medals: buildKudoMedals(winner.kudos)
   };
@@ -522,6 +529,8 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   remitente,
   userRole
 }) => {
+  const { hasPermission, hasRole } = useRBAC();
+  const canCreateKudo = hasPermission('modulo:kudos:crear');
   const [selectedAgent, setSelectedAgent] = React.useState<
     IDirectReport | undefined
   >();
@@ -563,12 +572,11 @@ const KudosForm: React.FC<IKudosFormProps> = ({
     () => getPreviousMonthPeriod(currentDate),
     [currentDate]
   );
-  const canAccessPublication =
-    userRole === 'Supervisor' || userRole === 'Admin' || userRole === 'Master_Admin';
+  const canAccessPublication = hasPermission('modulo:kudos:publicar_empleado_mes');
   const [limiteDiaPublicacion, setLimiteDiaPublicacion] = React.useState<number>(5);
   const currentDay = currentDate.getDate();
   const isPublicationWindowOpen =
-    userRole === 'Admin' || userRole === 'Master_Admin' || (currentDay >= 1 && currentDay <= limiteDiaPublicacion);
+    hasRole('admin') || (currentDay >= 1 && currentDay <= limiteDiaPublicacion);
   const scopedAgents = availableAgents;
   const isLoadingTeam = isLoadingAgents;
 
@@ -660,7 +668,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
       ? isLoadingAgents
       : isLoadingTeam;
 
-    if (userRole !== 'Admin' && userRole !== 'Master_Admin' && isScopeLoading) {
+    if (userRole !== 'Admin' && isScopeLoading) {
       setIsLoadingPublication(true);
       return undefined;
     }
@@ -690,7 +698,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           faltas,
           evaluationData.config,
           scopedAgents,
-          userRole === 'Admin' || userRole === 'Master_Admin',
+          userRole === 'Admin',
           previousMonthPeriod.startDate,
           previousMonthPeriod.endDate,
           getWorkingDaysCount(
@@ -734,6 +742,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   ]);
 
   const submitKudo = async (): Promise<void> => {
+    if (!canCreateKudo) {
+      setErrorMessage('No posee permiso para registrar Kudos.');
+      return;
+    }
     setSuccessMessage('');
     setErrorMessage('');
 
@@ -957,6 +969,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   };
 
   const isPublishButtonDisabled =
+    !canAccessPublication ||
     isLoadingPublication ||
     isPublishing ||
     !employeeMonthCandidate ||
@@ -966,6 +979,22 @@ const KudosForm: React.FC<IKudosFormProps> = ({
     !isPublicationWindowOpen;
 
   return (
+    <div className="space-y-6">
+    <PageHeader
+      action={(
+        <button
+          className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition-colors hover:bg-cyan-500"
+          onClick={() => setActiveView(NEW_VIEW_KEY)}
+          type="button"
+        >
+          <FilePlus2 aria-hidden="true" size={18} />
+          Nuevo reconocimiento
+        </button>
+      )}
+      icon={<Award aria-hidden="true" size={24} />}
+      subtitle="Celebra comportamientos destacados y gestiona el reconocimiento mensual del equipo."
+      title="Reconocimientos & Cultura Ops"
+    />
     <Pivot
       aria-label="Vistas del módulo de reconocimientos"
       className={styles.modulePivot}
@@ -978,12 +1007,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
       }}
       selectedKey={activeView}
     >
-      <PivotItem headerText="➕ Nuevo Registro" itemKey="nuevo">
+      <PivotItem headerText="Nuevo reconocimiento" itemKey="nuevo">
         <form className={styles.form} onSubmit={handleSubmit}>
-          <Stack
-            className={styles.formCard}
-            tokens={{ childrenGap: 15 }}
-          >
+          <SurfaceCard className={styles.formCard}>
+            <Stack tokens={{ childrenGap: 15 }}>
             <Text className={styles.title} variant="xLarge">
               Enviar un reconocimiento
             </Text>
@@ -1137,7 +1164,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                 )}
               </Stack>
 
-              <p style={{ fontSize: '12px', color: '#605e5c', margin: '4px 0 0 0' }}>
+              <p className="mt-1 text-xs text-slate-400">
                 Límite máximo por archivo: 50 MB (Imágenes y PDFs)
               </p>
 
@@ -1179,6 +1206,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
             <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
               <PrimaryButton
                 disabled={
+                  !canCreateKudo ||
                   isSubmitting ||
                   isLoadingTeam ||
                   isLoadingCatalog ||
@@ -1193,11 +1221,12 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                 <Spinner label="Enviando..." size={SpinnerSize.small} />
               )}
             </Stack>
-          </Stack>
+            </Stack>
+          </SurfaceCard>
         </form>
       </PivotItem>
 
-      <PivotItem headerText="📊 Historial y Consultas" itemKey="historial">
+      <PivotItem headerText="Historial y consultas" itemKey="historial">
         <HistorialView
           currentUserEmail={currentUserEmail}
           currentUserName={remitente}
@@ -1210,26 +1239,25 @@ const KudosForm: React.FC<IKudosFormProps> = ({
 
       {canAccessPublication && (
         <PivotItem
-          headerText="🚀 Publicar Empleado del Mes"
+          headerText="Publicar Empleado del Mes"
           itemKey={PUBLICATION_VIEW_KEY}
         >
           <Stack
             className={styles.publicationView}
             tokens={{ childrenGap: 20 }}
           >
-            <Stack
-              className={styles.publicationHeader}
-              tokens={{ childrenGap: 6 }}
-            >
-              <Text className={styles.title} variant="xLarge">
-                Publicar Empleado del Mes
-              </Text>
-              <Text className={styles.description}>
-                Candidato calculado automáticamente para{' '}
-                <strong>{previousMonthPeriod.mesAno}</strong> con el puntaje
-                integral de productividad, Kudos y penalidades aprobadas.
-              </Text>
-            </Stack>
+            <SurfaceCard className={styles.publicationHeader}>
+              <Stack tokens={{ childrenGap: 6 }}>
+                <Text className={styles.title} variant="xLarge">
+                  Publicar Empleado del Mes
+                </Text>
+                <Text className={styles.description}>
+                  Candidato calculado automáticamente para{' '}
+                  <strong>{previousMonthPeriod.mesAno}</strong> con el puntaje
+                  integral de productividad, Kudos y penalidades aprobadas.
+                </Text>
+              </Stack>
+            </SurfaceCard>
 
             {!isPublicationWindowOpen && (
               <MessageBar messageBarType={MessageBarType.info}>
@@ -1264,6 +1292,29 @@ const KudosForm: React.FC<IKudosFormProps> = ({
               </Stack>
             ) : employeeMonthCandidate ? (
               <>
+                <section
+                  aria-label="Métricas del reconocimiento mensual"
+                  className="grid grid-cols-1 gap-4 md:grid-cols-3"
+                >
+                  <KpiCard
+                    label="Puntos de atributos"
+                    subtext={previousMonthPeriod.mesAno}
+                    value={employeeMonthCandidate.puntosKudos.toLocaleString('es-DO', { maximumFractionDigits: 1 })}
+                    variant="cyan"
+                  />
+                  <KpiCard
+                    label="Reconocimientos del mes"
+                    subtext="Registros reales evaluados"
+                    value={employeeMonthCandidate.reconocimientosMes}
+                    variant="purple"
+                  />
+                  <KpiCard
+                    label="Puntaje integral"
+                    subtext="Productividad + Kudos − penalidades"
+                    value={employeeMonthCandidate.puntosTotales.toLocaleString('es-DO', { maximumFractionDigits: 1 })}
+                    variant="emerald"
+                  />
+                </section>
                 <Stack tokens={{ childrenGap: 8 }}>
                   <Text className={styles.previewEyebrow}>
                     Vista previa en vivo
@@ -1282,10 +1333,8 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                   />
                 </Stack>
 
-                <Stack
-                  className={styles.publicationControls}
-                  tokens={{ childrenGap: 14 }}
-                >
+                <SurfaceCard className={styles.publicationControls}>
+                  <Stack tokens={{ childrenGap: 14 }}>
                   <TextField
                     disabled={isPublishing}
                     errorMessage={dedicatoriaError}
@@ -1319,7 +1368,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                       onClick={() => {
                         publishEmployeeMonth().catch(() => undefined);
                       }}
-                      text="🚀 Publicar Empleado del Mes"
+                      text="Publicar Empleado del Mes"
                     />
                     {isPublishing && (
                       <Spinner
@@ -1328,7 +1377,8 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                       />
                     )}
                   </Stack>
-                </Stack>
+                  </Stack>
+                </SurfaceCard>
               </>
             ) : (
               <MessageBar messageBarType={MessageBarType.info}>
@@ -1340,10 +1390,11 @@ const KudosForm: React.FC<IKudosFormProps> = ({
         </PivotItem>
       )}
 
-      <PivotItem headerText="📜 Histórico Empleado del Mes" itemKey="historicoEmpleadoMes">
+      <PivotItem headerText="Histórico Empleado del Mes" itemKey="historicoEmpleadoMes">
         <EmpleadoMesHistorialView />
       </PivotItem>
     </Pivot>
+    </div>
   );
 };
 
