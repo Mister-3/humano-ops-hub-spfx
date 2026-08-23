@@ -547,7 +547,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
               ['Reincidentes hoy', operationalGroups.filter((group) => group.reincidenteHoy).length, () => selectDecisionFilter({ recurrent: 'true' })],
               ['Errores / advertencias', dataErrors.length + (parsedReport?.summary.issues.length || 0), () => selectDecisionFilter({ dataError: 'true' })],
               ['Volumen bruto excluido', rawExcluded.length, () => setMessage(`${rawExcluded.length} filas permanecen informadas fuera de gestión SLA.`)]
-            ].map(([label, value, action]) => <button type="button" key={String(label)} className={styles.kpiCard} onClick={action as () => void}><span>{label}</span><strong>{value as number}</strong></button>)}
+            ].map(([label, value, action]) => <button type="button" key={String(label)} className={styles.kpiCard} onClick={action as () => void}><span>{label}</span><strong className="tabular-nums font-mono">{value as number}</strong></button>)}
           </section>
 
           {freshness?.label !== 'Actualizado' && <div className={styles.warningBanner}>⚠️ El reporte está {freshness?.label.toLocaleLowerCase()}. Puede consultar y copiar, pero se recomienda importar una fotografía reciente.</div>}
@@ -558,18 +558,18 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           )}
 
           <section className={styles.dashboardGrid}>
-            <article className={styles.chartCard}><h4>Distribución por semáforo</h4>{distribution.map((item) => <button type="button" key={item.severity} onClick={() => selectDecisionFilter({ severity: item.severity === 'naranja' ? 'critica' : item.severity })} className={styles.barRow}><span>{SEVERITY_LABELS[item.severity]}</span><i style={{ width: `${(item.count / maximumDistribution) * 100}%` }} data-severity={item.severity} /><strong>{item.count}</strong></button>)}</article>
-            <article className={styles.chartCard}><div className={styles.chartTitle}><h4>Carga por etapa</h4><select value={loadUnit} onChange={(e) => setLoadUnit(e.target.value as typeof loadUnit)}><option value="radicaciones">Radicaciones</option><option value="paginas">Páginas</option></select></div>{stageLoads.map((item) => <button type="button" key={item.stage} onClick={() => selectDecisionFilter({ stage: item.stage })} className={styles.barRow}><span>{item.stage}</span><i style={{ width: `${(item.value / maxStageLoad) * 100}%` }} /><strong>{item.value}</strong></button>)}</article>
-            <article className={styles.chartCard}><h4>Páginas pendientes por canal</h4>{channelLoads.map((item) => <button type="button" key={item.channel} onClick={() => selectDecisionFilter({ channel: item.channel })} className={styles.barRow}><span>{item.channel}</span><i style={{ width: `${(item.pages / maxChannelPages) * 100}%` }} /><strong>{item.pages}</strong></button>)}</article>
-            <article className={styles.chartCard}><h4>Escaladas · Estado Distro</h4><button type="button" className={styles.distroSplit} onClick={() => selectDecisionFilter({ escalated: 'true' })}><span><strong>{escalatedGroups.filter((group) => normalizeEndToEndText(group.estadoDistro).includes('revisado') && !normalizeEndToEndText(group.estadoDistro).includes('no revisado')).length}</strong>Revisadas</span><span><strong>{escalatedGroups.filter((group) => normalizeEndToEndText(group.estadoDistro).includes('no revisado') || normalizeEndToEndText(group.estadoDistro) === 'n a').length}</strong>No revisadas</span></button></article>
+            <article className={styles.chartCard}><h4>Distribución por semáforo</h4>{distribution.map((item) => <button type="button" key={item.severity} onClick={() => selectDecisionFilter({ severity: item.severity === 'naranja' ? 'critica' : item.severity })} className={styles.barRow}><span>{SEVERITY_LABELS[item.severity]}</span><i style={{ width: `${(item.count / maximumDistribution) * 100}%` }} data-severity={item.severity} /><strong className="tabular-nums font-mono">{item.count}</strong></button>)}</article>
+            <article className={styles.chartCard}><div className={styles.chartTitle}><h4>Carga por etapa</h4><select value={loadUnit} onChange={(e) => setLoadUnit(e.target.value as typeof loadUnit)}><option value="radicaciones">Radicaciones</option><option value="paginas">Páginas</option></select></div>{stageLoads.map((item) => <button type="button" key={item.stage} onClick={() => selectDecisionFilter({ stage: item.stage })} className={styles.barRow}><span>{item.stage}</span><i style={{ width: `${(item.value / maxStageLoad) * 100}%` }} /><strong className="tabular-nums font-mono">{item.value}</strong></button>)}</article>
+            <article className={styles.chartCard}><h4>Páginas pendientes por canal</h4>{channelLoads.map((item) => <button type="button" key={item.channel} onClick={() => selectDecisionFilter({ channel: item.channel })} className={styles.barRow}><span>{item.channel}</span><i style={{ width: `${(item.pages / maxChannelPages) * 100}%` }} /><strong className="tabular-nums font-mono">{item.pages}</strong></button>)}</article>
+            <article className={styles.chartCard}><h4>Escaladas · Estado Distro</h4><button type="button" className={styles.distroSplit} onClick={() => selectDecisionFilter({ escalated: 'true' })}><span><strong className="tabular-nums font-mono">{escalatedGroups.filter((group) => normalizeEndToEndText(group.estadoDistro).includes('revisado') && !normalizeEndToEndText(group.estadoDistro).includes('no revisado')).length}</strong>Revisadas</span><span><strong className="tabular-nums font-mono">{escalatedGroups.filter((group) => normalizeEndToEndText(group.estadoDistro).includes('no revisado') || normalizeEndToEndText(group.estadoDistro) === 'n a').length}</strong>No revisadas</span></button></article>
           </section>
 
           <section className={styles.decisionsGrid}>
-            <button type="button" onClick={() => selectDecisionFilter({ priority: 'soon' })}><span>Próximas a vencer</span><strong>{soonToExpire.length}</strong><small>{soonToExpire.slice(0, 3).map((group) => `${group.radicacion} · ${formatMinutes(group.remainingMinutes)}`).join(' / ') || 'Sin casos'}</small></button>
-            <button type="button" onClick={() => selectDecisionFilter({ escalated: 'true' })}><span>Escaladas</span><strong>{escalatedGroups.length}</strong><small>Notificar supervisores y encargados</small></button>
-            <button type="button" onClick={() => selectDecisionFilter({ priority: 'reconciliation' })}><span>Conciliaciones</span><strong>{reconciliations.length}</strong><small>Fechas finales vs. estado operativo</small></button>
-            <button type="button" onClick={() => selectDecisionFilter({ dataError: 'true' })}><span>Calidad de datos</span><strong>{dataErrors.length}</strong><small>Requiere corrección en la fuente</small></button>
-            {activeTab === 'movimientos' && <button type="button" onClick={() => selectDecisionFilter({ priority: 'officeAutomatic' }, 'movimientos')}><span>Oficina Virtual automática</span><strong>{operationalGroups.filter((group) => normalizeEndToEndText(group.canal) === 'oficina virtual' && normalizeEndToEndText(group.modalidad) === 'automatica' && !group.completed).length}</strong><small>Cola prioritaria mientras esté incompleta</small></button>}
+            <button type="button" onClick={() => selectDecisionFilter({ priority: 'soon' })}><span>Próximas a vencer</span><strong className="tabular-nums font-mono">{soonToExpire.length}</strong><small>{soonToExpire.slice(0, 3).map((group) => `${group.radicacion} · ${formatMinutes(group.remainingMinutes)}`).join(' / ') || 'Sin casos'}</small></button>
+            <button type="button" onClick={() => selectDecisionFilter({ escalated: 'true' })}><span>Escaladas</span><strong className="tabular-nums font-mono">{escalatedGroups.length}</strong><small>Notificar supervisores y encargados</small></button>
+            <button type="button" onClick={() => selectDecisionFilter({ priority: 'reconciliation' })}><span>Conciliaciones</span><strong className="tabular-nums font-mono">{reconciliations.length}</strong><small>Fechas finales vs. estado operativo</small></button>
+            <button type="button" onClick={() => selectDecisionFilter({ dataError: 'true' })}><span>Calidad de datos</span><strong className="tabular-nums font-mono">{dataErrors.length}</strong><small>Requiere corrección en la fuente</small></button>
+            {activeTab === 'movimientos' && <button type="button" onClick={() => selectDecisionFilter({ priority: 'officeAutomatic' }, 'movimientos')}><span>Oficina Virtual automática</span><strong className="tabular-nums font-mono">{operationalGroups.filter((group) => normalizeEndToEndText(group.canal) === 'oficina virtual' && normalizeEndToEndText(group.modalidad) === 'automatica' && !group.completed).length}</strong><small>Cola prioritaria mientras esté incompleta</small></button>}
           </section>
 
           <div className={styles.tabs} role="tablist" aria-label="Flujos End-to-End">
@@ -579,9 +579,9 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
 
           <section className={styles.flowIndicators}>
             {activeTab === 'emisiones' ? (
-              <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Escaladas revisadas', tabGroups.filter((group) => group.escalado && normalizeEndToEndText(group.estadoDistro).includes('revisado') && !normalizeEndToEndText(group.estadoDistro).includes('no revisado')).length], ['Escaladas no revisadas', tabGroups.filter((group) => group.escalado && (normalizeEndToEndText(group.estadoDistro).includes('no revisado') || normalizeEndToEndText(group.estadoDistro) === 'n a')).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{value}</strong></div>)}</>
+              <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Escaladas revisadas', tabGroups.filter((group) => group.escalado && normalizeEndToEndText(group.estadoDistro).includes('revisado') && !normalizeEndToEndText(group.estadoDistro).includes('no revisado')).length], ['Escaladas no revisadas', tabGroups.filter((group) => group.escalado && (normalizeEndToEndText(group.estadoDistro).includes('no revisado') || normalizeEndToEndText(group.estadoDistro) === 'n a')).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong className="tabular-nums font-mono">{value}</strong></div>)}</>
             ) : (
-              <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Cancelaciones sin escaneo', tabGroups.filter((group) => group.flow === 'cancelacion' && group.stage === 'Pendiente de escaneo').length], ['Escaladas', tabGroups.filter((group) => group.escalado).length], ['Oficina Virtual automática', tabGroups.filter((group) => normalizeEndToEndText(group.canal) === 'oficina virtual' && normalizeEndToEndText(group.modalidad) === 'automatica' && !group.completed).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{value}</strong></div>)}</>
+              <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Cancelaciones sin escaneo', tabGroups.filter((group) => group.flow === 'cancelacion' && group.stage === 'Pendiente de escaneo').length], ['Escaladas', tabGroups.filter((group) => group.escalado).length], ['Oficina Virtual automática', tabGroups.filter((group) => normalizeEndToEndText(group.canal) === 'oficina virtual' && normalizeEndToEndText(group.modalidad) === 'automatica' && !group.completed).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong className="tabular-nums font-mono">{value}</strong></div>)}</>
             )}
           </section>
 
@@ -602,7 +602,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           </section>
 
           <div className={styles.tableToolbar}>
-            <span>{filteredGroups.length} radicaciones · {selected.size} seleccionadas</span>
+            <span className="tabular-nums font-mono">{filteredGroups.length} radicaciones · {selected.size} seleccionadas</span>
             {capabilities.canMarkReported && <div>
               <CopyColumnsPortal
                 selectedColumns={copyColumns}
@@ -616,25 +616,80 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
 
           <div className={styles.tableWrap}>
             <table className={styles.operationalTable}>
-              <thead><tr><th><input type="checkbox" aria-label="Seleccionar resultados visibles" checked={filteredGroups.length > 0 && filteredGroups.every((group) => selected.has(group.radicacion))} onChange={(e) => setSelected(e.target.checked ? new Set(filteredGroups.map((group) => group.radicacion)) : new Set())} /></th><th>Semáforo</th><th>Tiempo restante</th><th>Radicación</th><th>Páginas</th><th>Tipo de lote / novedades</th><th>Fecha de radicación</th><th>Etapa</th><th>Canal / modalidad</th><th>Estado</th><th>Distro / escalado</th><th>Acción</th><th /></tr></thead>
-              <tbody>{filteredGroups.map((group) => <React.Fragment key={group.radicacion}>
-                <tr className={group.reported ? styles.reportedRow : ''}>
-                  <td><input type="checkbox" aria-label={`Seleccionar ${group.radicacion}`} checked={selected.has(group.radicacion)} onChange={(e) => setSelected((current) => { const next = new Set(current); if (e.target.checked) next.add(group.radicacion); else next.delete(group.radicacion); return next; })} /></td>
-                  <td><span className={styles.severityBadge} data-severity={group.severity}><i />{SEVERITY_LABELS[group.severity]}</span></td>
-                  <td><strong>{formatMinutes(group.remainingMinutes)}</strong></td>
-                  <td><strong>{group.radicacion}</strong>{group.reincidenteHoy && <span className={styles.recurrentBadge}>Reincidente hoy</span>}{!group.reincidenteHoy && group.vistaAnteriormente && <span className={styles.seenBadge}>Vista anteriormente</span>}{group.reported && <span className={styles.reportedBadge}>Reportada</span>}</td>
-                  <td>{group.pages}</td>
-                  <td><strong>{group.tipoLote}</strong><small>{group.novedades.join(' · ')}</small></td>
-                  <td>{formatSantoDomingoDateTime(group.radicacionAt)}</td>
-                  <td>{group.stage}{group.reconciliationRequired && <span className={styles.conciliationBadge}>Conciliar</span>}</td>
-                  <td>{group.canal}<small>{group.modalidad}</small></td>
-                  <td>{group.estadoRadicacion}</td>
-                  <td>{group.estadoDistro}<small>{group.escalado ? '⚠️ Escalada' : 'No escalada'}</small></td>
-                  <td>{group.action}{group.reincidenteHoy && <small>Notificar al supervisor de piso</small>}</td>
-                  <td><button type="button" className={styles.expandButton} aria-expanded={expanded.has(group.radicacion)} onClick={() => setExpanded((current) => { const next = new Set(current); if (next.has(group.radicacion)) next.delete(group.radicacion); else next.add(group.radicacion); return next; })}><Icon iconName={expanded.has(group.radicacion) ? 'ChevronUp' : 'ChevronDown'} /></button></td>
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-20 bg-slate-950/95 backdrop-blur-sm border-r border-slate-800/80">
+                    <input type="checkbox" aria-label="Seleccionar resultados visibles" checked={filteredGroups.length > 0 && filteredGroups.every((group) => selected.has(group.radicacion))} onChange={(e) => setSelected(e.target.checked ? new Set(filteredGroups.map((group) => group.radicacion)) : new Set())} />
+                  </th>
+                  <th>Semáforo</th>
+                  <th className="tabular-nums font-mono text-right">Tiempo restante</th>
+                  <th className="sticky left-[42px] z-20 bg-slate-950/95 backdrop-blur-sm border-r border-slate-800/80">Radicación</th>
+                  <th className="tabular-nums font-mono text-right">Páginas</th>
+                  <th>Tipo de lote / novedades</th>
+                  <th>Fecha de radicación</th>
+                  <th>Etapa</th>
+                  <th>Canal / modalidad</th>
+                  <th>Estado</th>
+                  <th>Distro / escalado</th>
+                  <th>Acción</th>
+                  <th className="sticky right-0 z-20 bg-slate-950/95 backdrop-blur-sm border-l border-slate-800/80 text-center" />
                 </tr>
-                {expanded.has(group.radicacion) && <tr className={styles.detailRow}><td colSpan={13}><div><h5>Filas originales inmutables</h5>{group.rows.map((row) => <article key={row.rowNumber}><header>Fila {row.rowNumber} · {FLOW_LABELS[row.flow]} · {SEVERITY_LABELS[row.sla.severity]}</header><dl>{Object.entries(row.original.values).map(([key, value]) => <React.Fragment key={key}><dt>{key}</dt><dd>{String(value ?? '—')}</dd></React.Fragment>)}</dl>{row.sla.dataError && <p>{row.sla.dataError}</p>}</article>)}</div></td></tr>}
-              </React.Fragment>)}</tbody>
+              </thead>
+              <tbody>
+                {filteredGroups.map((group) => (
+                  <React.Fragment key={group.radicacion}>
+                    <tr className={group.reported ? styles.reportedRow : ''}>
+                      <td className="sticky left-0 z-10 bg-slate-900/95 backdrop-blur-sm border-r border-slate-800/80">
+                        <input type="checkbox" aria-label={`Seleccionar ${group.radicacion}`} checked={selected.has(group.radicacion)} onChange={(e) => setSelected((current) => { const next = new Set(current); if (e.target.checked) next.add(group.radicacion); else next.delete(group.radicacion); return next; })} />
+                      </td>
+                      <td><span className={styles.severityBadge} data-severity={group.severity}><i />{SEVERITY_LABELS[group.severity]}</span></td>
+                      <td className="tabular-nums font-mono text-right"><strong>{formatMinutes(group.remainingMinutes)}</strong></td>
+                      <td className="sticky left-[42px] z-10 bg-slate-900/95 backdrop-blur-sm border-r border-slate-800/80">
+                        <strong className="tabular-nums font-mono">{group.radicacion}</strong>
+                        {group.reincidenteHoy && <span className={styles.recurrentBadge}>Reincidente hoy</span>}
+                        {!group.reincidenteHoy && group.vistaAnteriormente && <span className={styles.seenBadge}>Vista anteriormente</span>}
+                        {group.reported && <span className={styles.reportedBadge}>Reportada</span>}
+                      </td>
+                      <td className="tabular-nums font-mono text-right font-bold text-slate-100">{group.pages}</td>
+                      <td><strong>{group.tipoLote}</strong><small>{group.novedades.join(' · ')}</small></td>
+                      <td className="tabular-nums font-mono">{formatSantoDomingoDateTime(group.radicacionAt)}</td>
+                      <td>{group.stage}{group.reconciliationRequired && <span className={styles.conciliationBadge}>Conciliar</span>}</td>
+                      <td>{group.canal}<small>{group.modalidad}</small></td>
+                      <td>{group.estadoRadicacion}</td>
+                      <td>{group.estadoDistro}<small>{group.escalado ? '⚠️ Escalada' : 'No escalada'}</small></td>
+                      <td>{group.action}{group.reincidenteHoy && <small>Notificar al supervisor de piso</small>}</td>
+                      <td className="sticky right-0 z-10 bg-slate-900/95 backdrop-blur-sm border-l border-slate-800/80 text-center">
+                        <button type="button" className={styles.expandButton} aria-expanded={expanded.has(group.radicacion)} onClick={() => setExpanded((current) => { const next = new Set(current); if (next.has(group.radicacion)) next.delete(group.radicacion); else next.add(group.radicacion); return next; })}>
+                          <Icon iconName={expanded.has(group.radicacion) ? 'ChevronUp' : 'ChevronDown'} />
+                        </button>
+                      </td>
+                    </tr>
+                    {expanded.has(group.radicacion) && (
+                      <tr className={styles.detailRow}>
+                        <td colSpan={13}>
+                          <div>
+                            <h5>Filas originales inmutables</h5>
+                            {group.rows.map((row) => (
+                              <article key={row.rowNumber}>
+                                <header>Fila {row.rowNumber} · {FLOW_LABELS[row.flow]} · {SEVERITY_LABELS[row.sla.severity]}</header>
+                                <dl>
+                                  {Object.entries(row.original.values).map(([key, value]) => (
+                                    <React.Fragment key={key}>
+                                      <dt>{key}</dt>
+                                      <dd className="tabular-nums font-mono">{String(value ?? '—')}</dd>
+                                    </React.Fragment>
+                                  ))}
+                                </dl>
+                                {row.sla.dataError && <p>{row.sla.dataError}</p>}
+                              </article>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
             </table>
             {filteredGroups.length === 0 && <div className={styles.emptyState}>No hay radicaciones que coincidan con los filtros.</div>}
           </div>

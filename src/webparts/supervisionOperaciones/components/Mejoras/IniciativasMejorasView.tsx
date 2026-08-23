@@ -443,7 +443,7 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                 className="rounded-2xl border border-slate-800 bg-slate-900/90 p-5 shadow-xl"
                 key={String(label)}
               >
-                <strong className={`block text-3xl ${color}`}>{value}</strong>
+                <strong className={`block text-3xl font-bold tabular-nums font-mono tracking-tight ${color}`}>{value}</strong>
                 <span className="mt-2 block text-sm font-medium text-slate-400">
                   {label}
                 </span>

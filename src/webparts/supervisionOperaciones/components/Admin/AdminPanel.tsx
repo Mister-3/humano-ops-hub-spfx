@@ -90,6 +90,7 @@ const NumericConfigurationField: React.FC<
 }) => (
   <SpinButton
     disabled={disabled}
+    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
     label={label}
     max={max}
     min={0}
@@ -716,6 +717,7 @@ const AdminConfiguration: React.FC = () => {
             <Stack.Item className={styles.field} grow>
               <SpinButton
                 disabled={isSubmitting}
+                inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                 label="Impacto bajo"
                 min={0}
                 onChange={(_, value) => {
@@ -732,6 +734,7 @@ const AdminConfiguration: React.FC = () => {
             <Stack.Item className={styles.field} grow>
               <SpinButton
                 disabled={isSubmitting}
+                inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                 label="Impacto medio"
                 min={0}
                 onChange={(_, value) => {
@@ -748,6 +751,7 @@ const AdminConfiguration: React.FC = () => {
             <Stack.Item className={styles.field} grow>
               <SpinButton
                 disabled={isSubmitting}
+                inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                 label="Impacto crítico"
                 min={0}
                 onChange={(_, value) => {

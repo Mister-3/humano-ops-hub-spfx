@@ -507,6 +507,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   </Stack>
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Casos Atendidos (Totales)"
                     min={0}
                     onChange={(_, value) =>
@@ -517,6 +518,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Casos Resueltos a Tiempo (Dentro de SLA)"
                     min={0}
                     onChange={(_, value) =>
@@ -527,6 +529,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <div aria-live="polite">
                     <StatusBadge
+                      className="tabular-nums font-mono"
                       size="md"
                       variant={hasInvalidCaseSla
                         ? 'danger'
@@ -555,6 +558,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   </Stack>
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Transacciones"
                     min={0}
                     onChange={(_, value) =>
@@ -565,6 +569,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Páginas Digitadas"
                     min={0}
                     onChange={(_, value) =>
@@ -575,6 +580,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Devoluciones"
                     min={0}
                     onChange={(_, value) =>
@@ -597,6 +603,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   </Stack>
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Transacciones"
                     min={0}
                     onChange={(_, value) =>
@@ -607,6 +614,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Páginas Digitadas"
                     min={0}
                     onChange={(_, value) =>
@@ -617,6 +625,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Devoluciones"
                     min={0}
                     onChange={(_, value) =>
@@ -639,6 +648,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   </Stack>
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Transacciones"
                     min={0}
                     onChange={(_, value) => updateMetric('escaneoTx', value)}
@@ -647,6 +657,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Páginas Escaneadas"
                     min={0}
                     onChange={(_, value) => updateMetric('escaneoPg', value)}
@@ -655,6 +666,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Devoluciones"
                     min={0}
                     onChange={(_, value) =>
@@ -677,6 +689,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   </Stack>
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Transacciones / Solicitudes Recibidas"
                     min={0}
                     onChange={(_, value) => updateMetric('carnetsTx', value)}
@@ -685,6 +698,7 @@ const ProductividadForm: React.FC<IProductividadFormProps> = ({
                   />
                   <SpinButton
                     disabled={isSubmitting}
+                    inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
                     label="Carnets Procesados / Gestionados"
                     min={0}
                     onChange={(_, value) => updateMetric('carnetsPg', value)}

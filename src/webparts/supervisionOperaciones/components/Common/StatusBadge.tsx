@@ -14,6 +14,7 @@ export interface IStatusBadgeProps {
   children: React.ReactNode;
   variant: StatusBadgeVariant;
   size?: StatusBadgeSize;
+  className?: string;
 }
 
 const VARIANT_CLASSES: Record<StatusBadgeVariant, string> = {
@@ -33,10 +34,11 @@ const SIZE_CLASSES: Record<StatusBadgeSize, string> = {
 export const StatusBadge: React.FC<IStatusBadgeProps> = ({
   children,
   variant,
-  size = 'sm'
+  size = 'sm',
+  className = ''
 }) => (
   <span
-    className={`inline-flex items-center gap-1.5 rounded-full border font-semibold ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]}`}
+    className={`inline-flex items-center gap-1.5 rounded-full border font-semibold ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`.trim()}
     data-variant={variant}
   >
     {children}

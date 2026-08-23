@@ -597,6 +597,7 @@ const SupervisorTimeView: React.FC<ISupervisorTimeViewProps> = ({
 
           <SpinButton
             disabled={isSavingCall}
+            inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}
             label="Duración en minutos"
             min={0}
             onChange={(_, value) => {

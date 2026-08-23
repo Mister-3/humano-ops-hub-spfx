@@ -901,6 +901,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                       label="Hora de Llegada"
                       mask="99:99"
                       maskChar="_"
+                      onFocus={(e) => (e.target as HTMLInputElement).select()}
                       onChange={(_, value) => {
                         setHoraLlegada(value || '');
                       }}
@@ -937,7 +938,7 @@ const FaltasForm: React.FC<IFaltasFormProps> = ({
                     </Text>
                     <div
                       aria-live="polite"
-                      className={styles.tardinessBadge}
+                      className={`${styles.tardinessBadge} tabular-nums font-mono`}
                       role="status"
                     >
                       ⏱️ Tardanza detectada:{' '}

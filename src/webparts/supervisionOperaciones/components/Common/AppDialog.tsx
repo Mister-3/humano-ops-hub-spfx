@@ -120,7 +120,7 @@ export const AppDialog: React.FC<IAppDialogProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity duration-200 ease-out"
       data-testid="app-dialog-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCloseRef.current();
@@ -131,7 +131,7 @@ export const AppDialog: React.FC<IAppDialogProps> = ({
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
-        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 text-white shadow-2xl ${MAX_WIDTH_CLASSES[maxWidth]}`}
+        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 text-white shadow-2xl transition-all duration-200 ease-out transform scale-100 opacity-100 ${MAX_WIDTH_CLASSES[maxWidth]}`}
         role="dialog"
         tabIndex={-1}
       >

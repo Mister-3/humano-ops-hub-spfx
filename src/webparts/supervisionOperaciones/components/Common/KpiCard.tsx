@@ -62,7 +62,7 @@ export const KpiCard: React.FC<IKpiCardProps> = ({
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             {label}
           </p>
-          <p className="mt-1 text-3xl font-bold text-white">{value}</p>
+          <p className="mt-1 text-3xl font-bold text-white tabular-nums font-mono tracking-tight">{value}</p>
           {subtext && <p className="mt-1 text-xs text-slate-400">{subtext}</p>}
         </div>
         {icon && (
