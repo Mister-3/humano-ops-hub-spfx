@@ -32,6 +32,8 @@ import UserAdminPanel from './Admin/UserAdminPanel';
 import AusenciasForm from './Ausencias/AusenciasForm';
 import PlanificacionSemanal from './Ausencias/PlanificacionSemanal';
 import { HumanoOpsLogo } from './Brand/HumanoOpsLogo';
+import { CommandPalette, ToastProvider } from './Common';
+import { Search } from 'lucide-react';
 import Dashboard from './Dashboard/Dashboard';
 import { ErrorBoundary } from './ErrorBoundary/ErrorBoundary';
 import { NoAccessMessage } from './Common/PermissionGuard';
@@ -163,7 +165,20 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   const [isLoading] = React.useState<boolean>(false);
   const [errorMessage] = React.useState<string | null>(null);
   const [activeModule, setActiveModule] = React.useState<AppModuleKey>('dashboard');
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState<boolean>(false);
   const [visibleAgents, setVisibleAgents] = React.useState<IDirectReport[]>([]);
+
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   const [
     isLoadingVisibleAgents,
     setIsLoadingVisibleAgents
@@ -583,6 +598,20 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           </div>
 
           <div className={styles.topBarControls}>
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-850 px-3 py-1.5 text-xs text-slate-300 transition-all hover:border-cyan-500/50 hover:bg-slate-800 hover:text-white shadow-sm"
+              aria-label="Abrir paleta de comandos (Cmd+K)"
+              title="Abrir paleta de comandos (Cmd+K / Ctrl+K)"
+            >
+              <Search size={14} className="text-cyan-400" />
+              <span className="hidden sm:inline text-slate-400">Buscar o ejecutar...</span>
+              <kbd className="rounded border border-slate-600 bg-slate-900 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
+                ⌘K
+              </kbd>
+            </button>
+
             <div
               className={styles.userWidget}
               aria-label={`${usuario.displayName}, rol ${usuario.rol}`}
@@ -628,6 +657,12 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           </div>
         </header>
 
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onNavigate={handleModuleChange}
+        />
+
         <div className={styles.workspaceLayout}>
           <SidebarNav
             activeModule={activeModule}
@@ -671,7 +706,9 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
 
 const SupervisionOperaciones: React.FC<ISupervisionOperacionesProps> = (props) => (
   <ErrorBoundary>
-    <SupervisionOperacionesContent {...props} />
+    <ToastProvider>
+      <SupervisionOperacionesContent {...props} />
+    </ToastProvider>
   </ErrorBoundary>
 );
 

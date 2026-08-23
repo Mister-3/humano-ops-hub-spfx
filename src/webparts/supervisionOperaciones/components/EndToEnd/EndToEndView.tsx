@@ -34,7 +34,7 @@ import {
   EMPTY_END_TO_END_FILTERS,
   type IEndToEndFilters
 } from '../../../../modules/endToEnd/endToEndViewModel';
-import { EmptyState } from '../Common';
+import { DataDensityToggle, EmptyState, useDataDensity } from '../Common';
 import CopyColumnsPortal from './CopyColumnsPortal';
 import styles from './EndToEndView.module.scss';
 
@@ -76,6 +76,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   currentUserName
 }) => {
   const { hasPermission } = useRBAC();
+  const [tableDensity, setTableDensity] = useDataDensity('comfortable');
   const [workspace, setWorkspace] = React.useState<IEndToEndWorkspace>();
   const [workspaceError, setWorkspaceError] = React.useState('');
   const [parsedReport, setParsedReport] = React.useState<IEndToEndParsedReport>();
@@ -603,7 +604,12 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           </section>
 
           <div className={styles.tableToolbar}>
-            <span className="tabular-nums font-mono">{filteredGroups.length} radicaciones · {selected.size} seleccionadas</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <DataDensityToggle density={tableDensity} onChange={setTableDensity} />
+              <span className="tabular-nums font-mono text-xs text-slate-400">
+                {filteredGroups.length} radicaciones · {selected.size} seleccionadas
+              </span>
+            </div>
             {capabilities.canMarkReported && <div>
               <CopyColumnsPortal
                 selectedColumns={copyColumns}
@@ -618,7 +624,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           <div className={styles.tableWrap}>
             <table className={styles.operationalTable}>
               <thead>
-                <tr>
+                <tr className={tableDensity === 'compact' ? '[&>th]:!py-1.5 [&>th]:!text-xs' : ''}>
                   <th className="sticky left-0 z-20 bg-slate-950/95 backdrop-blur-sm border-r border-slate-800/80">
                     <input type="checkbox" aria-label="Seleccionar resultados visibles" checked={filteredGroups.length > 0 && filteredGroups.every((group) => selected.has(group.radicacion))} onChange={(e) => setSelected(e.target.checked ? new Set(filteredGroups.map((group) => group.radicacion)) : new Set())} />
                   </th>
@@ -639,7 +645,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
               <tbody>
                 {filteredGroups.map((group) => (
                   <React.Fragment key={group.radicacion}>
-                    <tr className={group.reported ? styles.reportedRow : ''}>
+                    <tr className={`${group.reported ? styles.reportedRow : ''} ${tableDensity === 'compact' ? '[&>td]:!py-1.5 [&>td]:!text-xs' : ''}`}>
                       <td className="sticky left-0 z-10 bg-slate-900/95 backdrop-blur-sm border-r border-slate-800/80">
                         <input type="checkbox" aria-label={`Seleccionar ${group.radicacion}`} checked={selected.has(group.radicacion)} onChange={(e) => setSelected((current) => { const next = new Set(current); if (e.target.checked) next.add(group.radicacion); else next.delete(group.radicacion); return next; })} />
                       </td>
