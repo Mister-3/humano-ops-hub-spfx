@@ -18,7 +18,7 @@ export const AyudaView: React.FC = () => {
       {/* Encabezado del Módulo */}
       <PageHeader
         title="Centro de Ayuda & Versiones"
-        subtitle="Documentación general del ecosistema Humano Ops Hub, arquitectura tecnológica, catálogo descriptivo de módulos y bitácora histórica de versiones."
+        subtitle="Documentación general del ecosistema Manager Hub, arquitectura tecnológica, catálogo descriptivo de módulos y bitácora histórica de versiones."
         icon={<Icon iconName="Help" className="text-xl" />}
         badge={
           <StatusBadge

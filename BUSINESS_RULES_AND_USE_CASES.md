@@ -1,13 +1,13 @@
-# Business Rules and Functional Specification: Humano Ops Hub (Cerebro Maestro)
+# Business Rules and Functional Specification: Manager Hub (Cerebro Maestro)
 
-Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Humano Ops Hub (v2.5.0)**.
+Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Manager Hub (v2.5.1)**.
 
 ---
 
 ## 1. Matriz de Autorización, Catálogo Unificado de 5 Roles y RBAC
 
 ### 1.1 Catálogo Unificado de Roles Base
-La seguridad y el control de acceso en Humano Ops Hub operan bajo un modelo RBAC (*Role-Based Access Control*) desacoplado de cadenas de texto rígidas y respaldado por PostgreSQL en Supabase. El sistema define una jerarquía operativa estructurada en **5 roles base canónicos**:
+La seguridad y el control de acceso en Manager Hub operan bajo un modelo RBAC (*Role-Based Access Control*) desacoplado de cadenas de texto rígidas y respaldado por PostgreSQL en Supabase. El sistema define una jerarquía operativa estructurada en **5 roles base canónicos**:
 
 ```mermaid
 graph TD
@@ -269,7 +269,7 @@ El registro diario de productividad (`ProductividadForm.tsx`) captura las siguie
 
 ## 10. Módulo "Centro de Ayuda & Versiones" (`AyudaView.tsx`)
 
-El módulo de Ayuda centraliza la documentación interactiva, arquitectura técnica, catálogo de módulos operativos y bitácora histórica de versiones (*Changelog*) del ecosistema **Humano Ops Hub**.
+El módulo de Ayuda centraliza la documentación interactiva, arquitectura técnica, catálogo de módulos operativos y bitácora histórica de versiones (*Changelog*) del ecosistema **Manager Hub**.
 
 ```mermaid
 graph TD
@@ -277,7 +277,7 @@ graph TD
     A --> B["📘 Pestaña: Acerca de (AcercaDeTab.tsx)"]
     A --> C["🚀 Pestaña: Versiones y Correcciones (VersionesTab.tsx)"]
 
-    B --> B1["Hero Banner & Estado Activo v2.5.0"]
+    B --> B1["Hero Banner & Estado Activo v2.5.1"]
     B --> B2["4 Pilares Técnicos de Arquitectura"]
     B --> B3["Catálogo Exhaustivo de 9 Módulos"]
     B --> B4["Directorio de Soporte y Administración"]
@@ -311,7 +311,7 @@ graph TD
 4. **Directorio y Canales de Contacto**: Acceso directo para escalar consultas operativas a soporte técnico (`soporte.operaciones@humano.com.do`) o gestionar nuevos catálogos con la administración de la plataforma (`admin.ops@humano.com.do`).
 
 ### 10.3 Casos de Uso: Pestaña "Versiones y Correcciones" (`VersionesTab.tsx`)
-1. **Métricas de Entrega Continua**: Indicadores `KpiCard` destacando la Versión Activa en producción (`v2.5.0`), el total de versiones desplegadas (6 releases históricos) y la fecha de última actualización.
+1. **Métricas de Entrega Continua**: Indicadores `KpiCard` destacando la Versión Activa en producción (`v2.5.1`), el total de versiones desplegadas (7 releases históricos) y la fecha de última actualización.
 2. **Filtrado Semántico de Novedades**: Barra interactiva de botones estilo píldora que permite aislar los cambios del historial según su naturaleza:
    - 📋 **Todos**: Vista integral de todos los cambios registrados.
    - ✨ **Mejoras / Features**: Nuevas capacidades funcionales y herramientas incorporadas.
@@ -325,7 +325,7 @@ graph TD
 
 ---
 
-## 11. Suite Global de Aceleradores de Productividad y Ergonomía (v2.5.0)
+## 11. Suite Global de Aceleradores de Productividad y Ergonomía (v2.5.1)
 
 ### 11.1 Command Palette Global (`Cmd + K` / `Ctrl + K`)
 - **Objetivo**: Proveer una interfaz conversacional y de búsqueda unificada para navegar e interactuar con cualquier sección del hub en menos de 1 segundo sin tocar el ratón.

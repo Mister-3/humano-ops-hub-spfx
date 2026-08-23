@@ -41,14 +41,14 @@ export interface IRelease {
 }
 
 export const APP_INFO: IAppInfo = {
-  name: 'Humano Ops Hub',
+  name: 'Manager Hub',
   tagline: 'Plataforma Corporativa de Gestión Operativa, Rendimiento y Cultura',
-  version: 'v2.5.0',
+  version: 'v2.5.1',
   environment: 'Producción / Cloud & Local-First',
   architecture: 'React 17 + TypeScript + Tailwind CSS Dark Modern + Supabase PostgreSQL (RLS & RPCs) + IndexedDB v3',
   supportContact: 'soporte.operaciones@humano.com.do',
   adminContact: 'admin.ops@humano.com.do',
-  description: 'Humano Ops Hub es el ecosistema integral de supervisión operativa diseñado para centralizar el control de productividad diaria, aseguramiento de SLA, control disciplinario, reconocimientos corporativos, gestión de ausencias y captura de iniciativas de mejora continua bajo estándares ágiles.',
+  description: 'Manager Hub es el ecosistema integral de supervisión operativa diseñado para centralizar el control de productividad diaria, aseguramiento de SLA, control disciplinario, reconocimientos corporativos, gestión de ausencias y captura de iniciativas de mejora continua bajo estándares ágiles.',
   keyPillars: [
     {
       title: 'Arquitectura Local-First & Cloud Sync',
@@ -195,9 +195,30 @@ export const MODULES_INFO: IModuleInfo[] = [
 
 export const RELEASES_DATA: IRelease[] = [
   {
-    version: 'v2.5.0',
+    version: 'v2.5.1',
     date: '22 de Agosto, 2026',
     isCurrent: true,
+    codename: 'Corporate Rebranding & Visual Identity',
+    summary: 'Consolidación oficial del rebranding corporativo de la plataforma a Manager Hub, unificando títulos, cabeceras, manifest web, paleta de comandos y documentación técnica.',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Rebranding institucional oficial de la plataforma a Manager Hub en toda la interfaz de usuario, headers y shell.'
+      },
+      {
+        type: 'refactor',
+        description: 'Actualización integral de metadatos webmanifest, títulos HTML, correos de soporte y badges de navegación.'
+      },
+      {
+        type: 'refactor',
+        description: 'Homologación de la paleta de comandos global Command Palette y suite de pruebas al nuevo nombre de marca.'
+      }
+    ]
+  },
+  {
+    version: 'v2.5.0',
+    date: '22 de Agosto, 2026',
+    isCurrent: false,
     codename: 'UI/UX Evolution & Game Changers',
     summary: 'Lanzamiento de la suite de aceleradores de productividad: Command Palette (Cmd+K), Sistema de Toasts Flotantes, Selector de Densidad de Datos, Leaderboard Dark Modern con podio animado, Heatmap semántico de capacidad y Aprobaciones Masivas.',
     changes: [

@@ -590,7 +590,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           <div className={styles.brandGroup}>
             <HumanoOpsLogo className={styles.brandLogo} size={40} />
             <div className={styles.brandCopy}>
-              <h1 className={styles.brandTitle}>Humano Ops Hub</h1>
+              <h1 className={styles.brandTitle}>Manager Hub</h1>
               <span className={styles.brandSubtitle}>
                 Cultura · Rendimiento · Operaciones
               </span>
@@ -671,7 +671,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
           />
 
           <main
-            aria-labelledby="humano-ops-active-module"
+            aria-labelledby="manager-hub-active-module"
             className={styles.moduleViewport}
           >
             <div className={styles.moduleHeader}>
@@ -680,7 +680,7 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
               </span>
               <h2
                 className={styles.moduleHeaderTitle}
-                id="humano-ops-active-module"
+                id="manager-hub-active-module"
                 ref={moduleHeadingRef}
                 tabIndex={-1}
               >

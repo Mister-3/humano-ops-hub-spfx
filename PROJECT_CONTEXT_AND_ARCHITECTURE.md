@@ -1,13 +1,13 @@
-# Project Context and Technical Architecture: Humano Ops Hub
+# Project Context and Technical Architecture: Manager Hub
 
-Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Humano Ops Hub (v2.5.0)**.
+Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Manager Hub (v2.5.1)**.
 
 ---
 
 ## 1. Visión General e Infraestructura
 
 ### 1.1 Resumen del Sistema
-**Humano Ops Hub** es una plataforma web corporativa de gestión operativa, control disciplinario y analítica avanzada de rendimiento diseñada para equipos de operaciones, supervisores, gerentes y analistas. El sistema centraliza:
+**Manager Hub** es una plataforma web corporativa de gestión operativa, control disciplinario y analítica avanzada de rendimiento diseñada para equipos de operaciones, supervisores, gerentes y analistas. El sistema centraliza:
 - Control y registro diario de productividad operativa con validación de devoluciones condicionales.
 - Registro, amonestación y tipificación de faltas disciplinarias y errores de proceso con aprobación jerárquica y masiva.
 - Medición de tiempos de ocupación (llamadas telefónicas y gestión de correos).
@@ -453,7 +453,7 @@ erDiagram
 
 ## 5. Estrategia de Backups, Versionado y Resiliencia (3 Capas)
 
-Para garantizar cero pérdida de datos y máxima continuidad operativa, Humano Ops Hub implementa una estrategia de resiliencia estructurada en 3 capas complementarias:
+Para garantizar cero pérdida de datos y máxima continuidad operativa, Manager Hub implementa una estrategia de resiliencia estructurada en 3 capas complementarias:
 
 ```mermaid
 graph TD

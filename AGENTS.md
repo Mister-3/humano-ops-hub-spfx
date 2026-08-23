@@ -35,7 +35,7 @@ graph TD
     User -->|Asigna Requerimiento| Codex
     User -->|Asigna Requerimiento| Antigravity
 
-    Codex -->|Entrega End-to-End| Hub["📦 Humano Ops Hub"]
+    Codex -->|Entrega End-to-End| Hub["📦 Manager Hub"]
     Antigravity -->|Entrega End-to-End| Hub
 ```
 

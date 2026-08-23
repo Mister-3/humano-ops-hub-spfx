@@ -108,7 +108,7 @@ const LoginForm: React.FC = () => {
       <PrimaryButton
         disabled={isSubmitting || !email.trim() || !password}
         type="submit"
-        text={isSubmitting ? 'Validando...' : 'Ingresar a Humano Ops Hub'}
+        text={isSubmitting ? 'Validando...' : 'Ingresar a Manager Hub'}
       />
 
       <button
@@ -297,7 +297,7 @@ export const AuthView: React.FC<IAuthViewProps> = ({ children }) => {
           </MessageBar>
           <a
             className={styles.adminContact}
-            href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Humano Ops Hub - Solicitud de validación de acceso')}`}
+            href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Manager Hub - Solicitud de validación de acceso')}`}
           >
             Contactar al administrador: {ADMIN_NOTIFICATION_EMAIL}
           </a>
@@ -316,7 +316,7 @@ export const AuthView: React.FC<IAuthViewProps> = ({ children }) => {
         <div className={styles.brand}>
           <HumanoOpsLogo size={48} />
           <div>
-            <h1 className={styles.title}>Humano Ops Hub</h1>
+            <h1 className={styles.title}>Manager Hub</h1>
             <span className={styles.subtitle}>Acceso corporativo local-first</span>
           </div>
         </div>

@@ -1,7 +1,19 @@
 # Changelog
 
-Todos los cambios notables en **Humano Ops Hub** se documentan en este archivo.
+Todos los cambios notables en **Manager Hub** se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v2.5.1] - 2026-08-22
+
+### Resumen de la Versión
+Lanzamiento oficial de **Rebranding Corporativo & Identidad Visual**, consolidando la transición definitiva de la marca a **Manager Hub** en todo el ecosistema de usuario, metadatos, comandos y documentación.
+
+### Hitos Principales de la Versión:
+- **Rebranding Oficial a Manager Hub**: Actualización integral del nombre de producto a **Manager Hub** en títulos HTML (`index.html`), manifiesto PWA (`manifest.webmanifest`), pantalla de autenticación (`AuthView`), encabezados del shell (`SupervisionOperaciones`), barra lateral (`SidebarNav`), pantalla de error (`ErrorBoundary`) y Centro de Ayuda (`ayudaData.ts`, `AyudaView`).
+- **Homologación de la Paleta de Comandos (`CommandPalette`)**: Adaptación de placeholders, etiquetas y metadatos de búsqueda al entorno Manager Hub.
+- **Sincronización de Suites de Testing y Documentación**: Actualización de pruebas unitarias (`AyudaView.test.tsx`, `improvementsDomain.test.mts`) y documentos maestros de arquitectura y negocio (`PROJECT_CONTEXT_AND_ARCHITECTURE.md`, `BUSINESS_RULES_AND_USE_CASES.md`, `AGENTS.md`, `README.md`).
+
+---
 
 ## [v2.5.0] - 2026-08-22
 

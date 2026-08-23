@@ -1,4 +1,4 @@
-# Humano Ops Hub
+# Manager Hub
 
 SPA React + TypeScript local-first para supervisión operativa. La aplicación persiste datos en IndexedDB, funciona en móvil/laptop y sincroniza diferencias con `AppDB.xlsx` mediante paquetes JSON procesados por Power Automate.
 

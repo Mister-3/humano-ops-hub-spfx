@@ -14,7 +14,7 @@ describe('AyudaView Component', () => {
     const { container } = renderUi(<AyudaView />);
     expect(container.textContent).toContain('Centro de Ayuda & Versiones');
     expect(container.textContent).toContain(APP_INFO.version);
-    expect(container.textContent).toContain('Documentación general del ecosistema Humano Ops Hub');
+    expect(container.textContent).toContain('Documentación general del ecosistema Manager Hub');
   });
 
   it('renderiza la pestaña "Acerca de la Plataforma" por defecto con pilares y catálogo de módulos', () => {

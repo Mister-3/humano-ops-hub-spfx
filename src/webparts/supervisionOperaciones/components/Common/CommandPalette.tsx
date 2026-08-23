@@ -326,7 +326,7 @@ export const CommandPalette: React.FC<ICommandPaletteProps> = ({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Paleta de Comandos"
+        aria-label="Paleta de Comandos - Manager Hub"
       >
         {/* Search Header */}
         <div className="flex items-center border-b border-slate-800 px-4 py-3.5">
@@ -335,7 +335,7 @@ export const CommandPalette: React.FC<ICommandPaletteProps> = ({
             ref={inputRef}
             type="text"
             className="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 outline-none"
-            placeholder="Escribe un comando o busca un módulo... (ej: radicaciones, métricas, rol)"
+            placeholder="Escribe un comando o busca en Manager Hub... (ej: radicaciones, métricas, rol)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleKeyDown}

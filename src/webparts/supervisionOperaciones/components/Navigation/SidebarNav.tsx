@@ -130,7 +130,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
   return (
     <aside
       className={`${styles.sidebar} ${isExpanded ? styles.expanded : ''}`}
-      aria-label="Navegación principal de Humano Ops Hub"
+      aria-label="Navegación principal de Manager Hub"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onFocus={() => setHasFocusWithin(true)}
@@ -147,7 +147,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
             type="button"
             className={`${styles.pinButton} ${isPinned ? styles.pinButtonActive : ''}`}
             aria-label={pinLabel}
-            aria-controls="humano-ops-primary-navigation"
+            aria-controls="manager-hub-primary-navigation"
             aria-expanded={isExpanded}
             aria-pressed={isPinned}
             onClick={handlePinClick}
@@ -163,7 +163,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
       </div>
 
       <nav
-        id="humano-ops-primary-navigation"
+        id="manager-hub-primary-navigation"
         className={styles.navigation}
         aria-label="Módulos principales"
       >
@@ -202,7 +202,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
       </nav>
 
       <div className={styles.sidebarFooter} aria-hidden="true">
-        <span className={styles.versionMark}>OPS HUB · V2.4.0</span>
+        <span className={styles.versionMark}>MANAGER HUB · V2.5.1</span>
       </div>
     </aside>
   );

@@ -11,7 +11,7 @@ const application = supabaseConfigurationError ? (
     <section className="configurationErrorCard">
       <div className="configurationErrorIcon" aria-hidden="true">⚙️</div>
       <p className="configurationErrorEyebrow">Configuración requerida</p>
-      <h1>No pudimos conectar Humano Ops Hub</h1>
+      <h1>No pudimos conectar Manager Hub</h1>
       <p>{supabaseConfigurationError}</p>
       <p className="configurationErrorHelp">
         Verifica las variables de entorno de Supabase y vuelve a cargar la aplicación.

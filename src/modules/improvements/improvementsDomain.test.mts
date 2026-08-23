@@ -21,7 +21,7 @@ const initiative = (overrides: Partial<ISolicitudMejora> = {}): ISolicitudMejora
   owner_id: 'owner-a',
   autor_nombre: 'Ada Lovelace',
   autor_email: 'ada@example.com',
-  aplicativo: 'Humano Ops Hub',
+  aplicativo: 'Manager Hub',
   modulo_afectado: 'Operaciones',
   pantalla_afectada: 'End-to-End',
   titulo: 'Priorizar radicaciones críticas',

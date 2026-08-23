@@ -304,7 +304,7 @@ const UserAdminPanel: React.FC = () => {
               styles={{ root: { minWidth: 180 } }}
             />
             <DefaultButton
-              href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Humano Ops Hub - Gestión de usuarios')}`}
+              href={`mailto:${ADMIN_NOTIFICATION_EMAIL}?subject=${encodeURIComponent('Manager Hub - Gestión de usuarios')}`}
               iconProps={{ iconName: 'Mail' }}
               text="Notificar Admin"
             />

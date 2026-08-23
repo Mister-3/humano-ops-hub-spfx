@@ -87,7 +87,7 @@ export class ErrorBoundary extends React.Component<
             !
           </div>
 
-          <p className={styles.eyebrow}>Humano Ops Hub</p>
+          <p className={styles.eyebrow}>Manager Hub</p>
           <h2 className={styles.title}>No pudimos mostrar esta vista</h2>
           <p className={styles.description}>
             Ocurrió un inconveniente inesperado. Puedes intentar cargar el
