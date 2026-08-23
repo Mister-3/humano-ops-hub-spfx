@@ -48,6 +48,7 @@ import {
 import SupervisorTimeView from './Ocupacion/SupervisorTimeView';
 import IniciativasMejorasView from './Mejoras/IniciativasMejorasView';
 import ProductividadForm from './Productividad/ProductividadForm';
+import AyudaView from './Ayuda/AyudaView';
 import styles from './SupervisionOperaciones.module.scss';
 
 initializeIcons(undefined, { disableWarnings: true });
@@ -76,7 +77,8 @@ const MODULE_VIEW_PERMISSIONS: Record<AppModuleKey, ReadonlyArray<string>> = {
     'modulo:admin:gestionar_usuarios',
     'modulo:admin:gestionar_permisos'
   ],
-  admin: ['modulo:admin:ver']
+  admin: ['modulo:admin:ver'],
+  ayuda: []
 };
 
 const includeCurrentUserInScope = (
@@ -184,8 +186,10 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
     setUsuario(currentUser);
   }, [currentUser]);
 
-  const canAccessModule = React.useCallback((moduleKey: AppModuleKey): boolean =>
-    hasAnyPermission(MODULE_VIEW_PERMISSIONS[moduleKey]), [hasAnyPermission]);
+  const canAccessModule = React.useCallback((moduleKey: AppModuleKey): boolean => {
+    if (moduleKey === 'ayuda') return true;
+    return hasAnyPermission(MODULE_VIEW_PERMISSIONS[moduleKey]);
+  }, [hasAnyPermission]);
   const navigationItems = React.useMemo<ReadonlyArray<ISidebarNavItem>>(() =>
     defaultSidebarItems.filter((item) => canAccessModule(item.key)), [canAccessModule]);
 
@@ -476,6 +480,9 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
 
       case 'userAdmin':
         return <UserAdminPanel />;
+
+      case 'ayuda':
+        return <AyudaView />;
     }
   };
 

@@ -18,7 +18,8 @@ export type AppModuleKey =
   | 'solicitudes_mejora'
   | 'endToEnd'
   | 'userAdmin'
-  | 'admin';
+  | 'admin'
+  | 'ayuda';
 
 export interface ISidebarNavItem {
   key: AppModuleKey;
@@ -82,6 +83,11 @@ export const defaultSidebarItems: ReadonlyArray<ISidebarNavItem> = [
     key: 'admin',
     label: 'Configuración',
     iconName: 'Settings'
+  },
+  {
+    key: 'ayuda',
+    label: 'Centro de Ayuda',
+    iconName: 'Help'
   }
 ];
 
@@ -196,7 +202,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
       </nav>
 
       <div className={styles.sidebarFooter} aria-hidden="true">
-        <span className={styles.versionMark}>OPS HUB · V4.5.0</span>
+        <span className={styles.versionMark}>OPS HUB · V2.4.0</span>
       </div>
     </aside>
   );
