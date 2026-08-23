@@ -19,6 +19,7 @@ import AgentComboBox, {
   type IAgentComboBoxScopeOption
 } from '../AgentSelector/AgentComboBox';
 import {
+  EmptyState,
   PageHeader,
   StatusBadge,
   SurfaceCard,
@@ -499,14 +500,19 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
               size={SpinnerSize.large}
             />
           ) : planningRoster.length === 0 ? (
-            <MessageBar messageBarType={MessageBarType.warning}>
-              No hay colaboradores disponibles dentro de su alcance actual.
-            </MessageBar>
+            <EmptyState
+              className="my-4"
+              icon={<CalendarRange className="text-amber-400" size={24} />}
+              title="Sin colaboradores disponibles"
+              description="No hay colaboradores disponibles dentro de su alcance operativo actual."
+            />
           ) : workDays.length === 0 ? (
-            <MessageBar messageBarType={MessageBarType.info}>
-              El rango seleccionado no contiene días laborables de lunes a
-              sábado.
-            </MessageBar>
+            <EmptyState
+              className="my-4"
+              icon={<CalendarRange className="text-cyan-400" size={24} />}
+              title="Rango sin días laborables"
+              description="El rango de fechas seleccionado no contiene jornadas laborables de lunes a sábado."
+            />
           ) : (
             <div className={styles.tableViewport}>
               <table className={styles.scheduleTable}>
@@ -574,6 +580,43 @@ const PlanificacionSemanal: React.FC<IPlanificacionSemanalProps> = ({
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-700/80 bg-slate-950/90 font-semibold">
+                    <th scope="row" className="px-4 py-3 text-xs uppercase tracking-wider text-slate-300">
+                      Capacidad neta diaria
+                    </th>
+                    {workDays.map((day) => {
+                      const absentCount = planningRoster.filter((agent) =>
+                        visibleAbsences.some(
+                          (absence) =>
+                            matchesAgentIdentity(absence, agent) &&
+                            isAbsenceOnDate(absence, day)
+                        )
+                      ).length;
+                      const total = planningRoster.length;
+                      const available = total - absentCount;
+                      const coveragePct = total > 0 ? (available / total) * 100 : 100;
+
+                      let heatmapClasses = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                      if (coveragePct < 75) {
+                        heatmapClasses = 'text-rose-400 bg-rose-500/10 border-rose-500/30 font-bold';
+                      } else if (coveragePct < 90) {
+                        heatmapClasses = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                      }
+
+                      return (
+                        <td key={`coverage-${day.toISOString()}`} className="p-2 text-center">
+                          <div className={`rounded-xl border px-2.5 py-1.5 tabular-nums font-mono text-xs shadow-sm ${heatmapClasses}`}>
+                            <div className="font-bold">{coveragePct.toFixed(0)}%</div>
+                            <small className="block text-[10px] opacity-80">
+                              {available}/{total} disp.
+                            </small>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}

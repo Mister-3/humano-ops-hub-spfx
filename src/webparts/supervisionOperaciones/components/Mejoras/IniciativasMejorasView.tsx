@@ -17,6 +17,7 @@ import {
   improvementsRepository,
   type ISaveInitiativeInput
 } from '../../../../modules/improvements/improvementsRepository';
+import { EmptyState } from '../Common';
 import type {
   AcceptanceCriterionMode,
   IAcceptanceCriterion,
@@ -570,8 +571,21 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                 </tbody>
               </table>
               {filteredInitiatives.length === 0 && (
-                <div className="p-12 text-center text-sm text-slate-500">
-                  No hay Historias de Usuario que coincidan con los filtros.
+                <div className="p-8">
+                  <EmptyState
+                    icon={<Icon iconName="Lightbulb" className="text-xl text-amber-400" />}
+                    title="No hay Historias de Usuario"
+                    description="No se encontraron iniciativas que coincidan con los filtros aplicados o aún no se han registrado historias."
+                    action={canCreate ? (
+                      <button
+                        type="button"
+                        className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20"
+                        onClick={openNew}
+                      >
+                        Crear nueva Historia
+                      </button>
+                    ) : undefined}
+                  />
                 </div>
               )}
             </section>

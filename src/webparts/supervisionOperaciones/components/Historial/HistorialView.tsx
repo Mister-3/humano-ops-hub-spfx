@@ -34,6 +34,7 @@ import AgentComboBox, {
   type IAgentComboBoxScopeOption
 } from '../AgentSelector/AgentComboBox';
 import DeleteConfirmModal from '../Common/DeleteConfirmModal';
+import { EmptyState } from '../Common/EmptyState';
 import { SkeletonLoader } from '../Common/SkeletonLoader';
 import styles from './HistorialView.module.scss';
 
@@ -1712,13 +1713,19 @@ const HistorialView: React.FC<IHistorialViewProps> = ({
           </Stack>
         </React.Fragment>
       ) : hasSearched ? (
-        <MessageBar messageBarType={MessageBarType.info}>
-          No se encontraron registros para los filtros seleccionados.
-        </MessageBar>
+        <EmptyState
+          className="my-4"
+          icon={<span className="text-xl">🔍</span>}
+          title="Sin registros encontrados"
+          description="No se encontraron registros que coincidan con los filtros y fechas seleccionadas."
+        />
       ) : (
-        <Stack className={styles.emptyState} horizontalAlign="center">
-          <Text variant="large">Defina los filtros y seleccione “Consultar Registros”.</Text>
-        </Stack>
+        <EmptyState
+          className="my-4"
+          icon={<span className="text-xl">📋</span>}
+          title="Consulta de registros históricos"
+          description="Defina los criterios de búsqueda (colaborador, fechas o categorías) y presione “Consultar Registros” para visualizar la información."
+        />
       )}
 
       <DeleteConfirmModal

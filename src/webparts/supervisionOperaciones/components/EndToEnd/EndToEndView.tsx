@@ -34,6 +34,7 @@ import {
   EMPTY_END_TO_END_FILTERS,
   type IEndToEndFilters
 } from '../../../../modules/endToEnd/endToEndViewModel';
+import { EmptyState } from '../Common';
 import CopyColumnsPortal from './CopyColumnsPortal';
 import styles from './EndToEndView.module.scss';
 
@@ -691,11 +692,33 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
                 ))}
               </tbody>
             </table>
-            {filteredGroups.length === 0 && <div className={styles.emptyState}>No hay radicaciones que coincidan con los filtros.</div>}
+            {filteredGroups.length === 0 && (
+              <div className="p-8">
+                <EmptyState
+                  icon={<Icon iconName="Search" className="text-xl" />}
+                  title="Sin radicaciones encontradas"
+                  description="No hay radicaciones que coincidan con los criterios y filtros aplicados."
+                  action={(
+                    <button
+                      type="button"
+                      className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                      onClick={() => setFilters({ ...EMPTY_END_TO_END_FILTERS })}
+                    >
+                      Restablecer filtros
+                    </button>
+                  )}
+                />
+              </div>
+            )}
           </div>
         </>
       ) : (
-        <div className={styles.emptyWorkspace}><Icon iconName="ExcelDocument" /><h4>Importe la primera fotografía End-to-End</h4><p>El dashboard se habilitará después de validar y activar un archivo.</p></div>
+        <EmptyState
+          className="my-6 py-12"
+          icon={<Icon iconName="ExcelDocument" className="text-2xl text-cyan-400" />}
+          title="Importe la primera fotografía End-to-End"
+          description="El tablero de custodia y semáforos se habilitará después de validar y activar un archivo de radicaciones."
+        />
       )}
     </section>
   );

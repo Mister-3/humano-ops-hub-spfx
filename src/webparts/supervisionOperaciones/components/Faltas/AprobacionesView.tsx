@@ -19,7 +19,7 @@ import SharePointService, {
   type IFaltaAprobacionItem
 } from '../../services/SharePointService';
 import { useRBAC } from '../../../../auth/RBACContext';
-import { AppDialog, StatusBadge, SurfaceCard } from '../Common';
+import { AppDialog, EmptyState, StatusBadge, SurfaceCard } from '../Common';
 import { SkeletonLoader } from '../Common/SkeletonLoader';
 import styles from './AprobacionesView.module.scss';
 
@@ -102,6 +102,9 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
     React.useState<IProcessingItems>({});
   const [pendingDecision, setPendingDecision] =
     React.useState<IPendingDecision>();
+  const [selectedIds, setSelectedIds] = React.useState<Set<number>>(new Set());
+  const [isBatchApproving, setIsBatchApproving] = React.useState<boolean>(false);
+  const [isBatchConfirmOpen, setIsBatchConfirmOpen] = React.useState<boolean>(false);
 
   const loadPendingItems = React.useCallback(async (): Promise<void> => {
     const pendingItems = await sharePointService.getFaltasPendientes(
@@ -109,6 +112,7 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
     );
 
     setItems(pendingItems);
+    setSelectedIds((prev) => new Set(Array.from(prev).filter((id) => pendingItems.some((i) => i.Id === id))));
   }, [allowedAuthorEmails, sharePointService]);
 
   React.useEffect(() => {
@@ -212,6 +216,32 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
     }
   }, [loadPendingItems, sharePointService]);
 
+  const handleBatchApprove = React.useCallback(async (): Promise<void> => {
+    if (selectedIds.size === 0 || !canApprove) return;
+    setIsBatchApproving(true);
+    setFeedback(undefined);
+    try {
+      const selectedItems = items.filter((item) => selectedIds.has(item.Id));
+      for (const item of selectedItems) {
+        await sharePointService.actualizarEstadoAprobacion(item.rawId || item.Id, 'Aprobado');
+      }
+      setFeedback({
+        text: `Se aprobaron exitosamente ${selectedItems.length} registros operativos.`,
+        type: MessageBarType.success
+      });
+      setSelectedIds(new Set());
+      setIsBatchConfirmOpen(false);
+      await loadPendingItems();
+    } catch (error: unknown) {
+      setFeedback({
+        text: `Error durante la aprobación masiva: ${getErrorMessage(error)}`,
+        type: MessageBarType.error
+      });
+    } finally {
+      setIsBatchApproving(false);
+    }
+  }, [canApprove, items, loadPendingItems, selectedIds, sharePointService]);
+
   const confirmPendingDecision = React.useCallback(async (): Promise<void> => {
     if (!pendingDecision) return;
     await handleApprovalAction(pendingDecision.item, pendingDecision.status);
@@ -220,11 +250,46 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
 
   const columns = React.useMemo<IColumn[]>(() => [
     {
+      key: 'select',
+      maxWidth: 42,
+      minWidth: 42,
+      name: '',
+      onRenderHeader: () => (
+        <input
+          type="checkbox"
+          aria-label="Seleccionar todos los registros pendientes"
+          checked={items.length > 0 && items.every((i) => selectedIds.has(i.Id))}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setSelectedIds(new Set(items.map((i) => i.Id)));
+            } else {
+              setSelectedIds(new Set());
+            }
+          }}
+        />
+      ),
+      onRender: (item?: IFaltaAprobacionItem) => item ? (
+        <input
+          type="checkbox"
+          aria-label={`Seleccionar ${item.AuditID || item.Id}`}
+          checked={selectedIds.has(item.Id)}
+          onChange={(e) => {
+            setSelectedIds((current) => {
+              const next = new Set(current);
+              if (e.target.checked) next.add(item.Id);
+              else next.delete(item.Id);
+              return next;
+            });
+          }}
+        />
+      ) : null
+    },
+    {
       key: 'auditId',
       minWidth: 135,
       name: 'Audit ID',
       onRender: (item?: IFaltaAprobacionItem) => (
-        <Text className={styles.auditIdCell} title={item?.AuditID}>
+        <Text className={`${styles.auditIdCell} tabular-nums font-mono`} title={item?.AuditID}>
           {item?.AuditID || '—'}
         </Text>
       )
@@ -235,7 +300,7 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
       minWidth: 92,
       name: 'Fecha',
       onRender: (item?: IFaltaAprobacionItem) => (
-        <Text>{item ? formatDateValue(item.FechaFalta) : '—'}</Text>
+        <Text className="tabular-nums font-mono">{item ? formatDateValue(item.FechaFalta) : '—'}</Text>
       )
     },
     {
@@ -360,7 +425,7 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
         );
       }
     }
-  ], [canApprove, handleApprovalAction, processingItems]);
+  ], [canApprove, items, processingItems, selectedIds]);
 
   return (
     <>
@@ -413,14 +478,12 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
             rowCount={5}
           />
         ) : items.length === 0 ? (
-          <div className={styles.emptyState} role="status">
-            <Text className={styles.emptyTitle} variant="large">
-              No hay registros pendientes
-            </Text>
-            <Text className={styles.description}>
-              La cola de aprobación está al día.
-            </Text>
-          </div>
+          <EmptyState
+            className="my-4"
+            icon={<ShieldCheck className="text-2xl text-emerald-400" />}
+            title="No hay registros pendientes"
+            description="La cola de aprobación está al día. Todos los registros han sido procesados."
+          />
         ) : (
           <div className={styles.tableContainer}>
             <DetailsList
@@ -436,6 +499,32 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
       </Stack>
     </SurfaceCard>
 
+    {/* Barra flotante de acciones masivas */}
+    {selectedIds.size > 0 && (
+      <div className="fixed bottom-6 right-8 z-40 flex items-center gap-4 rounded-2xl border border-cyan-500/40 bg-slate-900/95 px-5 py-3 shadow-2xl backdrop-blur-md animate-fadeIn">
+        <span className="text-sm font-semibold text-slate-200 tabular-nums font-mono">
+          {selectedIds.size} registro{selectedIds.size === 1 ? '' : 's'} seleccionado{selectedIds.size === 1 ? '' : 's'}
+        </span>
+        <button
+          type="button"
+          disabled={!canApprove || isBatchApproving}
+          onClick={() => setIsBatchConfirmOpen(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-500 disabled:opacity-50"
+        >
+          <ShieldCheck size={16} />
+          {isBatchApproving ? 'Aprobando...' : `Aprobar seleccionadas (${selectedIds.size})`}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedIds(new Set())}
+          className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+        >
+          Deseleccionar todo
+        </button>
+      </div>
+    )}
+
+    {/* Modal de decisión individual */}
     <AppDialog
       description={`Registro ${pendingDecision?.item.AuditID || (pendingDecision ? `#${pendingDecision.item.Id}` : '')}`}
       isOpen={Boolean(pendingDecision)}
@@ -473,6 +562,44 @@ export const AprobacionesView: React.FC<IAprobacionesViewProps> = ({
             type="button"
           >
             {pendingDecision?.status === 'Aprobado' ? 'Confirmar aprobación' : 'Confirmar rechazo'}
+          </button>
+        </div>
+      </div>
+    </AppDialog>
+
+    {/* Modal de decisión masiva */}
+    <AppDialog
+      description={`Se aprobarán ${selectedIds.size} registros seleccionados de forma simultánea.`}
+      isOpen={isBatchConfirmOpen}
+      maxWidth="md"
+      onClose={() => {
+        if (!isBatchApproving) setIsBatchConfirmOpen(false);
+      }}
+      title="Aprobación Masiva de Registros"
+    >
+      <div className="space-y-5">
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4">
+          <ShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-emerald-400" size={20} />
+          <p className="m-0 text-sm leading-6 text-slate-300">
+            ¿Deseas aprobar en lote los <strong className="text-white">{selectedIds.size} registros</strong> seleccionados? Esta acción actualizará su estado a aprobado e impactará las métricas operativas correspondientes.
+          </p>
+        </div>
+        <div className="flex justify-end gap-3">
+          <button
+            className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700"
+            disabled={isBatchApproving}
+            onClick={() => setIsBatchConfirmOpen(false)}
+            type="button"
+          >
+            Cancelar
+          </button>
+          <button
+            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isBatchApproving}
+            onClick={() => void handleBatchApprove()}
+            type="button"
+          >
+            {isBatchApproving ? 'Procesando lote...' : `Aprobar ${selectedIds.size} registros`}
           </button>
         </div>
       </div>

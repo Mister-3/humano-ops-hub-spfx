@@ -24,3 +24,5 @@ export { PermissionGuard, NoAccessMessage } from './PermissionGuard';
 export type { IPermissionGuardProps } from './PermissionGuard';
 
 export { DevRoleSwitcher } from './DevRoleSwitcher';
+export { EmptyState } from './EmptyState';
+export type { IEmptyStateProps } from './EmptyState';

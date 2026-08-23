@@ -11,6 +11,7 @@ import {
 } from '@fluentui/react';
 
 import SkeletonLoader from '../Common/SkeletonLoader';
+import { EmptyState, StatusBadge } from '../Common';
 import type { IDirectReport } from '../../services/GraphService';
 import useCurrentDate from '../../hooks/useCurrentDate';
 import SharePointService, {
@@ -471,6 +472,42 @@ const getPenalty = (
   }
 };
 
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'AG';
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+};
+
+const getRankBadge = (rank: number): React.ReactNode => {
+  if (rank === 1) {
+    return (
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/20 text-amber-300 font-bold border border-amber-400/40 text-xs shadow-lg shadow-amber-400/10">
+        🥇
+      </span>
+    );
+  }
+  if (rank === 2) {
+    return (
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-300/20 text-slate-200 font-bold border border-slate-300/40 text-xs">
+        🥈
+      </span>
+    );
+  }
+  if (rank === 3) {
+    return (
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-700/20 text-amber-500 font-bold border border-amber-600/40 text-xs">
+        🥉
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-slate-400 font-semibold text-xs border border-slate-700">
+      #{rank}
+    </span>
+  );
+};
+
 const Dashboard: React.FC<IDashboardProps> = ({
   availableAgents,
   hasGlobalScope
@@ -923,24 +960,127 @@ const Dashboard: React.FC<IDashboardProps> = ({
         </div>
       </section>
 
-      <Stack className={styles.tableCard} tokens={{ childrenGap: 12 }}>
-        <Text variant="xLarge">
-          Ranking general · {productivityPeriod.label}
-        </Text>
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-bold text-white">
+              Ranking general · {productivityPeriod.label}
+            </h3>
+            <p className="mt-1 text-xs text-slate-400">
+              Desempeño consolidado de productividad diaria, SLA de casos, reconocimientos y deducciones.
+            </p>
+          </div>
+          <StatusBadge variant="info">
+            {leaderboard.length} colaborador{leaderboard.length === 1 ? '' : 'es'}
+          </StatusBadge>
+        </div>
+
         {leaderboard.length > 0 ? (
-          <DetailsList
-            columns={columns}
-            getKey={(item: IAgenteLeaderboard) => item.agente}
-            items={leaderboard}
-            layoutMode={DetailsListLayoutMode.justified}
-            selectionMode={SelectionMode.none}
-          />
+          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60">
+            <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/80 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="px-4 py-3.5">Posición & Colaborador</th>
+                  <th className="px-4 py-3.5">Índice Productividad</th>
+                  <th className="px-4 py-3.5">SLA Casos</th>
+                  <th className="px-4 py-3.5 text-right">Emisiones Tx</th>
+                  <th className="px-4 py-3.5 text-right">Movimientos Pg</th>
+                  <th className="px-4 py-3.5 text-right">Escaneo Pg</th>
+                  <th className="px-4 py-3.5 text-center">Kudos (+)</th>
+                  <th className="px-4 py-3.5 text-right">Puntaje Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80">
+                {leaderboard.map((item, index) => {
+                  const rank = index + 1;
+                  const prodPct = Math.max(0, Math.min(100, item.puntosProductividad || 0));
+                  const sla = item.slaCasosObtenido;
+                  const goal = item.metaSlaCasos || 90;
+
+                  return (
+                    <tr
+                      key={item.agente}
+                      className="transition-colors hover:bg-slate-800/40"
+                    >
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-3">
+                          {getRankBadge(rank)}
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-xs font-bold text-slate-300">
+                            {getInitials(item.agente)}
+                          </div>
+                          <strong className="text-white font-medium">{item.agente}</strong>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 min-w-[180px]">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-cyan-300 tabular-nums font-mono">
+                              {formatPercentage(item.puntosProductividad || 0)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500"
+                              style={{ width: `${prodPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {sla === undefined ? (
+                          <span className="inline-block rounded-full border border-slate-700 bg-slate-800 px-2.5 py-0.5 text-xs text-slate-400">
+                            SLA: N/A (Meta: {formatPercentage(goal)})
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums font-mono ${
+                              sla >= goal
+                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                            }`}
+                          >
+                            SLA: {formatPercentage(sla)} ({formatPoints(item.casosATiempo || 0)}/{formatPoints(item.casosAtendidos || 0)})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-medium text-slate-200 tabular-nums font-mono">
+                        {formatPoints(item.emisionesTx || 0)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-medium text-slate-200 tabular-nums font-mono">
+                        {formatPoints(item.movimientosPg || 0)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-medium text-slate-200 tabular-nums font-mono">
+                        {formatPoints(item.escaneoPg || 0)}
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        {item.puntosKudos > 0 ? (
+                          <span className="inline-block rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-bold text-cyan-300 tabular-nums font-mono">
+                            +{formatPoints(item.puntosKudos)} pts
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <strong className="text-base font-bold text-white tabular-nums font-mono">
+                          {formatPoints(item.puntajeTotal || 0)}
+                        </strong>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <MessageBar messageBarType={MessageBarType.info}>
-            No hay datos operativos suficientes para calcular el ranking.
-          </MessageBar>
+          <EmptyState
+            className="my-2"
+            icon={<span className="text-2xl">📊</span>}
+            title="Sin datos operativos"
+            description="No hay datos operativos suficientes en el período seleccionado para calcular el ranking general."
+          />
         )}
-      </Stack>
+      </section>
     </Stack>
   );
 };
