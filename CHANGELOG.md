@@ -3,6 +3,21 @@
 Todos los cambios notables en **Humano Ops Hub** se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.0] - 2026-08-22
+
+### Resumen de la Versión
+Lanzamiento mayor de **Evolución UI/UX & Game Changers**, enfocado en la ergonomía de alta precisión, aceleradores de navegación global, modernización visual de tableros analíticos, herramientas de aprobación masiva y capacidades de escalabilidad para manejo intensivo de datos tabulares.
+
+### Hitos Principales de la Versión:
+- **Command Palette Global (`Cmd+K` / `Ctrl+K`)**: Interfaz unificada de comandos accesible mediante atajo global (`Cmd+K`/`Ctrl+K`) con buscador reactivo en tiempo real, navegación por teclado completa (`Arriba`/`Abajo`, `Enter`, `Escape`), salto directo a 9 módulos, atajos de acciones operativas y conmutación de identidades de desarrollo (`DevRoleSwitcher`).
+- **Sistema de Notificaciones Flotantes Apilables (`ToastProvider` & `useToast`)**: Contexto y hook desacoplado para emitir notificaciones flotantes en esquina superior derecha (`fixed top-5 right-5 z-[9999]`) con cero desplazamiento de layout (CLS), auto-cierre con barra de progreso regresiva de 4 segundos, botón de descarte manual y variantes semánticas (`success`, `error`, `warning`, `info`).
+- **Selector de Densidad de Datos Tabulares (`DataDensityToggle`)**: Componente selector tipo píldora conmutando entre vista **Cómoda** (`py-3 text-sm`) y vista **Compacta** (`py-1.5 text-xs`) para tablas de alta densidad como End-to-End, optimizando la visibilidad de lotes de 500+ registros y persistiendo la preferencia en `localStorage('ops_table_density')`.
+- **Leaderboard Dark Modern en Dashboard**: Rediseño integral del ranking de productividad en `Dashboard.tsx` sustituyendo tablas Fluent legacy por una tabla Dark Modern estilizada con tarjetas de podio (#1 Oro, #2 Plata, #3 Bronce), iniciales de avatar y barras de progreso animadas.
+- **Heatmap Semántico de Cobertura en Planificación Semanal**: Incorporación de cálculo automático de capacidad neta operativa en el pie de tabla (`<tfoot>`) de `PlanificacionSemanal.tsx` con escala cromática de alerta temprana (Verde Esmeralda ≥90%, Amarillo Ámbar 75-89%, Rojo Rosa <75%).
+- **Aprobaciones Masivas en Faltas (*Batch Approvals*)**: Implementación de casillas de selección individual por fila y selector maestro en encabezado en `AprobacionesView.tsx`, activando una barra flotante inferior (`fixed bottom-6 right-8`) con diálogo modal accesible `AppDialog` para procesar aprobaciones concurrentes en 1-clic.
+- **Componente Reutilizable `<EmptyState />`**: Estandarización de estados vacíos en `components/Common/EmptyState.tsx` con halos circulares para íconos Lucide, títulos concisos, descripciones y slots de acción (CTA), desplegado transversalmente en End-to-End, Aprobaciones, Iniciativas y Planificación Semanal.
+- **Ergonomía de Alta Precisión y Columnas Fijas (*Sticky Columns*)**: Formateo numérico estricto con `tabular-nums font-mono` para alineación vertical perfecta en KPIs y tablas masivas, columnas fijas bidireccionales en End-to-End (`sticky left-0`, `left-[42px]`, `right-0`) y auto-selección en foco para inputs numéricos operativos (`onFocus={(e) => e.target.select()}`).
+
 ---
 
 ## [v2.4.0] - 2026-08-22

@@ -43,7 +43,7 @@ export interface IRelease {
 export const APP_INFO: IAppInfo = {
   name: 'Humano Ops Hub',
   tagline: 'Plataforma Corporativa de Gestión Operativa, Rendimiento y Cultura',
-  version: 'v2.4.0',
+  version: 'v2.5.0',
   environment: 'Producción / Cloud & Local-First',
   architecture: 'React 17 + TypeScript + Tailwind CSS Dark Modern + Supabase PostgreSQL (RLS & RPCs) + IndexedDB v3',
   supportContact: 'soporte.operaciones@humano.com.do',
@@ -62,7 +62,7 @@ export const APP_INFO: IAppInfo = {
     },
     {
       title: 'Design System Dark Modern (Slate/Cyan)',
-      description: 'Experiencia visual ergonómica con paleta de alto contraste, transparencias glassmorphic y kit de primitivas accesibles (AppDialog, KpiCard, PageHeader).',
+      description: 'Experiencia visual ergonómica con paleta de alto contraste, transparencias glassmorphic y kit de primitivas accesibles (AppDialog, KpiCard, PageHeader, EmptyState, ToastProvider).',
       icon: 'Color'
     },
     {
@@ -195,9 +195,50 @@ export const MODULES_INFO: IModuleInfo[] = [
 
 export const RELEASES_DATA: IRelease[] = [
   {
-    version: 'v2.4.0',
+    version: 'v2.5.0',
     date: '22 de Agosto, 2026',
     isCurrent: true,
+    codename: 'UI/UX Evolution & Game Changers',
+    summary: 'Lanzamiento de la suite de aceleradores de productividad: Command Palette (Cmd+K), Sistema de Toasts Flotantes, Selector de Densidad de Datos, Leaderboard Dark Modern con podio animado, Heatmap semántico de capacidad y Aprobaciones Masivas.',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Command Palette Global (Cmd+K / Ctrl+K) con buscador fuzzy en tiempo real, navegación instantánea por teclado entre 9 módulos, acciones rápidas y Dev Tools.'
+      },
+      {
+        type: 'feature',
+        description: 'Sistema de Notificaciones Flotantes ToastProvider & useToast() desacoplado sin saltos de layout (CLS), auto-cierre con barra regresiva de 4s y variantes semánticas.'
+      },
+      {
+        type: 'feature',
+        description: 'Selector de Densidad de Datos DataDensityToggle con modos Cómodo y Compacto (para 500+ registros) con persistencia en localStorage.'
+      },
+      {
+        type: 'feature',
+        description: 'Modernización del Leaderboard en Dashboard con tarjetas estilizadas, podio #1 Oro, #2 Plata, #3 Bronce, iniciales de avatar y barras de progreso animadas.'
+      },
+      {
+        type: 'feature',
+        description: 'Heatmap Semántico de Cobertura en Planificación Semanal con cálculo automático de capacidad neta diaria y códigos de color por umbral de criticidad.'
+      },
+      {
+        type: 'feature',
+        description: 'Aprobaciones Masivas (Batch Actions) en Faltas con selección por fila, selector maestro en encabezado y barra flotante con diálogo de confirmación transaccional.'
+      },
+      {
+        type: 'feature',
+        description: 'Componente reutilizable <EmptyState /> estandarizado con halos circulares para íconos Lucide y botones de acción contextuales en todas las tablas del hub.'
+      },
+      {
+        type: 'refactor',
+        description: 'Ergonomía de alta precisión con formato numérico tabular-nums font-mono, columnas fijas (sticky columns) en End-to-End y auto-selección en foco para inputs numéricos.'
+      }
+    ]
+  },
+  {
+    version: 'v2.4.0',
+    date: '22 de Agosto, 2026',
+    isCurrent: false,
     codename: 'Unified RBAC & Dark Modern Foundation',
     summary: 'Consolidación de la matriz RBAC de 5 roles canónicos, roles dinámicos, kit de primitivas Dark Modern, Dev Auth Bypass para auditorías UX y nuevo módulo de Ayuda & Versiones.',
     changes: [

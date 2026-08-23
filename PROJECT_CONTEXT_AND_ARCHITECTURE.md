@@ -1,6 +1,6 @@
 # Project Context and Technical Architecture: Humano Ops Hub
 
-Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Humano Ops Hub (v2.4.0)**.
+Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Humano Ops Hub (v2.5.0)**.
 
 ---
 
@@ -9,28 +9,29 @@ Este documento constituye la fuente oficial y exhaustiva de arquitectura técnic
 ### 1.1 Resumen del Sistema
 **Humano Ops Hub** es una plataforma web corporativa de gestión operativa, control disciplinario y analítica avanzada de rendimiento diseñada para equipos de operaciones, supervisores, gerentes y analistas. El sistema centraliza:
 - Control y registro diario de productividad operativa con validación de devoluciones condicionales.
-- Registro, amonestación y tipificación de faltas disciplinarias y errores de proceso con aprobación jerárquica.
+- Registro, amonestación y tipificación de faltas disciplinarias y errores de proceso con aprobación jerárquica y masiva.
 - Medición de tiempos de ocupación (llamadas telefónicas y gestión de correos).
 - Sistema de reconocimientos corporativos (*Kudos*) y gestión de galardones (*Empleado del Mes*) con control de días libres.
-- Registro de ausencias, licencias e incapacidades, asignación de vacaciones por período anual y cálculo dinámico de capacidad en la matriz de planificación semanal.
+- Registro de ausencias, licencias e incapacidades, asignación de vacaciones por período anual y cálculo dinámico de capacidad en la matriz de planificación semanal con heatmap semántico.
 - Gestión ágil de iniciativas y mejoras continuas estructuradas en Historias de Usuario (*Como / Quiero / Para*) con Live Preview y exportación multiformato para Azure DevOps / Jira.
-- Módulo operativo End-to-End con aislamiento de snapshots por analista, conciliación de SLA y resolución de conflictos.
+- Módulo operativo End-to-End con aislamiento de snapshots por analista, conciliación de SLA, selector de densidad y resolución de conflictos.
+- Suite global de aceleradores: Command Palette (`Cmd+K`), Sistema de Toasts flotantes y selector de densidad de datos.
 - Administración y gobierno de identidades mediante una matriz RBAC nativa de 5 roles base y soporte para roles personalizados.
 
 ### 1.2 Stack Tecnológico
 - **Frontend Core**: React 17.0.1 (Single Page Application).
 - **Lenguaje**: TypeScript 5.8 (~5.8.0) con verificación estricta (`tsconfig.app.json`).
 - **Bundler & Dev Server**: Vite 8.2.0 (`vite.config.mts`).
-- **Sistema de UI / Primitivas**: Kit personalizado de Primitivas Dark Modern (`AppDialog`, `PageHeader`, `KpiCard`, `StatusBadge`, `SurfaceCard`) complementado con Fluent UI React (`@fluentui/react` ^8.106.4).
+- **Sistema de UI / Primitivas**: Kit personalizado de Primitivas Dark Modern (`AppDialog`, `PageHeader`, `KpiCard`, `StatusBadge`, `SurfaceCard`, `EmptyState`, `ToastProvider`, `DataDensityToggle`, `CommandPalette`) complementado con Fluent UI React (`@fluentui/react` ^8.106.4).
 - **Estilos & Diseño**: Tailwind CSS v3 (`tailwind.config.js` con `darkMode: 'class'`), Sass (`sass` ^1.102.0) y CSS Modules (`*.module.scss`).
-- **Iconografía**: Fluent UI Icons (`initializeIcons`) + Emojis de interfaz unificados.
+- **Iconografía**: Lucide React (`lucide-react` ^1.16.0) + Fluent UI Icons (`initializeIcons`).
 - **Persistencia de Datos**:
   - **Nube (Producción)**: Supabase / PostgreSQL con `@supabase/supabase-js` (^2.112.0).
   - **Caché Local / Offline Fallback**: IndexedDB personalizado (`IndexedDbAdapter.ts` - *HumanoOpsHubDB v3*).
 - **Librerías de Soporte**:
   - `exceljs` (^4.4.0): Procesamiento y exportación de reportes analíticos (`AppDB.xlsx`).
   - `jszip` (^3.10.1): Compresión y empaquetado de reportes exportables.
-- **Testing**: Vitest (`vitest.config.mts`) para pruebas unitarias y de dominio.
+- **Testing**: Vitest (`vitest.config.mts`) y Node Test Runner para pruebas unitarias y de dominio.
 
 ### 1.3 Entorno de Ejecución y Scripts de Construcción
 El proyecto se ejecuta en un entorno Linux con **Node.js (>=22.14.0 < 23.0.0)**.
@@ -124,6 +125,11 @@ npm run generate:appdb
         │   │   ├── KpiCard.tsx              # Tarjeta de métricas con variantes de color semánticas
         │   │   ├── StatusBadge.tsx          # Badges de estado estandarizados
         │   │   ├── SurfaceCard.tsx          # Contenedor base de superficie y elevación
+        │   │   ├── EmptyState.tsx           # Estado vacío consistente con halo para íconos y CTA
+        │   │   ├── ToastProvider.tsx        # Sistema de notificaciones flotantes apilables (useToast)
+        │   │   ├── useToast.ts              # Re-export ergonómico del hook useToast
+        │   │   ├── DataDensityToggle.tsx    # Selector de densidad de tablas (compact / comfortable)
+        │   │   ├── CommandPalette.tsx       # Paleta global de comandos (Cmd+K) con navegación
         │   │   ├── PermissionGuard.tsx      # Guardia declarativa de interfaz con NoAccessMessage
         │   │   ├── DeleteConfirmModal.tsx   # Modal de confirmación para eliminaciones críticas
         │   │   ├── DevRoleSwitcher.tsx      # Widget flotante de switch de roles para desarrollo
@@ -293,6 +299,62 @@ Widget flotante (`fixed bottom-4 left-4 z-[9999]`) para alternar en caliente ent
 - Totalmente inocuo e inactivo en producción (`import.meta.env.PROD === true`).
 - Sincroniza el rol simulado con `localStorage` (`ops_dev_mock_role`) y notifica a `AuthProvider` y `RBACContext` vía eventos de navegador.
 
+#### 8. `EmptyState` (`EmptyState.tsx`)
+Componente universal de estado vacío con estética Dark Modern:
+- Contenedor con borde discontinuo (`border-dashed border-slate-800/80 bg-slate-900/40 rounded-2xl`).
+- Halo circular para íconos Lucide (`bg-slate-800/60 border border-slate-700/50 rounded-2xl`).
+- Título conciso, descripción secundaria y slot opcional para botón de acción (CTA).
+```tsx
+import { EmptyState } from '../Common';
+import { Search } from 'lucide-react';
+
+<EmptyState
+  icon={<Search size={20} className="text-slate-400" />}
+  title="Sin radicaciones encontradas"
+  description="No hay radicaciones que coincidan con los filtros aplicados."
+  action={<button className="...">Restablecer filtros</button>}
+/>
+```
+
+#### 9. `ToastProvider` & `useToast` (`ToastProvider.tsx` / `useToast.ts`)
+Sistema desacoplado de notificaciones flotantes apilables (`fixed top-5 right-5 z-[9999]`):
+- **Cero Cumulative Layout Shift (CLS)**: Montado en capa fija independiente sin desplazar la vista activa.
+- **Auto-cierre regresivo**: Temporizador automático de 4s con barra de progreso animada en el borde inferior.
+- **Variantes semánticas**: `success` (emerald), `error` (rose), `warning` (amber), `info` (cyan).
+```tsx
+import { useToast } from '../Common';
+
+const toast = useToast();
+toast.success('Se aprobaron 15 registros correctamente.', 'Aprobación Exitosa');
+toast.error('No fue posible conectar con el servidor.', 'Error de Conexión');
+```
+
+#### 10. `DataDensityToggle` (`DataDensityToggle.tsx`)
+Selector de densidad de tablas en formato píldora interactiva con persistencia automática en `localStorage('ops_table_density')`:
+- **Vista Cómoda** (`comfortable`): Espaciado estándar (`py-3 text-sm`) para visualización balanceada.
+- **Vista Compacta** (`compact`): Espaciado condensado (`py-1.5 text-xs`) para auditar lotes masivos de 500+ registros.
+```tsx
+import { DataDensityToggle, useDataDensity } from '../Common';
+
+const [density, setDensity] = useDataDensity('comfortable');
+<DataDensityToggle density={density} onChange={setDensity} />
+```
+
+#### 11. `CommandPalette` (`CommandPalette.tsx`)
+Paleta de comandos accesible con atajo global `Cmd+K` / `Ctrl+K`:
+- **Buscador en tiempo real**: Filtrado fuzzy por títulos, subtítulos y palabras clave.
+- **Navegación por teclado**: Flechas arriba/abajo para selección, Enter para ejecución y Escape para cerrar.
+- **Categorías**: Navegación (9 módulos), Acciones Rápidas (redactar historia, planificar turnos) y Dev Tools (switch de rol mock en 1-clic).
+```tsx
+import { CommandPalette } from '../Common';
+
+<CommandPalette
+  isOpen={isCommandPaletteOpen}
+  onClose={() => setIsCommandPaletteOpen(false)}
+  onNavigate={(moduleKey) => handleModuleChange(moduleKey)}
+/>
+```
+
 ---
 
 ### 3.4 Arquitectura del Módulo "Centro de Ayuda & Versiones" (`components/Ayuda/`)
@@ -303,6 +365,23 @@ El módulo `Ayuda` está desacoplado en componentes modulares especializados:
 2. **`AcercaDeTab.tsx`**: Renderiza el hero banner, los 4 pilares arquitectónicos y el catálogo de 9 módulos utilizando `SurfaceCard` y `StatusBadge`.
 3. **`VersionesTab.tsx`**: Presenta las métricas consolidadas (`KpiCard`), barra de filtros por tipo de cambio (`feature`, `fix`, `refactor`, `security`) y la línea de tiempo vertical con conectores Dark Modern.
 4. **`AyudaView.tsx`**: Componente orquestador con `PageHeader` y barra de pestañas ergonómica (`role="tablist"`).
+
+---
+
+### 3.5 Ergonomía de Datos y Manejo de Tablas Masivas
+
+1. **Alineación Numérica Tabular (`tabular-nums font-mono`)**:
+   - Todo valor numérico financiero, métrica de SLA, conteo de páginas, tiempo transcurrido o ID de auditoría utiliza obligatoriamente las clases `tabular-nums font-mono` para evitar desplazamientos horizontales y asegurar alineación vertical perfecta en columnas numéricas.
+2. **Columnas Fijas Multidireccionales (*Sticky Columns*)**:
+   - Tablas de alta densidad como End-to-End implementan columnas fijas para preservar el contexto durante el scroll horizontal:
+     * Columna de selección (checkbox): `sticky left-0 z-10 bg-slate-900/95 backdrop-blur-sm border-r border-slate-800/80`.
+     * Columna de identificador (Radicación): `sticky left-[42px] z-10 bg-slate-900/95 backdrop-blur-sm border-r border-slate-800/80`.
+     * Columna de acciones / detalle: `sticky right-0 z-10 bg-slate-900/95 backdrop-blur-sm border-l border-slate-800/80`.
+     * Encabezados superiores: `sticky top-0 z-20 bg-slate-950/95 backdrop-blur-sm`.
+3. **Auto-selección en Foco para Captura Operativa**:
+   - Todo componente `SpinButton` y campo de captura numérica en Productividad, Faltas y Tiempos incluye el prop `inputProps={{ onFocus: (e) => (e.target as HTMLInputElement).select() }}` para agilizar la sobrescritura directa sin requerir borrado manual.
+4. **Acciones Masivas en Lote (*Batch Actions*) y Barra Flotante**:
+   - En colas de trabajo como Aprobaciones de Faltas, la selección de 1 o más elementos activa una barra flotante inferior (`fixed bottom-6 right-8 z-40 bg-slate-900/95 border border-cyan-500/40 shadow-2xl backdrop-blur-md rounded-2xl px-5 py-3`) que permite procesar el lote completo con un único diálogo de confirmación transaccional.
 
 ---
 

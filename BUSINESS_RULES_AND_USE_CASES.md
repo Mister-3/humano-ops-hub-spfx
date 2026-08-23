@@ -1,6 +1,6 @@
 # Business Rules and Functional Specification: Humano Ops Hub (Cerebro Maestro)
 
-Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Humano Ops Hub (v2.4.0)**.
+Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Humano Ops Hub (v2.5.0)**.
 
 ---
 
@@ -196,6 +196,14 @@ El registro diario de productividad (`ProductividadForm.tsx`) captura las siguie
   - Registros creados por usuarios con rol `Supervisor`, `Gerente` o `Admin` quedan en estado `Aprobado` automáticamente.
   - Registros ingresados por usuarios con rol `Asistente` o `Agente` ingresan en estado `Pendiente` a la espera de validación por su supervisor.
 
+### 5.3 Aprobación Masiva en Lote (*Batch Approvals*)
+- **Bandeja de Aprobaciones (`AprobacionesView.tsx`)**:
+  - Los supervisores y gerentes disponen de casillas de selección individual por fila y una casilla maestra en el encabezado para seleccionar todos los registros pendientes visibles en la tabla.
+  - Al seleccionar uno (1) o más registros, emerge una **Barra Flotante de Acciones en Lote** fijada en la parte inferior (`fixed bottom-6 right-8 z-40`).
+  - La barra muestra el conteo dinámico de elementos seleccionados, un botón para deseleccionar y el botón de acción principal *"Aprobar Seleccionadas"*.
+  - **Confirmación Transaccional Accesible**: Al pulsar el botón de aprobación masiva, se despliega un diálogo `AppDialog` modal que detalla la cantidad exacta de incidencias a aprobar.
+  - **Ejecución y Resiliencia**: El procesamiento se ejecuta en lote actualizando el estado a `Aprobado` en Supabase/IndexedDB, emite una notificación toast de éxito y refresca la bandeja operativa sin recargas de página ni parpadeos de interfaz.
+
 ---
 
 ## 6. Módulo de Reconocimientos, Kudos y Empleado del Mes
@@ -219,9 +227,13 @@ El registro diario de productividad (`ProductividadForm.tsx`) captura las siguie
 - Tipos soportados: `Vacaciones`, `Día Libre Cumpleaños`, `Día Libre Empleado del Mes`, `Licencia / Incapacidad`.
 - **Selector de Período en Vacaciones**: Al seleccionar *"Vacaciones"*, se habilita el selector del **Año del Período Reclamado** (`periodo_anio`, ej: 2024, 2025, 2026) para imputar correctamente el balance de días pendientes del colaborador.
 
-### 7.2 Matriz de Planificación Semanal y Capacidad Neta
+### 7.2 Matriz de Planificación Semanal, Capacidad Neta y Heatmap Semántico
 - El componente `PlanificacionSemanal.tsx` consolida la matriz de asistencia por turno y día de la semana.
 - **Deducción Dinámica de Capacidad**: La capacidad operativa neta descuenta automáticamente a los colaboradores que registran ausencias aprobadas en Supabase dentro de la ventana semanal visualizada.
+- **Heatmap Semántico de Cobertura Diaria**: El pie de tabla (`<tfoot>`) calcula en tiempo real el porcentaje de capacidad operativa neta vs capacidad teórica para cada día y aplica una escala cromática de alerta temprana:
+  * 🟢 **Capacidad Óptima (≥ 90%)**: Verde esmeralda (`text-emerald-400 bg-emerald-500/10`) indicando cobertura operativa saludable.
+  * 🟡 **Alerta de Capacidad (75% – 89%)**: Amarillo ámbar (`text-amber-400 bg-amber-500/10`) indicando necesidad de monitoreo por baja de turno.
+  * 🔴 **Déficit Crítico de Capacidad (< 75%)**: Rojo rosa (`text-rose-400 bg-rose-500/10 font-bold`) alertando riesgo inminente de incumplimiento de SLA.
 
 ---
 
@@ -240,6 +252,11 @@ El registro diario de productividad (`ProductividadForm.tsx`) captura las siguie
 - **Marcado de Reportadas**: Los custodios y supervisores pueden alternar el flag de radicaciones ya reportadas a entes de control.
 - **Resolución de Conflictos**: Mecanismo de resolución para fotografías cargadas con la misma fecha de corte.
 - **Portal de Copiado de Columnas**: Herramienta integrada (`CopyColumnsPortal.tsx`) para copiar subconjuntos tabulares directamente a hojas de trabajo.
+
+### 8.4 Selector de Densidad de Datos Tabulares
+- **Densidad Conmutable**: Permite alternar entre visualización **Cómoda** (`comfortable`) y **Compacta** (`compact`) en la barra de herramientas de la tabla de radicaciones.
+- **Vista Compacta**: Condensa el espaciado vertical a `py-1.5` y tipografía a `text-xs`, maximizando la cantidad de registros evaluables en pantallas de análisis intensivo (lotes de 500+ registros).
+- **Persistencia por Usuario**: La preferencia seleccionada se almacena automáticamente en `localStorage('ops_table_density')`, preservando la densidad entre sesiones.
 
 ---
 
@@ -260,7 +277,7 @@ graph TD
     A --> B["📘 Pestaña: Acerca de (AcercaDeTab.tsx)"]
     A --> C["🚀 Pestaña: Versiones y Correcciones (VersionesTab.tsx)"]
 
-    B --> B1["Hero Banner & Estado Activo v2.4.0"]
+    B --> B1["Hero Banner & Estado Activo v2.5.0"]
     B --> B2["4 Pilares Técnicos de Arquitectura"]
     B --> B3["Catálogo Exhaustivo de 9 Módulos"]
     B --> B4["Directorio de Soporte y Administración"]
@@ -294,7 +311,7 @@ graph TD
 4. **Directorio y Canales de Contacto**: Acceso directo para escalar consultas operativas a soporte técnico (`soporte.operaciones@humano.com.do`) o gestionar nuevos catálogos con la administración de la plataforma (`admin.ops@humano.com.do`).
 
 ### 10.3 Casos de Uso: Pestaña "Versiones y Correcciones" (`VersionesTab.tsx`)
-1. **Métricas de Entrega Continua**: Indicadores `KpiCard` destacando la Versión Activa en producción (`v2.4.0`), el total de versiones desplegadas (5 releases históricos) y la fecha de última actualización.
+1. **Métricas de Entrega Continua**: Indicadores `KpiCard` destacando la Versión Activa en producción (`v2.5.0`), el total de versiones desplegadas (6 releases históricos) y la fecha de última actualización.
 2. **Filtrado Semántico de Novedades**: Barra interactiva de botones estilo píldora que permite aislar los cambios del historial según su naturaleza:
    - 📋 **Todos**: Vista integral de todos los cambios registrados.
    - ✨ **Mejoras / Features**: Nuevas capacidades funcionales y herramientas incorporadas.
@@ -305,4 +322,29 @@ graph TD
    - Conector gráfico Dark Modern con indicador luminoso animado para la versión activa en curso.
    - Tarjetas de versión con codename, fecha de publicación, resumen ejecutivo y lista detallada de cambios con badges semánticos de color (`emerald`, `rose`, `cyan`, `amber`).
    - Enlace directo de referencia técnica al archivo `CHANGELOG.md` del repositorio.
+
+---
+
+## 11. Suite Global de Aceleradores de Productividad y Ergonomía (v2.5.0)
+
+### 11.1 Command Palette Global (`Cmd + K` / `Ctrl + K`)
+- **Objetivo**: Proveer una interfaz conversacional y de búsqueda unificada para navegar e interactuar con cualquier sección del hub en menos de 1 segundo sin tocar el ratón.
+- **Atajos Globales Reconocidos**:
+  * `Cmd + K` (macOS) o `Ctrl + K` (Windows/Linux): Abre o cierra la paleta desde cualquier vista o modal.
+  * `Flecha Arriba` / `Flecha Abajo`: Navegación vertical fluida entre resultados filtrados.
+  * `Enter`: Ejecución inmediata del comando seleccionado y cierre de la paleta.
+  * `Escape`: Cierre instantáneo y retorno del foco al elemento interactivo previo.
+- **Catálogo de Comandos Integrados**:
+  * **Navegación**: Enlaces directos a los 9 módulos (Dashboard, End-to-End, Faltas, Productividad, Kudos, Mejoras, Ocupación, Evaluación, Administración, Ayuda).
+  * **Acciones Rápidas**: Creación de Historias de Usuario, apertura de Planificación Semanal, consulta del Changelog.
+  * **Herramientas de Desarrollo**: Conmutación de roles simulados (`admin`, `gerente`, `supervisor`, `asistente`, `agente`) en entorno DEV.
+
+### 11.2 Sistema de Notificaciones Flotantes Apilables (`ToastProvider` & `useToast`)
+- **Objetivo**: Notificar resultados operativos (éxito en guardado, advertencias de validación, confirmaciones en lote) mediante una capa flotante no intrusiva que previene desplazamientos indeseados de la interfaz (*Zero Layout Shift*).
+- **Variantes y Comportamiento**:
+  * **Éxito (`success`)**: Borde y barra esmeralda (`#34d399`), ícono de verificación.
+  * **Error (`error`)**: Borde y barra rosa (`#fb7185`), ícono de alerta crítica.
+  * **Advertencia (`warning`)**: Borde y barra ámbar (`#fbbf24`), ícono de precaución.
+  * **Información (`info`)**: Borde y barra cian (`#22d3ee`), ícono de información.
+- **Descarte**: Desaparición automática tras 4 segundos con animación de salida suave o cierre inmediato al pulsar el botón `X`.
 
