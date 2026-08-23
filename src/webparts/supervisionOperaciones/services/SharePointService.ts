@@ -107,6 +107,7 @@ const DEFAULT_CONFIG: IConfiguracionMetricas = {
   PesoMovimientos: 1.2,
   MetaDiaria: 100,
   PuntosPorKudo: 10,
+  MaxKudosPorAtributoMensual: 3,
   PenalidadBaja: 5,
   PenalidadMedia: 15,
   PenalidadCritica: 50,
@@ -425,6 +426,7 @@ export interface IConfiguracionMetricas {
   PesoMovimientos: number;
   MetaDiaria: number;
   PuntosPorKudo: number;
+  MaxKudosPorAtributoMensual?: number;
   PenalidadBaja: number;
   PenalidadMedia: number;
   PenalidadCritica: number;
@@ -450,7 +452,7 @@ export type IConfiguracionMetricasUpdate = Pick<
   | 'PenalidadCritica'
 > & Partial<Pick<
   IConfiguracionMetricas,
-  'PesoEmisiones' | 'PesoMovimientos' | 'MetaDiaria' | 'LimiteDiaPublicacion'
+  'PesoEmisiones' | 'PesoMovimientos' | 'MetaDiaria' | 'LimiteDiaPublicacion' | 'MaxKudosPorAtributoMensual'
 >>;
 
 export class SharePointService {

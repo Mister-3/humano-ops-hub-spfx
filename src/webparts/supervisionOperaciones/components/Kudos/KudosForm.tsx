@@ -16,10 +16,14 @@ import {
   Text,
   TextField
 } from '@fluentui/react';
-import { Award, FilePlus2 } from 'lucide-react';
+import { Award, BookOpen, FilePlus2, Sparkles } from 'lucide-react';
 
 import { cloudDbClient } from '../../../../services/CloudDbClient';
 import { useRBAC } from '../../../../auth/RBACContext';
+import { useToast } from '../Common/ToastProvider';
+import type { ICatalogoItem } from '../../../../types';
+import { KudoMatrixModal } from './KudoMatrixModal';
+import { buildKudoCriteriaMatrix, DEFAULT_KUDO_MATRIX } from './kudoCriteriaMatrix';
 import SharePointService, {
   deduplicateKudos,
   isFaltaApprovedForScoring,
@@ -530,6 +534,7 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   userRole
 }) => {
   const { hasPermission, hasRole } = useRBAC();
+  const { showToast } = useToast();
   const canCreateKudo = hasPermission('modulo:kudos:crear');
   const [selectedAgent, setSelectedAgent] = React.useState<
     IDirectReport | undefined
@@ -565,6 +570,17 @@ const KudosForm: React.FC<IKudosFormProps> = ({
     React.useState<string>('');
   const [publicationErrorMessage, setPublicationErrorMessage] =
     React.useState<string>('');
+  const [maxKudosPorAtributoMensual, setMaxKudosPorAtributoMensual] =
+    React.useState<number>(3);
+  const [allCatalogItems, setAllCatalogItems] =
+    React.useState<ICatalogoItem[]>([]);
+  const [isMatrixModalOpen, setIsMatrixModalOpen] =
+    React.useState<boolean>(false);
+  const [kudosCountInPeriod, setKudosCountInPeriod] =
+    React.useState<number>(0);
+  const [isCheckingLimit, setIsCheckingLimit] =
+    React.useState<boolean>(false);
+
   const evidenciaInputRef = React.useRef<HTMLInputElement>(null);
   const sharePointService = React.useMemo(() => new SharePointService(), []);
   const currentDate = useCurrentDate();
@@ -580,6 +596,10 @@ const KudosForm: React.FC<IKudosFormProps> = ({
   const scopedAgents = availableAgents;
   const isLoadingTeam = isLoadingAgents;
 
+  const matrixGroups = React.useMemo(() => {
+    return buildKudoCriteriaMatrix(allCatalogItems);
+  }, [allCatalogItems]);
+
   React.useEffect(() => {
     setSelectedAgent(undefined);
   }, [availableAgents]);
@@ -589,17 +609,29 @@ const KudosForm: React.FC<IKudosFormProps> = ({
 
     const loadKudoCatalog = async (): Promise<void> => {
       try {
-        const configuration = await sharePointService.getConfiguracion();
-        const sysConfig = await cloudDbClient.getConfiguracionSistema();
+        const [configuration, sysConfig, catalogKudos, catalogConceptos] = await Promise.all([
+          sharePointService.getConfiguracion().catch(() => null),
+          cloudDbClient.getConfiguracionSistema().catch((): Record<string, any> => ({})),
+          sharePointService.getCatalogos('Kudo').catch(() => []),
+          sharePointService.getCatalogos('ConceptoKudo').catch(() => [])
+        ]);
+
         if (isMounted) {
-          const limite = sysConfig.limite_dia_publicacion
+          const limite = sysConfig?.limite_dia_publicacion
             ? Number(sysConfig.limite_dia_publicacion)
-            : (configuration.LimiteDiaPublicacion ?? 5);
+            : (configuration?.LimiteDiaPublicacion ?? 5);
           setLimiteDiaPublicacion(limite);
+
+          const maxKudos = sysConfig?.max_kudos_por_atributo_mensual
+            ? Number(sysConfig.max_kudos_por_atributo_mensual)
+            : (configuration?.MaxKudosPorAtributoMensual ?? 3);
+          setMaxKudosPorAtributoMensual(maxKudos);
+
+          const combinedCatalogs = [...(catalogKudos || []), ...(catalogConceptos || [])];
+          setAllCatalogItems(combinedCatalogs);
         }
 
-        const catalogItems: ReadonlyArray<{ Valor: string }> =
-          await sharePointService.getCatalogos('Kudo');
+        const catalogItems: ReadonlyArray<{ Valor: string }> = catalogKudos || [];
 
         if (!isMounted) {
           return;
@@ -620,28 +652,27 @@ const KudosForm: React.FC<IKudosFormProps> = ({
           }
         });
 
-        const options = Array.from(optionsByAttribute.values());
-
-        setAtributoOptions(options);
-
-        if (options.length === 0) {
-          setCatalogErrorMessage(
-            'No hay atributos de Kudo configurados. Solicite al Administrador agregar opciones al catálogo.'
-          );
+        if (optionsByAttribute.size === 0) {
+          DEFAULT_KUDO_MATRIX.forEach((g) => {
+            optionsByAttribute.set(normalizeKudoAttribute(g.attribute), {
+              key: g.attribute,
+              text: g.attribute
+            });
+          });
         }
+
+        const options = Array.from(optionsByAttribute.values());
+        setAtributoOptions(options);
       } catch (error: unknown) {
         if (!isMounted) {
           return;
         }
 
-        const detail = error instanceof Error
-          ? error.message
-          : 'No fue posible consultar el catálogo de Kudos.';
-
-        setAtributoOptions([]);
-        setCatalogErrorMessage(
-          `${detail} Configure los atributos en el Panel Admin.`
-        );
+        const defaultOptions = DEFAULT_KUDO_MATRIX.map((g) => ({
+          key: g.attribute,
+          text: g.attribute
+        }));
+        setAtributoOptions(defaultOptions);
       } finally {
         if (isMounted) {
           setIsLoadingCatalog(false);
@@ -655,6 +686,70 @@ const KudosForm: React.FC<IKudosFormProps> = ({
       isMounted = false;
     };
   }, [sharePointService]);
+
+  // Consulta reactiva de Kudos previos en el período para validación de tope por atributo
+  React.useEffect(() => {
+    if (!selectedAgent || !atributo || !fechaReconocimiento) {
+      setKudosCountInPeriod(0);
+      setIsCheckingLimit(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsCheckingLimit(true);
+
+    const checkLimit = async (): Promise<void> => {
+      try {
+        const date = fechaReconocimiento;
+        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+        const endOfMonth = new Date(
+          date.getFullYear(),
+          date.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999
+        );
+
+        const existingKudos = await sharePointService.getKudosHistorial(
+          startOfMonth,
+          endOfMonth,
+          selectedAgent.name,
+          selectedAgent.email,
+          selectedAgent.id
+        );
+
+        const normalizedSelectedAttr = normalizeKudoAttribute(atributo);
+        const count = existingKudos.filter(
+          (k) => normalizeKudoAttribute(k.Atributo) === normalizedSelectedAttr
+        ).length;
+
+        if (isMounted) {
+          setKudosCountInPeriod(count);
+        }
+      } catch (err) {
+        console.warn('Error al verificar límite de Kudos:', err);
+      } finally {
+        if (isMounted) {
+          setIsCheckingLimit(false);
+        }
+      }
+    };
+
+    checkLimit().catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedAgent, atributo, fechaReconocimiento, sharePointService]);
+
+  const isLimitReached = Boolean(
+    selectedAgent &&
+    atributo &&
+    fechaReconocimiento &&
+    kudosCountInPeriod >= maxKudosPorAtributoMensual
+  );
 
   React.useEffect(() => {
     if (
@@ -759,6 +854,17 @@ const KudosForm: React.FC<IKudosFormProps> = ({
       return;
     }
 
+    if (isLimitReached) {
+      const msg = `Límite alcanzado: Este colaborador ya cuenta con el máximo permitido de reconocimientos (${maxKudosPorAtributoMensual}) para el atributo '${atributo}' en este período.`;
+      setErrorMessage(msg);
+      showToast({
+        title: 'Tope de reconocimientos alcanzado',
+        message: msg,
+        variant: 'warning'
+      });
+      return;
+    }
+
     if (evidenciaError) {
       setErrorMessage(
         'Corrija la selección de evidencias antes de enviar el reconocimiento.'
@@ -775,7 +881,6 @@ const KudosForm: React.FC<IKudosFormProps> = ({
         const configuration = await sharePointService.getConfiguracion();
         puntosPorKudo = configuration?.PuntosPorKudo || 10;
       } catch {
-        // Fallback temporal si la configuración global no está disponible.
         puntosPorKudo = 10;
       }
 
@@ -793,23 +898,35 @@ const KudosForm: React.FC<IKudosFormProps> = ({
 
       await sharePointService.registrarKudo(kudoData, evidenciaFiles);
 
+      const targetAgentName = selectedAgent.name.trim();
       setSelectedAgent(undefined);
       setAtributo('');
       setMensaje('');
       setFechaReconocimiento(new Date());
       setEvidenciaFiles([]);
       setEvidenciaError('');
+      setKudosCountInPeriod(0);
 
       if (evidenciaInputRef.current) {
         evidenciaInputRef.current.value = '';
       }
 
       setSuccessMessage('Reconocimiento enviado correctamente.');
+      showToast({
+        title: 'Reconocimiento registrado',
+        message: `Se envió el Kudo a ${targetAgentName} exitosamente.`,
+        variant: 'success'
+      });
     } catch (error: unknown) {
       const detail = error instanceof Error
         ? error.message
         : 'Ocurrió un error inesperado al enviar el reconocimiento.';
       setErrorMessage(detail);
+      showToast({
+        title: 'Error al registrar',
+        message: detail,
+        variant: 'error'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -1068,13 +1185,27 @@ const KudosForm: React.FC<IKudosFormProps> = ({
               selectedAgent={selectedAgent}
             />
 
+            {/* Header del Atributo con botón para la Matriz de Criterios */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <span className="text-xs font-semibold text-slate-200">
+                Atributo corporativo <span className="text-rose-400">*</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMatrixModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500 hover:text-slate-950 shadow-sm"
+              >
+                <BookOpen size={14} />
+                <span>📖 Ver Matriz de Criterios de Reconocimiento</span>
+              </button>
+            </div>
+
             <Dropdown
               disabled={
                 isSubmitting ||
                 isLoadingCatalog ||
                 atributoOptions.length === 0
               }
-              label="Atributo corporativo"
               onChange={(_, option) => setAtributo(String(option?.key || ''))}
               options={atributoOptions}
               placeholder={
@@ -1087,6 +1218,26 @@ const KudosForm: React.FC<IKudosFormProps> = ({
               required
               selectedKey={atributo || undefined}
             />
+
+            {/* Alerta de Tope Mensual de Kudos por Atributo */}
+            {isLimitReached && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200 animate-fadeIn"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-300 font-bold text-xs">
+                    !
+                  </span>
+                  <span className="font-bold text-sm">
+                    Tope Mensual Alcanzado ({kudosCountInPeriod}/{maxKudosPorAtributoMensual})
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-amber-300/90 leading-relaxed">
+                  Límite alcanzado: Este colaborador ya cuenta con el máximo permitido de reconocimientos ({maxKudosPorAtributoMensual}) para el atributo "{atributo}" en este período ({formatMonthYear(fechaReconocimiento || new Date())}).
+                </p>
+              </div>
+            )}
 
             <TextField
               disabled={isSubmitting}
@@ -1212,11 +1363,16 @@ const KudosForm: React.FC<IKudosFormProps> = ({
                   isLoadingCatalog ||
                   atributoOptions.length === 0 ||
                   !fechaReconocimiento ||
+                  isLimitReached ||
+                  isCheckingLimit ||
                   Boolean(evidenciaError)
                 }
                 text="Enviar reconocimiento"
                 type="submit"
               />
+              {isCheckingLimit && (
+                <Spinner label="Verificando límites..." size={SpinnerSize.small} />
+              )}
               {isSubmitting && (
                 <Spinner label="Enviando..." size={SpinnerSize.small} />
               )}
@@ -1394,6 +1550,22 @@ const KudosForm: React.FC<IKudosFormProps> = ({
         <EmpleadoMesHistorialView />
       </PivotItem>
     </Pivot>
+
+    <KudoMatrixModal
+      isOpen={isMatrixModalOpen}
+      matrixGroups={matrixGroups}
+      selectedAttribute={atributo}
+      onClose={() => setIsMatrixModalOpen(false)}
+      onSelectConcept={(selectedAttr, conceptText) => {
+        setAtributo(selectedAttr);
+        setMensaje((prev) => {
+          if (!prev.trim()) {
+            return `Reconocimiento por ${selectedAttr}: ${conceptText}`;
+          }
+          return `${prev}\n\n• ${conceptText}`;
+        });
+      }}
+    />
     </div>
   );
 };

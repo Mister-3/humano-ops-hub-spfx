@@ -32,6 +32,7 @@ const catalogCategories: ReadonlyArray<CatalogCategory> = [
   'ErrorProceso',
   'CodigoEtica',
   'Kudo',
+  'ConceptoKudo',
   'ProcesoArea',
   'aplicativos',
   'modulos',
@@ -43,6 +44,7 @@ const catalogCategoryLabels: Record<CatalogCategory, string> = {
   ErrorProceso: 'Subcategorías de errores',
   CodigoEtica: 'Subcategorías de Código de Ética',
   Kudo: 'Atributos de Kudos',
+  ConceptoKudo: 'Conceptos / Criterios de Kudos',
   ProcesoArea: 'Procesos del área',
   modulos_pantallas: 'Módulos y pantallas generales',
   aplicativos: 'Aplicativos del Sistema',
@@ -129,6 +131,7 @@ const AdminConfiguration: React.FC = () => {
   const [penalidadMedia, setPenalidadMedia] = React.useState<number>(15);
   const [penalidadCritica, setPenalidadCritica] = React.useState<number>(50);
   const [limiteDiaPublicacion, setLimiteDiaPublicacion] = React.useState<number>(5);
+  const [maxKudosPorAtributoMensual, setMaxKudosPorAtributoMensual] = React.useState<number>(3);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   const [successMessage, setSuccessMessage] = React.useState<string>('');
@@ -185,6 +188,10 @@ const AdminConfiguration: React.FC = () => {
             ? Number(sysConfig.limite_dia_publicacion)
             : (configuration.LimiteDiaPublicacion ?? 5);
           setLimiteDiaPublicacion(limite);
+          const maxKudos = sysConfig.max_kudos_por_atributo_mensual
+            ? Number(sysConfig.max_kudos_por_atributo_mensual)
+            : (configuration.MaxKudosPorAtributoMensual ?? 3);
+          setMaxKudosPorAtributoMensual(maxKudos);
         }
       } catch (error: unknown) {
         if (isMounted) {
@@ -319,6 +326,7 @@ const AdminConfiguration: React.FC = () => {
         MetaMovimientosPg: metaMovimientosPg,
         MetaEscaneoPg: metaEscaneoPg,
         PuntosPorKudo: puntosPorKudo,
+        MaxKudosPorAtributoMensual: maxKudosPorAtributoMensual,
         PenalidadBaja: penalidadBaja,
         PenalidadMedia: penalidadMedia,
         PenalidadCritica: penalidadCritica,
@@ -327,6 +335,7 @@ const AdminConfiguration: React.FC = () => {
 
       await sharePointService.actualizarConfiguracion(configurationId, data);
       await cloudDbClient.saveConfiguracionSistema('limite_dia_publicacion', limiteDiaPublicacion);
+      await cloudDbClient.saveConfiguracionSistema('max_kudos_por_atributo_mensual', maxKudosPorAtributoMensual);
       setSuccessMessage('Configuración guardada correctamente.');
     } catch (error: unknown) {
       const detail = error instanceof Error
@@ -358,6 +367,11 @@ const AdminConfiguration: React.FC = () => {
 
     if (catalogCategory === 'pantallas' && !catalogParentId) {
       setCatalogErrorMessage('Debe seleccionar el Módulo Padre para vincular la pantalla.');
+      return;
+    }
+
+    if (catalogCategory === 'ConceptoKudo' && !catalogParentId) {
+      setCatalogErrorMessage('Debe seleccionar el Atributo de Kudo Padre para vincular el concepto.');
       return;
     }
 
@@ -689,6 +703,9 @@ const AdminConfiguration: React.FC = () => {
         <section className={`${styles.metricsSection} ${styles.section}`}>
           <div className={styles.sectionHeading}>
             <Text variant="xLarge">Publicación y Reconocimientos</Text>
+            <Text className={styles.description}>
+              Parámetros de cierre de mes, valor de puntuación y topes de reconocimientos por colaborador.
+            </Text>
           </div>
           <div className={styles.metricGrid}>
             <NumericConfigurationField
@@ -704,6 +721,14 @@ const AdminConfiguration: React.FC = () => {
               label="Puntos por Kudo"
               onValueChange={setPuntosPorKudo}
               value={puntosPorKudo}
+            />
+            <NumericConfigurationField
+              disabled={isSubmitting}
+              label="Tope Mensual por Tipo de Kudo"
+              max={50}
+              onValueChange={setMaxKudosPorAtributoMensual}
+              step={1}
+              value={maxKudosPorAtributoMensual}
             />
           </div>
         </section>
@@ -862,6 +887,35 @@ const AdminConfiguration: React.FC = () => {
             </Stack.Item>
           )}
 
+          {catalogCategory === 'ConceptoKudo' && (
+            <Stack.Item className={styles.catalogCategoryField}>
+              <Dropdown
+                disabled={isCatalogSubmitting || deletingCatalogId !== undefined}
+                label="Atributo de Kudo Padre *"
+                onChange={(_, option) => setCatalogParentId(String(option?.key || ''))}
+                options={(() => {
+                  const items = catalogItems
+                    .filter((i) => i.Title === 'Kudo')
+                    .map((i) => ({ key: String(i.rawId ?? i.Id ?? i.Valor), text: i.Valor }));
+                  if (items.length === 0) {
+                    return [
+                      { key: 'Empatía', text: 'Empatía' },
+                      { key: 'Agilidad', text: 'Agilidad' },
+                      { key: 'Pensamiento digital', text: 'Pensamiento digital' },
+                      { key: 'Orientado al negocio', text: 'Orientado al negocio' },
+                      { key: 'Resolución de problemas', text: 'Resolución de problemas' },
+                      { key: 'Trabajo en equipo', text: 'Trabajo en equipo' }
+                    ];
+                  }
+                  return items;
+                })()}
+                placeholder="Seleccione atributo..."
+                selectedKey={catalogParentId}
+                required
+              />
+            </Stack.Item>
+          )}
+
           <Stack.Item className={styles.catalogValueField} grow>
             <TextField
               disabled={isCatalogSubmitting || deletingCatalogId !== undefined}
@@ -923,6 +977,11 @@ const AdminConfiguration: React.FC = () => {
                         <div className={styles.catalogItem} key={item.Id}>
                           <span className={styles.catalogItemValue}>
                             {item.Valor}
+                            {item.parent_id && (
+                              <span className="ml-2 inline-block rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 font-mono">
+                                {item.parent_id}
+                              </span>
+                            )}
                           </span>
                           {canDeleteCatalogs && <IconButton
                             ariaLabel={`Eliminar ${item.Valor}`}

@@ -3,6 +3,20 @@
 Todos los cambios notables en **Manager Hub** se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.2] - 2026-08-22
+
+### Resumen de la Versión
+Lanzamiento enfocado en la **Gobernanza de Reconocimientos & Matriz de Criterios**, implementando topes configurables mensuales por atributo, validación reactiva en tiempo real y modal accesible para consulta y transferencia de conductas orientativas.
+
+### Hitos Principales de la Versión:
+- **Tope Mensual Configurable por Atributo (`maxKudosPorAtributoMensual`)**: Campo numérico en el panel de Administración (`AdminPanel.tsx` -> Publicación y Reconocimientos) con valor por defecto de 3, persistido en Supabase e IndexedDB.
+- **Control Reactivo en Formulario de Kudos (`KudosForm.tsx`)**: Consulta y conteo reactivo de reconocimientos previos del colaborador en el mes evaluado, bloqueo de envíos al superar el límite y banner de advertencia visual (`amber-500/10`) con soporte de notificaciones flotantes `useToast()`.
+- **Matriz de Criterios y Conductas (`KudoMatrixModal.tsx` & `kudoCriteriaMatrix.ts`)**: Modal accesible `AppDialog` con buscador interactivo, pestañas por atributo y botón *"Usar criterio"* para prellenar la redacción del Kudo en 1-clic.
+- **Gestión de Conceptos de Kudos (`ConceptoKudo`)**: Integración en el panel de catálogos con vinculación jerárquica obligatoria al Atributo Padre y sincronización con la matriz de reconocimientos.
+- **Suites de Pruebas Automatizadas**: Incorporación de pruebas unitarias para la matriz y el modal (`KudoMatrixModal.test.tsx`).
+
+---
+
 ## [v2.5.1] - 2026-08-22
 
 ### Resumen de la Versión

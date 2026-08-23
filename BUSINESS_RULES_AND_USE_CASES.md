@@ -1,6 +1,6 @@
 # Business Rules and Functional Specification: Manager Hub (Cerebro Maestro)
 
-Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Manager Hub (v2.5.1)**.
+Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Manager Hub (v2.5.2)**.
 
 ---
 
@@ -208,16 +208,28 @@ El registro diario de productividad (`ProductividadForm.tsx`) captura las siguie
 
 ## 6. Módulo de Reconocimientos, Kudos y Empleado del Mes
 
-### 6.1 Envío de Kudos
-- Reconocimiento entre compañeros basado en atributos culturales definidos en catálogos (Trabajo en Equipo, Orientación al Cliente, Innovación, Excelencia Operativa).
+### 6.1 Envío de Kudos y Tope Configurable por Atributo
+- Reconocimiento entre compañeros basado en atributos culturales definidos en la matriz/catálogo (*Empatía*, *Agilidad*, *Pensamiento digital*, *Orientado al negocio*, *Resolución de problemas*, *Trabajo en equipo*).
 - Asignación de puntaje y dedicatoria personalizada, registrando el correo del remitente para auditoría.
+- **Regla de Tope Mensual por Atributo (`maxKudosPorAtributoMensual`)**:
+  * Un colaborador puede recibir un máximo configurable (valor por defecto: `3`, editable por el Administrador) de reconocimientos por un mismo atributo durante un mismo mes.
+  * Al alcanzar o superar el tope, el sistema bloquea reactivamente el envío en `KudosForm.tsx`, despliega un banner de advertencia visual (`amber-500/10`) con el conteo acumulado y emite un toast de advertencia si se intenta registrar.
 
-### 6.2 Publicación y Beneficio de Día Libre (Empleado del Mes)
+### 6.2 Matriz de Criterios y Conductas de Reconocimiento (`KudoMatrixModal`)
+- Botón accesible *"📖 Ver Matriz de Criterios de Reconocimiento"* ubicado sobre el selector de atributos.
+- Despliega un diálogo accesible (`AppDialog`) con buscador en tiempo real, filtros tipo píldora por categoría y catálogo detallado de conductas orientativas para fundamentar el reconocimiento.
+- Permite hacer clic en *"Usar criterio"* para transferir automáticamente el concepto y redactar el mensaje de felicitación.
+
+### 6.3 Gestión de Conceptos de Kudos en Administración (`ConceptoKudo`)
+- El Administrador puede registrar nuevos conceptos de reconocimiento en el Panel de Catálogos (`CatalogosAdmin` / `AdminPanel.tsx`).
+- Los conceptos se vinculan jerárquicamente a su **Atributo Padre** (`parent_id`) y se fusionan automáticamente con la matriz estándar en el cliente.
+
+### 6.4 Publicación y Beneficio de Día Libre (Empleado del Mes)
 - Al publicar el galardón mensual en `empleado_del_mes`, el registro se inicializa con `dia_libre_reclamado = false`.
 - **Canje Obligatorio en Ausencias**:
-  - Al solicitar una ausencia de tipo *"Día Libre Empleado del Mes"* en `AusenciasForm.tsx`, el sistema consulta los registros de premiación pendientes de canje para ese colaborador.
-  - El usuario debe seleccionar obligatoriamente el período del premio a canjear.
-  - Al persistir la ausencia, el sistema actualiza de inmediato el premio a `dia_libre_reclamado = true` y almacena la referencia cruzada `premio_empleado_mes_id`.
+  * Al solicitar una ausencia de tipo *"Día Libre Empleado del Mes"* en `AusenciasForm.tsx`, el sistema consulta los registros de premiación pendientes de canje para ese colaborador.
+  * El usuario debe seleccionar obligatoriamente el período del premio a canjear.
+  * Al persistir la ausencia, el sistema actualiza de inmediato el premio a `dia_libre_reclamado = true` y almacena la referencia cruzada `premio_empleado_mes_id`.
 
 ---
 

@@ -1,6 +1,6 @@
 # Project Context and Technical Architecture: Manager Hub
 
-Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Manager Hub (v2.5.1)**.
+Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Manager Hub (v2.5.2)**.
 
 ---
 
@@ -11,7 +11,7 @@ Este documento constituye la fuente oficial y exhaustiva de arquitectura técnic
 - Control y registro diario de productividad operativa con validación de devoluciones condicionales.
 - Registro, amonestación y tipificación de faltas disciplinarias y errores de proceso con aprobación jerárquica y masiva.
 - Medición de tiempos de ocupación (llamadas telefónicas y gestión de correos).
-- Sistema de reconocimientos corporativos (*Kudos*) y gestión de galardones (*Empleado del Mes*) con control de días libres.
+- Sistema de reconocimientos corporativos (*Kudos*) con tope mensual configurable por atributo (`maxKudosPorAtributoMensual`), modal interactivo de la Matriz de Criterios y Conductas (`KudoMatrixModal`) y gestión de galardones (*Empleado del Mes*) con control de días libres.
 - Registro de ausencias, licencias e incapacidades, asignación de vacaciones por período anual y cálculo dinámico de capacidad en la matriz de planificación semanal con heatmap semántico.
 - Gestión ágil de iniciativas y mejoras continuas estructuradas en Historias de Usuario (*Como / Quiero / Para*) con Live Preview y exportación multiformato para Azure DevOps / Jira.
 - Módulo operativo End-to-End con aislamiento de snapshots por analista, conciliación de SLA, selector de densidad y resolución de conflictos.

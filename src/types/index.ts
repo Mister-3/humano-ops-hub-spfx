@@ -138,11 +138,19 @@ export type CatalogCategory =
   | 'ErrorProceso'
   | 'CodigoEtica'
   | 'Kudo'
+  | 'ConceptoKudo'
   | 'ProcesoArea'
   | 'modulos_pantallas'
   | 'aplicativos'
   | 'modulos'
   | 'pantallas';
+
+export interface IKudoConceptoItem {
+  id?: string | number;
+  atributo: string;
+  concepto: string;
+  descripcion?: string;
+}
 
 export interface ICatalogoItem extends ILocalEntity {
   Id: number;

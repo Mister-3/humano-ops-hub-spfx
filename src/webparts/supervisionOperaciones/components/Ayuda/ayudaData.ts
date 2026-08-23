@@ -43,7 +43,7 @@ export interface IRelease {
 export const APP_INFO: IAppInfo = {
   name: 'Manager Hub',
   tagline: 'Plataforma Corporativa de Gestión Operativa, Rendimiento y Cultura',
-  version: 'v2.5.1',
+  version: 'v2.5.2',
   environment: 'Producción / Cloud & Local-First',
   architecture: 'React 17 + TypeScript + Tailwind CSS Dark Modern + Supabase PostgreSQL (RLS & RPCs) + IndexedDB v3',
   supportContact: 'soporte.operaciones@humano.com.do',
@@ -195,9 +195,34 @@ export const MODULES_INFO: IModuleInfo[] = [
 
 export const RELEASES_DATA: IRelease[] = [
   {
-    version: 'v2.5.1',
+    version: 'v2.5.2',
     date: '22 de Agosto, 2026',
     isCurrent: true,
+    codename: 'Kudos Limits & Recognition Matrix',
+    summary: 'Incorporación del control dinámico de límite mensual de reconocimientos por atributo en Administración, validación reactiva en tiempo real en el formulario de Kudos y modal interactivo de la Matriz de Criterios y Conductas.',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Tope Mensual Configurable por Tipo de Kudo (maxKudosPorAtributoMensual) en el módulo de Administración con persistencia híbrida en Supabase e IndexedDB.'
+      },
+      {
+        type: 'feature',
+        description: 'Validación reactiva en tiempo real en KudosForm bloqueando envíos excedentes y mostrando banner de advertencia con conteo de reconocimientos del período.'
+      },
+      {
+        type: 'feature',
+        description: 'Matriz Interactiva de Criterios y Conductas (KudoMatrixModal) con buscador, filtros y transferencia de conceptos al mensaje en un solo clic.'
+      },
+      {
+        type: 'feature',
+        description: 'Gestión de Conceptos de Kudos (ConceptoKudo) en el Panel de Administración de Catálogos vinculados jerárquicamente al Atributo Padre.'
+      }
+    ]
+  },
+  {
+    version: 'v2.5.1',
+    date: '22 de Agosto, 2026',
+    isCurrent: false,
     codename: 'Corporate Rebranding & Visual Identity',
     summary: 'Consolidación oficial del rebranding corporativo de la plataforma a Manager Hub, unificando títulos, cabeceras, manifest web, paleta de comandos y documentación técnica.',
     changes: [
