@@ -247,3 +247,62 @@ El registro diario de productividad (`ProductividadForm.tsx`) captura las siguie
 
 - Consolida de manera ponderada los resultados de productividad diaria, índice de calidad (deducción por faltas y errores de proceso) y cumplimiento de tiempos de ocupación y SLA.
 - Genera el reporte consolidado de desempeño individual y por equipo para soporte de revisiones gerenciales.
+
+---
+
+## 10. Módulo "Centro de Ayuda & Versiones" (`AyudaView.tsx`)
+
+El módulo de Ayuda centraliza la documentación interactiva, arquitectura técnica, catálogo de módulos operativos y bitácora histórica de versiones (*Changelog*) del ecosistema **Humano Ops Hub**.
+
+```mermaid
+graph TD
+    A["📖 Centro de Ayuda & Versiones (AyudaView.tsx)"]
+    A --> B["📘 Pestaña: Acerca de (AcercaDeTab.tsx)"]
+    A --> C["🚀 Pestaña: Versiones y Correcciones (VersionesTab.tsx)"]
+
+    B --> B1["Hero Banner & Estado Activo v2.4.0"]
+    B --> B2["4 Pilares Técnicos de Arquitectura"]
+    B --> B3["Catálogo Exhaustivo de 9 Módulos"]
+    B --> B4["Directorio de Soporte y Administración"]
+
+    C --> C1["KPIs de Despliegue (Versión, Releases, Fecha)"]
+    C --> C2["Barra de Filtros por Tipo de Cambio"]
+    C --> C3["Timeline Vertical con Conector Dark Modern"]
+    C --> C4["Bitácora Detallada de Cambios (Features, Fixes, Sec)"]
+
+    style A fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
+    style B fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#fff
+    style C fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#fff
+```
+
+### 10.1 Regla de Acceso Universal y Gobernanza
+- **Acceso Irrestricto**: A diferencia de los módulos operativos con permisos granulares, el **Centro de Ayuda** posee acceso universal e irrestricto para todos los usuarios corporativos autenticados (`admin`, `gerente`, `supervisor`, `asistente`, `agente`) sin bloqueos de `PermissionGuard` (`canAccessModule('ayuda') === true`).
+- **Navegación**: Accesible desde el ícono `Help` en la sección inferior de la barra de navegación lateral (`SidebarNav.tsx`).
+
+### 10.2 Casos de Uso: Pestaña "Acerca de la Plataforma" (`AcercaDeTab.tsx`)
+1. **Visión del Ecosistema e Infraestructura**: Presentación del alcance del hub operativo, entorno de despliegue y compatibilidad con persistencia híbrida (Supabase PostgreSQL y caché local IndexedDB v3).
+2. **Pilares Técnicos y Arquitectura**: Detalle interactivo de las bases de ingeniería:
+   - *Local-First & Cloud Sync*: Operatividad continua ante fallas de red con sincronización automática.
+   - *Seguridad RBAC Granular*: 5 roles canónicos, roles dinámicos y superrol Admin con bypass inmutable.
+   - *Design System Dark Modern*: Paleta ergonómica Slate/Cyan, componentes accesibles con Focus Trap y transparencias glassmorphic.
+   - *Resiliencia en 3 Capas*: Protección integral respaldada por Git DDL, Supabase PITR y SharePoint/M365.
+3. **Catálogo de Módulos Operativos**: Tarjetas `SurfaceCard` para cada uno de los 9 módulos funcionales, detallando:
+   - Ícono temático y categoría funcional (*Analítica 360°*, *Radicaciones & SLA*, *Calidad & Disciplina*, *Ágil & DevOps*, etc.).
+   - Descripción del propósito operativo.
+   - Viñetas de 2 a 3 casos de uso clave.
+   - Etiquetas de roles con acceso autorizado (`StatusBadge`).
+4. **Directorio y Canales de Contacto**: Acceso directo para escalar consultas operativas a soporte técnico (`soporte.operaciones@humano.com.do`) o gestionar nuevos catálogos con la administración de la plataforma (`admin.ops@humano.com.do`).
+
+### 10.3 Casos de Uso: Pestaña "Versiones y Correcciones" (`VersionesTab.tsx`)
+1. **Métricas de Entrega Continua**: Indicadores `KpiCard` destacando la Versión Activa en producción (`v2.4.0`), el total de versiones desplegadas (5 releases históricos) y la fecha de última actualización.
+2. **Filtrado Semántico de Novedades**: Barra interactiva de botones estilo píldora que permite aislar los cambios del historial según su naturaleza:
+   - 📋 **Todos**: Vista integral de todos los cambios registrados.
+   - ✨ **Mejoras / Features**: Nuevas capacidades funcionales y herramientas incorporadas.
+   - 🐛 **Correcciones / Bugfixes**: Ajustes de estabilidad, parches y correcciones de cálculos.
+   - ⚙️ **Arquitectura / Refactors**: Optimizaciones estructurales, migraciones de base de datos y modernización de código.
+   - 🛡️ **Seguridad & RBAC**: Políticas de control de acceso, auditoría y aislamiento de datos.
+3. **Línea de Tiempo Vertical (Timeline)**:
+   - Conector gráfico Dark Modern con indicador luminoso animado para la versión activa en curso.
+   - Tarjetas de versión con codename, fecha de publicación, resumen ejecutivo y lista detallada de cambios con badges semánticos de color (`emerald`, `rose`, `cyan`, `amber`).
+   - Enlace directo de referencia técnica al archivo `CHANGELOG.md` del repositorio.
+

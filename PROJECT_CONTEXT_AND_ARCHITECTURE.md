@@ -94,7 +94,10 @@ npm run generate:appdb
     │   ├── AuthView.tsx                     # Vista de login integrada en Dark Modern
     │   ├── RBACContext.tsx                  # Contexto reactivo de permisos efectivos
     │   ├── rbacPolicy.ts                    # Evaluador deny-by-default y bypass de Admin
-    │   └── rbacRoleCatalog.ts               # Catálogo base de 5 roles, normalización y slugs
+    │   ├── rbacRoleCatalog.ts               # Catálogo base de 5 roles, normalización y slugs
+    │   ├── devMockUsers.ts                  # Catálogo de identidades y permisos mock para testing dev
+    │   └── __tests__/                       # Pruebas unitarias de autenticación y bypass
+    │       └── devBypass.test.ts
     ├── modules/                             # Módulos de Dominio Aislados
     │   ├── improvements/                    # Dominio de Iniciativas & Mejoras
     │   │   ├── improvementsDomain.ts        # Lógica de Historias de Usuario, KPIs y exportación
@@ -123,6 +126,7 @@ npm run generate:appdb
         │   │   ├── SurfaceCard.tsx          # Contenedor base de superficie y elevación
         │   │   ├── PermissionGuard.tsx      # Guardia declarativa de interfaz con NoAccessMessage
         │   │   ├── DeleteConfirmModal.tsx   # Modal de confirmación para eliminaciones críticas
+        │   │   ├── DevRoleSwitcher.tsx      # Widget flotante de switch de roles para desarrollo
         │   │   ├── SkeletonLoader.tsx       # Esqueletos de carga fluidos
         │   │   └── index.ts                 # Barril de exportación de primitivas
         │   ├── Admin/                       # Configuración y Administración de Usuarios
@@ -132,6 +136,13 @@ npm run generate:appdb
         │   ├── Ausencias/                   # Ausencias, Vacaciones y Planificación Semanal
         │   │   ├── AusenciasForm.tsx
         │   │   └── PlanificacionSemanal.tsx
+        │   ├── Ayuda/                       # Centro de Ayuda, Documentación y Changelog
+        │   │   ├── ayudaData.ts             # Metadatos del sistema, módulos y releases históricos
+        │   │   ├── AcercaDeTab.tsx          # Hero banner, pilares y catálogo de módulos
+        │   │   ├── VersionesTab.tsx         # KPIs, filtros de cambios y timeline vertical
+        │   │   ├── AyudaView.tsx            # Contenedor principal con PageHeader y selector de tabs
+        │   │   └── __tests__/               # Pruebas unitarias del módulo de ayuda
+        │   │       └── AyudaView.test.tsx
         │   ├── Dashboard/                   # Tablero general de métricas
         │   ├── EndToEnd/                    # Radicaciones End-to-End y SLA
         │   │   ├── EndToEndView.tsx
@@ -275,6 +286,23 @@ import { PermissionGuard } from '../Common';
   <RolesPermissionsAdmin />
 </PermissionGuard>
 ```
+
+#### 7. `DevRoleSwitcher` (`DevRoleSwitcher.tsx`)
+Widget flotante (`fixed bottom-4 left-4 z-[9999]`) para alternar en caliente entre los 5 roles canónicos (`Admin`, `Gerente`, `Supervisor`, `Asistente`, `Agente`) durante auditorías UX locales:
+- Condicionado a entorno de desarrollo (`isDevEnvironment()` / `import.meta.env.DEV`).
+- Totalmente inocuo e inactivo en producción (`import.meta.env.PROD === true`).
+- Sincroniza el rol simulado con `localStorage` (`ops_dev_mock_role`) y notifica a `AuthProvider` y `RBACContext` vía eventos de navegador.
+
+---
+
+### 3.4 Arquitectura del Módulo "Centro de Ayuda & Versiones" (`components/Ayuda/`)
+
+El módulo `Ayuda` está desacoplado en componentes modulares especializados:
+
+1. **`ayudaData.ts`**: Contiene las interfaces y constantes tipadas (`APP_INFO`, `MODULES_INFO`, `RELEASES_DATA`) que alimentan tanto el catálogo como el timeline del changelog.
+2. **`AcercaDeTab.tsx`**: Renderiza el hero banner, los 4 pilares arquitectónicos y el catálogo de 9 módulos utilizando `SurfaceCard` y `StatusBadge`.
+3. **`VersionesTab.tsx`**: Presenta las métricas consolidadas (`KpiCard`), barra de filtros por tipo de cambio (`feature`, `fix`, `refactor`, `security`) y la línea de tiempo vertical con conectores Dark Modern.
+4. **`AyudaView.tsx`**: Componente orquestador con `PageHeader` y barra de pestañas ergonómica (`role="tablist"`).
 
 ---
 
