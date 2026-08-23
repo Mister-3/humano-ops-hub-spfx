@@ -2,6 +2,12 @@ import * as React from 'react';
 
 import { createRBACPolicy } from './rbacPolicy';
 import { rbacService } from '../services/RBACService';
+import {
+  isDevAuthBypassEnabled,
+  getDevMockRoleSlug,
+  getMockUser,
+  DEV_MOCK_STORAGE_KEY
+} from './devMockUsers';
 
 export interface IRBACContextValue {
   userRoles: string[];
@@ -23,14 +29,37 @@ interface IRBACProviderProps {
 }
 
 export const RBACProvider: React.FC<IRBACProviderProps> = ({ children, userEmail }) => {
-  const [userRoles, setUserRoles] = React.useState<string[]>([]);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const [loading, setLoading] = React.useState<boolean>(true);
+  const [userRoles, setUserRoles] = React.useState<string[]>(() => {
+    if (isDevAuthBypassEnabled()) {
+      const slug = getDevMockRoleSlug();
+      return getMockUser(slug).roles;
+    }
+    return [];
+  });
+  const [permissions, setPermissions] = React.useState<string[]>(() => {
+    if (isDevAuthBypassEnabled()) {
+      const slug = getDevMockRoleSlug();
+      return getMockUser(slug).permissions;
+    }
+    return [];
+  });
+  const [loading, setLoading] = React.useState<boolean>(() => !isDevAuthBypassEnabled());
   const [error, setError] = React.useState<string>('');
   const activeIdentityRef = React.useRef<string>('');
 
   const refreshAccess = React.useCallback(async (): Promise<void> => {
     const requestedIdentity = userEmail.trim().toLocaleLowerCase();
+    
+    if (isDevAuthBypassEnabled()) {
+      const slug = getDevMockRoleSlug();
+      const mock = getMockUser(slug);
+      setUserRoles(mock.roles);
+      setPermissions(mock.permissions);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
@@ -53,14 +82,49 @@ export const RBACProvider: React.FC<IRBACProviderProps> = ({ children, userEmail
   React.useEffect(() => {
     const requestedIdentity = userEmail.trim().toLocaleLowerCase();
     activeIdentityRef.current = requestedIdentity;
-    // Denegación por defecto y purga inmediata al cambiar de identidad.
-    setUserRoles([]);
-    setPermissions([]);
-    setError('');
-    void refreshAccess();
+
+    if (isDevAuthBypassEnabled()) {
+      const slug = getDevMockRoleSlug();
+      const mock = getMockUser(slug);
+      setUserRoles(mock.roles);
+      setPermissions(mock.permissions);
+      setLoading(false);
+      setError('');
+    } else {
+      setUserRoles([]);
+      setPermissions([]);
+      setError('');
+      void refreshAccess();
+    }
+
+    const handleRoleChange = () => {
+      if (isDevAuthBypassEnabled()) {
+        const slug = getDevMockRoleSlug();
+        const mock = getMockUser(slug);
+        setUserRoles(mock.roles);
+        setPermissions(mock.permissions);
+        setLoading(false);
+        setError('');
+      } else {
+        void refreshAccess();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('ops-dev-role-change', handleRoleChange);
+      window.addEventListener('storage', (event) => {
+        if (event.key === DEV_MOCK_STORAGE_KEY) {
+          handleRoleChange();
+        }
+      });
+    }
+
     return () => {
       if (activeIdentityRef.current === requestedIdentity) {
         activeIdentityRef.current = '';
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('ops-dev-role-change', handleRoleChange);
       }
     };
   }, [refreshAccess, userEmail]);

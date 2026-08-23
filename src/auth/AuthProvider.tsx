@@ -1,6 +1,13 @@
 import * as React from 'react';
 
 import AuthService from './AuthService';
+import {
+  isDevAuthBypassEnabled,
+  getDevMockRoleSlug,
+  getMockUser,
+  DEV_MOCK_STORAGE_KEY,
+  DEV_MOCK_USERS
+} from './devMockUsers';
 import type {
   AppUserRole,
   IAppUserRecord,
@@ -44,26 +51,63 @@ export const AuthProvider: React.FC<IAuthProviderProps> = ({
 }) => {
   const service = React.useMemo(() => new AuthService(), []);
   const [currentUser, setCurrentUser] =
-    React.useState<IAuthenticatedUser | null>(null);
-  const [isLoading, setIsLoading] = React.useState<boolean>(true);
+    React.useState<IAuthenticatedUser | null>(() => {
+      if (isDevAuthBypassEnabled()) {
+        const slug = getDevMockRoleSlug();
+        return getMockUser(slug);
+      }
+      return null;
+    });
+  const [isLoading, setIsLoading] = React.useState<boolean>(() => !isDevAuthBypassEnabled());
 
   React.useEffect(() => {
     let isMounted = true;
 
-    service.initialize()
-      .then((user) => {
-        if (isMounted) {
-          setCurrentUser(user);
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
+    if (isDevAuthBypassEnabled()) {
+      const slug = getDevMockRoleSlug();
+      setCurrentUser(getMockUser(slug));
+      setIsLoading(false);
+    } else {
+      service.initialize()
+        .then((user) => {
+          if (isMounted) {
+            setCurrentUser(user);
+          }
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        });
+    }
+
+    const handleRoleChange = () => {
+      if (!isMounted) return;
+      if (isDevAuthBypassEnabled()) {
+        const slug = getDevMockRoleSlug();
+        setCurrentUser(getMockUser(slug));
+        setIsLoading(false);
+      } else {
+        service.restoreSession().then((user) => {
+          if (isMounted) setCurrentUser(user);
+        });
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('ops-dev-role-change', handleRoleChange);
+      window.addEventListener('storage', (event) => {
+        if (event.key === DEV_MOCK_STORAGE_KEY) {
+          handleRoleChange();
         }
       });
+    }
 
     return () => {
       isMounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('ops-dev-role-change', handleRoleChange);
+      }
     };
   }, [service]);
 
@@ -82,13 +126,39 @@ export const AuthProvider: React.FC<IAuthProviderProps> = ({
       service.requestMasterAdminRecovery(recoveryEmail),
     signOut: async () => {
       // Desmonta inmediatamente toda UI y estado del usuario anterior.
+      if (typeof window !== 'undefined' && isDevAuthBypassEnabled()) {
+        window.localStorage?.removeItem(DEV_MOCK_STORAGE_KEY);
+      }
       setCurrentUser(null);
       await service.signOut();
     },
     refreshCurrentUser: async () => {
-      setCurrentUser(await service.restoreSession());
+      if (isDevAuthBypassEnabled()) {
+        const slug = getDevMockRoleSlug();
+        setCurrentUser(getMockUser(slug));
+      } else {
+        setCurrentUser(await service.restoreSession());
+      }
     },
-    listUsers: () => service.listUsers(),
+    listUsers: async () => {
+      const dbUsers = await service.listUsers();
+      if (dbUsers.length > 0) return dbUsers;
+      if (isDevAuthBypassEnabled()) {
+        return Object.values(DEV_MOCK_USERS).map((mock, index) => ({
+          Id: mock.id,
+          ID: mock.externalId,
+          Email: mock.email,
+          PasswordHash: '',
+          Nombre: mock.displayName,
+          Rol: mock.role,
+          Estado: mock.status,
+          IsProfileValidatedByPA: mock.isProfileValidatedByPA,
+          FechaRegistro: new Date().toISOString(),
+          FechaAprobacion: new Date().toISOString()
+        }));
+      }
+      return [];
+    },
     authorizeUser: (userId, role) => service.authorizeUser(userId, role)
   }), [currentUser, isLoading, service]);
 

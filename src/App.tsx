@@ -6,6 +6,7 @@ import ChangePasswordDialog from './auth/ChangePasswordDialog';
 import { RBACProvider } from './auth/RBACContext';
 import SupervisionOperaciones from './webparts/supervisionOperaciones/components/SupervisionOperaciones';
 import GraphService from './webparts/supervisionOperaciones/services/GraphService';
+import { DevRoleSwitcher } from './webparts/supervisionOperaciones/components/Common/DevRoleSwitcher';
 
 const App: React.FC = () => {
   const { currentUser, signOut } = useAuth();
@@ -44,6 +45,8 @@ const App: React.FC = () => {
         )}
         onDismiss={() => setIsChangePasswordOpen(false)}
       />
+
+      <DevRoleSwitcher />
     </div>
   );
 };

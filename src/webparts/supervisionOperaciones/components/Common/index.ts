@@ -19,3 +19,8 @@ export type {
   ISurfaceCardProps,
   SurfaceCardElevation
 } from './SurfaceCard';
+
+export { PermissionGuard, NoAccessMessage } from './PermissionGuard';
+export type { IPermissionGuardProps } from './PermissionGuard';
+
+export { DevRoleSwitcher } from './DevRoleSwitcher';
