@@ -25,6 +25,9 @@ export interface ISaveInitiativeInput {
   criterios: IAcceptanceCriterion[];
   prioridad: InitiativePriority;
   estadoCiclo: InitiativeLifecycleStatus;
+  adjuntoUrl?: string;
+  adjuntoNombre?: string;
+  adjuntoTamano?: number;
 }
 
 const generateAuditId = (): string =>
@@ -97,6 +100,9 @@ const mapRow = (row: Record<string, unknown>): ISolicitudMejora => ({
   prioridad: (row.prioridad || 'Media') as InitiativePriority,
   estado_ciclo: (row.estado_ciclo || mapLegacyStatus(String(row.estado || ''))) as InitiativeLifecycleStatus,
   estado: (row.estado || 'Pendiente_Aprobacion') as ISolicitudMejora['estado'],
+  adjunto_url: row.adjunto_url ? String(row.adjunto_url) : undefined,
+  adjunto_nombre: row.adjunto_nombre ? String(row.adjunto_nombre) : undefined,
+  adjunto_tamano: typeof row.adjunto_tamano === 'number' ? row.adjunto_tamano : undefined,
   comentario_supervisor: String(row.comentario_supervisor || ''),
   supervisor_email: String(row.supervisor_email || ''),
   supervisor_nombre: String(row.supervisor_nombre || ''),
@@ -162,12 +168,23 @@ export class ImprovementsRepository {
       prioridad: input.prioridad,
       estado_ciclo: input.estadoCiclo,
       estado: isDraft ? 'Pendiente_Aprobacion' : input.estadoCiclo === 'Descartada' ? 'Declinada' : input.estadoCiclo === 'Aprobada' ? 'Aprobada' : 'Pendiente_Aprobacion',
+      adjunto_url: input.adjuntoUrl || null,
+      adjunto_nombre: input.adjuntoNombre || null,
+      adjunto_tamano: input.adjuntoTamano || null,
       updated_at: new Date().toISOString()
     };
 
-    const response = input.id
+    let response = input.id
       ? await authenticatedSupabase.from('solicitudes_mejora').update(payload).eq('id', input.id).select('*').single()
       : await authenticatedSupabase.from('solicitudes_mejora').insert([{ ...payload, audit_id: generateAuditId() }]).select('*').single();
+
+    if (response.error && (response.error.code === '42703' || String(response.error.message).includes('adjunto'))) {
+      const { adjunto_url: _url, adjunto_nombre: _nom, adjunto_tamano: _tam, ...fallbackPayload } = payload;
+      response = input.id
+        ? await authenticatedSupabase.from('solicitudes_mejora').update(fallbackPayload).eq('id', input.id).select('*').single()
+        : await authenticatedSupabase.from('solicitudes_mejora').insert([{ ...fallbackPayload, audit_id: generateAuditId() }]).select('*').single();
+    }
+
     if (response.error || !response.data) {
       throw new Error(`No se pudo guardar la iniciativa: ${response.error?.message || 'Supabase no retornó datos.'}`);
     }

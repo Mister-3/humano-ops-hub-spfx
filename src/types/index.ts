@@ -274,6 +274,9 @@ export interface ISolicitudMejora {
   prioridad?: InitiativePriority;
   estado_ciclo?: InitiativeLifecycleStatus;
   estado: 'Pendiente_Aprobacion' | 'Aprobada' | 'Declinada';
+  adjunto_url?: string;
+  adjunto_nombre?: string;
+  adjunto_tamano?: number;
   comentario_supervisor?: string;
   supervisor_email?: string;
   supervisor_nombre?: string;

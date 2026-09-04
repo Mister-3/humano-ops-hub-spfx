@@ -3,6 +3,22 @@
 Todos los cambios notables en **Manager Hub** se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.4] - 2026-09-04
+
+### Resumen de la Versión
+Lanzamiento enfocado en **Refinamientos Visuales, Restauración de Adjuntos en Mejoras & Segmentación en Configuración**, incorporando carga y visualización de archivos en iniciativas, reorganización por pestañas en Administración y métricas reactivas con vista general predeterminada en End-to-End.
+
+### Hitos Principales de la Versión:
+- **Restauración de Adjuntos en Iniciativas & Mejoras (`IniciativasMejorasView.tsx`)**: Zona de carga drag-and-drop / selector de archivos Dark Modern con soporte para imágenes, PDFs y capturas (hasta 15 MB), previsualización de miniaturas, badge de peso formateado y descarte manual. Persistencia híbrida en Supabase Storage con fallback resiliente en Base64 data URL.
+- **Visualizador de Evidencias y Descarga**: Tarjetas de archivo adjunto integradas con previsualización o enlace de descarga en la tabla de iniciativas, en el panel lateral Live Preview y en la cola de revisión de supervisores (`AprobacionMejorasQueue.tsx`).
+- **Migración de Base de Datos Idempotente (`202609040001_iniciativas_adjuntos.sql`)**: Incorporación de columnas `adjunto_url`, `adjunto_nombre` y `adjunto_tamano` en `public.solicitudes_mejora` con compatibilidad retroactiva y tolerancia a fallos en `improvementsRepository.ts`.
+- **Segmentación por Pestañas en Configuración (`AdminPanel.tsx`)**: Organización del panel de administración mediante pestañas píldora Dark Modern accesibles:
+  * *Pestaña 1: "Metas y Parámetros Operativos"*: Concentra Metas Operativas, Pesos Porcentuales (%), Publicación y Reconocimientos, y Penalidades por Faltas, manteniendo el botón global "Guardar Configuración".
+  * *Pestaña 2: "Gestión de Catálogos"*: Agrupa la Sincronización de Headcount/Directorio (M365) y la Gestión de Catálogos Operativos (conceptos de Kudos, motivos de falta, aplicaciones, módulos y pantallas).
+- **Segmentación Reactiva y Pestaña "Vista General" en End-to-End (`EndToEndView.tsx`)**: Nueva pestaña por defecto "Vista General" junto a "Emisiones" y "Movimientos", recalculando reactivamente las tarjetas y widgets analíticos de distribución, carga por etapa, páginas pendientes y escaladas según el tipo de operación activo.
+
+---
+
 ## [v2.5.3] - 2026-09-04
 
 ### Resumen de la Versión

@@ -43,7 +43,7 @@ export interface IRelease {
 export const APP_INFO: IAppInfo = {
   name: 'Manager Hub',
   tagline: 'Plataforma Corporativa de Gestión Operativa, Rendimiento y Cultura',
-  version: 'v2.5.3',
+  version: 'v2.5.4',
   environment: 'Producción / Cloud & Local-First',
   architecture: 'React 17 + TypeScript + Tailwind CSS Dark Modern + Supabase PostgreSQL (RLS & RPCs) + IndexedDB v3',
   supportContact: 'soporte.operaciones@humano.com.do',
@@ -195,9 +195,34 @@ export const MODULES_INFO: IModuleInfo[] = [
 
 export const RELEASES_DATA: IRelease[] = [
   {
-    version: 'v2.5.3',
+    version: 'v2.5.4',
     date: '4 de Septiembre, 2026',
     isCurrent: true,
+    codename: 'UI Refinements, Attachments & Admin Tabs',
+    summary: 'Restauración completa del soporte para adjuntos en Iniciativas & Mejoras, segmentación por pestañas Dark Modern en Configuración y métricas reactivas con pestaña por defecto "Vista General" en End-to-End.',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Restauración de adjuntos en Iniciativas & Mejoras con dropzone Dark Modern, vista previa de miniaturas, validación de hasta 15MB y almacenamiento en Supabase Storage con fallback resiliente en Base64.'
+      },
+      {
+        type: 'feature',
+        description: 'Visualizador y descargador de adjuntos integrado en el detalle de iniciativas (Live Preview), listado de propuestas y cola de aprobación de supervisores.'
+      },
+      {
+        type: 'refactor',
+        description: 'Segmentación del módulo de Configuración (AdminPanel) en dos pestañas píldora Dark Modern: "Metas y Parámetros Operativos" y "Gestión de Catálogos" con botón de guardado accesible.'
+      },
+      {
+        type: 'feature',
+        description: 'Pestaña por defecto "Vista General" y segmentación reactiva de métricas y widgets analíticos por tipo de operación (Emisiones, Movimientos, General) en End-to-End.'
+      }
+    ]
+  },
+  {
+    version: 'v2.5.3',
+    date: '4 de Septiembre, 2026',
+    isCurrent: false,
     codename: 'Deep Linking & URL Routing',
     summary: 'Enrutamiento sincronizado con la URL basado en hash (#/<modulo>), soporte completo para recargas (F5), deep linking con parámetros de desarrollo y navegación nativa con historial del navegador.',
     changes: [

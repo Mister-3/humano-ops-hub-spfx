@@ -25,6 +25,7 @@ import SharePointService, {
 } from '../../services/SharePointService';
 import DeleteConfirmModal from '../Common/DeleteConfirmModal';
 import { NoAccessMessage } from '../Common/PermissionGuard';
+import { Sliders, FolderTree } from 'lucide-react';
 import styles from './AdminPanel.module.scss';
 
 const catalogCategories: ReadonlyArray<CatalogCategory> = [
@@ -111,6 +112,7 @@ const NumericConfigurationField: React.FC<
 const AdminConfiguration: React.FC = () => {
   const { hasPermission } = useRBAC();
   const canDeleteCatalogs = hasPermission('modulo:admin:eliminar_catalogos');
+  const [activeAdminTab, setActiveAdminTab] = React.useState<'parametros' | 'catalogos'>('parametros');
   const [configurationId, setConfigurationId] = React.useState<number>();
   const [pesoCasos, setPesoCasos] = React.useState<number>(20);
   const [pesoEmisionesTx, setPesoEmisionesTx] = React.useState<number>(15);
@@ -508,58 +510,49 @@ const AdminConfiguration: React.FC = () => {
         </MessageBar>
       )}
 
-      <Stack className={`${styles.roleCard} ${styles.syncCard}`} tokens={{ childrenGap: 18 }}>
-        <Stack tokens={{ childrenGap: 4 }}>
-          <Text variant="xLarge">Sincronización de Headcount y Directorio (SharePoint / M365)</Text>
-          <Text className={styles.description}>
-            Importa y actualiza la lista oficial de colaboradores, cargos y estructura operativa desde el repositorio corporativo.
-          </Text>
-        </Stack>
+      {/* Selector de Pestañas tipo Píldora Dark Modern */}
+      <div
+        className="flex p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl max-w-xl gap-2 shadow-inner my-1"
+        role="tablist"
+        aria-label="Secciones de Configuración"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="tab-parametros"
+          aria-selected={activeAdminTab === 'parametros'}
+          aria-controls="panel-parametros"
+          onClick={() => setActiveAdminTab('parametros')}
+          className={`flex-1 py-2.5 px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeAdminTab === 'parametros'
+              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`}
+        >
+          <Sliders className="w-4 h-4 text-cyan-300" />
+          <span>Metas y Parámetros Operativos</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-catalogos"
+          aria-selected={activeAdminTab === 'catalogos'}
+          aria-controls="panel-catalogos"
+          onClick={() => setActiveAdminTab('catalogos')}
+          className={`flex-1 py-2.5 px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeAdminTab === 'catalogos'
+              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`}
+        >
+          <FolderTree className="w-4 h-4 text-cyan-300" />
+          <span>Gestión de Catálogos</span>
+        </button>
+      </div>
 
-        {syncSuccessMessage && (
-          <MessageBar messageBarType={MessageBarType.success}>
-            {syncSuccessMessage}
-          </MessageBar>
-        )}
-
-        {syncErrorMessage && (
-          <MessageBar messageBarType={MessageBarType.error}>
-            {syncErrorMessage}
-          </MessageBar>
-        )}
-
-        <Stack horizontal wrap verticalAlign="center" tokens={{ childrenGap: 16 }}>
-          <PrimaryButton
-            disabled={isSyncing}
-            iconProps={{ iconName: 'Download' }}
-            onClick={() => void handleExport()}
-            text="🔄 Exportar a Excel / Power Automate"
-          />
-          <DefaultButton
-            disabled={isSyncing}
-            iconProps={{ iconName: 'Upload' }}
-            onClick={() => fileInputRef.current?.click()}
-            text="Importar respuesta (.xlsx / .json)"
-          />
-          <input
-            ref={fileInputRef}
-            accept=".xlsx,.xls,.json"
-            aria-label="Seleccionar paquete AppDB"
-            style={{ display: 'none' }}
-            onChange={(event) => void handleImport(event)}
-            type="file"
-          />
-          {isSyncing && (
-            <Spinner label="Sincronizando..." size={SpinnerSize.small} />
-          )}
-          <p className={styles.syncHint}>
-            Límite máximo por archivo: 50 MB
-          </p>
-        </Stack>
-      </Stack>
-
-      <Stack className={styles.formCard} tokens={{ childrenGap: 20 }}>
-        <section className={styles.metricsSection}>
+      {activeAdminTab === 'parametros' && (
+        <Stack id="panel-parametros" role="tabpanel" aria-labelledby="tab-parametros" className={styles.formCard} tokens={{ childrenGap: 20 }}>
+          <section className={styles.metricsSection}>
           <div className={styles.sectionHeading}>
             <Text variant="xLarge">Metas Operativas</Text>
             <Text className={styles.description}>
@@ -809,8 +802,61 @@ const AdminConfiguration: React.FC = () => {
           )}
         </Stack>
       </Stack>
+      )}
 
-      <Stack className={styles.catalogCard} tokens={{ childrenGap: 18 }}>
+      {activeAdminTab === 'catalogos' && (
+        <Stack id="panel-catalogos" role="tabpanel" aria-labelledby="tab-catalogos" tokens={{ childrenGap: 20 }}>
+          <Stack className={`${styles.roleCard} ${styles.syncCard}`} tokens={{ childrenGap: 18 }}>
+            <Stack tokens={{ childrenGap: 4 }}>
+              <Text variant="xLarge">Sincronización de Headcount y Directorio (SharePoint / M365)</Text>
+              <Text className={styles.description}>
+                Importa y actualiza la lista oficial de colaboradores, cargos y estructura operativa desde el repositorio corporativo.
+              </Text>
+            </Stack>
+
+            {syncSuccessMessage && (
+              <MessageBar messageBarType={MessageBarType.success}>
+                {syncSuccessMessage}
+              </MessageBar>
+            )}
+
+            {syncErrorMessage && (
+              <MessageBar messageBarType={MessageBarType.error}>
+                {syncErrorMessage}
+              </MessageBar>
+            )}
+
+            <Stack horizontal wrap verticalAlign="center" tokens={{ childrenGap: 16 }}>
+              <PrimaryButton
+                disabled={isSyncing}
+                iconProps={{ iconName: 'Download' }}
+                onClick={() => void handleExport()}
+                text="🔄 Exportar a Excel / Power Automate"
+              />
+              <DefaultButton
+                disabled={isSyncing}
+                iconProps={{ iconName: 'Upload' }}
+                onClick={() => fileInputRef.current?.click()}
+                text="Importar respuesta (.xlsx / .json)"
+              />
+              <input
+                ref={fileInputRef}
+                accept=".xlsx,.xls,.json"
+                aria-label="Seleccionar paquete AppDB"
+                style={{ display: 'none' }}
+                onChange={(event) => void handleImport(event)}
+                type="file"
+              />
+              {isSyncing && (
+                <Spinner label="Sincronizando..." size={SpinnerSize.small} />
+              )}
+              <p className={styles.syncHint}>
+                Límite máximo por archivo: 50 MB
+              </p>
+            </Stack>
+          </Stack>
+
+          <Stack className={styles.catalogCard} tokens={{ childrenGap: 18 }}>
         <Stack tokens={{ childrenGap: 4 }}>
           <Text variant="xLarge">Gestión de Catálogos Operativos</Text>
           <Text className={styles.description}>
@@ -1026,7 +1072,9 @@ const AdminConfiguration: React.FC = () => {
           }}
           title="¿Eliminar opción del catálogo?"
         />
-      </Stack>
+          </Stack>
+        </Stack>
+      )}
     </Stack>
   );
 };

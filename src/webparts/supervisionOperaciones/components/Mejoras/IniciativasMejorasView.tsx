@@ -17,6 +17,7 @@ import {
   improvementsRepository,
   type ISaveInitiativeInput
 } from '../../../../modules/improvements/improvementsRepository';
+import { uploadEvidenciaToSupabase } from '../../../../services/uploadFileToSupabase';
 import { EmptyState } from '../Common';
 import type {
   AcceptanceCriterionMode,
@@ -78,6 +79,13 @@ const formatCriterion = (criterion: IAcceptanceCriterion): string =>
     ? `Dado ${criterion.given || '[contexto]'}, cuando ${criterion.when || '[acción]'}, entonces ${criterion.then || '[resultado]'}.`
     : criterion.text || '[criterio pendiente]';
 
+const formatFileSize = (bytes?: number): string => {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
   currentUserEmail,
   currentUserName
@@ -116,6 +124,12 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
   const [criterios, setCriterios] = React.useState<IAcceptanceCriterion[]>([
     createAcceptanceCriterion('gherkin', 1)
   ]);
+  const [adjuntoFile, setAdjuntoFile] = React.useState<File | null>(null);
+  const [adjuntoUrl, setAdjuntoUrl] = React.useState<string>('');
+  const [adjuntoNombre, setAdjuntoNombre] = React.useState<string>('');
+  const [adjuntoTamano, setAdjuntoTamano] = React.useState<number>(0);
+  const [adjuntoPreview, setAdjuntoPreview] = React.useState<string>('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const loadInitiatives = React.useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -231,6 +245,42 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
     setBeneficio(item?.beneficio || '');
     setCriteriaMode(mode);
     setCriterios(loadedCriteria.map((criterion) => ({ ...criterion, mode })));
+    setAdjuntoFile(null);
+    setAdjuntoUrl(item?.adjunto_url || '');
+    setAdjuntoNombre(item?.adjunto_nombre || '');
+    setAdjuntoTamano(item?.adjunto_tamano || 0);
+    setAdjuntoPreview(item?.adjunto_url || '');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleFileSelected = (file: File | null): void => {
+    if (!file) return;
+    const MAX_MB = 15;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setMessage({
+        type: MessageBarType.error,
+        text: `El archivo seleccionado supera el límite de ${MAX_MB} MB.`
+      });
+      return;
+    }
+    setAdjuntoFile(file);
+    setAdjuntoNombre(file.name);
+    setAdjuntoTamano(file.size);
+    if (file.type.startsWith('image/')) {
+      const objectUrl = URL.createObjectURL(file);
+      setAdjuntoPreview(objectUrl);
+    } else {
+      setAdjuntoPreview('');
+    }
+  };
+
+  const handleRemoveAdjunto = (): void => {
+    setAdjuntoFile(null);
+    setAdjuntoUrl('');
+    setAdjuntoNombre('');
+    setAdjuntoTamano(0);
+    setAdjuntoPreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const openNew = (): void => {
@@ -311,6 +361,35 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
     setIsSaving(true);
     setMessage(undefined);
     try {
+      let finalUrl = adjuntoUrl;
+      let finalNombre = adjuntoNombre;
+      let finalTamano = adjuntoTamano;
+
+      if (adjuntoFile) {
+        try {
+          const uploaded = await uploadEvidenciaToSupabase(adjuntoFile, 'evidencias');
+          if (uploaded) {
+            finalUrl = uploaded;
+          } else {
+            finalUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string) || '');
+              reader.onerror = () => resolve('');
+              reader.readAsDataURL(adjuntoFile);
+            });
+          }
+        } catch {
+          finalUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string) || '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(adjuntoFile);
+          });
+        }
+        finalNombre = adjuntoFile.name;
+        finalTamano = adjuntoFile.size;
+      }
+
       const input: ISaveInitiativeInput = {
         id: editingItem?.id,
         autorNombre: editingItem?.autor_nombre || currentUserName || 'Colaborador',
@@ -325,7 +404,10 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
         beneficio,
         criterios,
         prioridad,
-        estadoCiclo: targetStatus
+        estadoCiclo: targetStatus,
+        adjuntoUrl: finalUrl || undefined,
+        adjuntoNombre: finalNombre || undefined,
+        adjuntoTamano: finalTamano || undefined
       };
 
       await improvementsRepository.save(input);
@@ -523,6 +605,23 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                           <span className="mt-1 block max-w-md truncate text-xs text-slate-500">
                             {item.descripcion}
                           </span>
+                          {item.adjunto_url && (
+                            <a
+                              href={item.adjunto_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Icon iconName="Attach" className="text-xs" />
+                              <span className="truncate max-w-[200px]">{item.adjunto_nombre || 'Ver adjunto'}</span>
+                              {item.adjunto_tamano ? (
+                                <span className="text-[10px] text-slate-400">
+                                  ({formatFileSize(item.adjunto_tamano)})
+                                </span>
+                              ) : null}
+                            </a>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-slate-300">
                           {item.modulo_clave || item.modulo_afectado}
@@ -840,6 +939,96 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
               ))}
             </article>
 
+            <article className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Icon iconName="Attach" className="text-base text-cyan-400" />
+                    <span>Archivos Adjuntos & Evidencias</span>
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Adjunta capturas de pantalla, flujos, especificaciones o documentos PDF de respaldo (máx. 15 MB).
+                  </p>
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  handleFileSelected(file);
+                }}
+              />
+
+              {adjuntoNombre || adjuntoUrl ? (
+                <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex-shrink-0">
+                        <Icon iconName={adjuntoNombre?.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Photo2'} className="text-lg" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-slate-200">
+                          {adjuntoNombre || 'Documento adjunto'}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          {adjuntoTamano ? formatFileSize(adjuntoTamano) : 'Archivo cargado'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {adjuntoUrl && (
+                        <a
+                          href={adjuntoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-cyan-400 hover:bg-slate-700 transition-colors"
+                        >
+                          Ver / Descargar
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleRemoveAdjunto}
+                        className="rounded-lg border border-rose-700/50 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/20 transition-colors"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                  {adjuntoPreview && (adjuntoNombre?.match(/\.(png|jpe?g|webp|gif)$/i) || adjuntoPreview.startsWith('data:image/')) && (
+                    <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50 max-h-56 p-2 flex justify-center">
+                      <img src={adjuntoPreview} alt="Vista previa del adjunto" className="object-contain max-h-52 rounded" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0] || null;
+                    handleFileSelected(file);
+                  }}
+                  className="border-2 border-dashed border-slate-800 hover:border-cyan-500/50 bg-slate-950/60 hover:bg-slate-950 rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+                >
+                  <div className="p-3 rounded-full bg-slate-900 border border-slate-800 text-slate-400 group-hover:text-cyan-400 group-hover:border-cyan-500/30 transition-colors">
+                    <Icon iconName="CloudUpload" className="text-xl" />
+                  </div>
+                  <strong className="text-sm text-slate-200 group-hover:text-white transition-colors">
+                    Arrastra tu archivo aquí o haz clic para seleccionarlo
+                  </strong>
+                  <span className="text-xs text-slate-500">
+                    Formatos soportados: PNG, JPG, WEBP, PDF (hasta 15 MB)
+                  </span>
+                </div>
+              )}
+            </article>
+
             <footer className="flex flex-col-reverse gap-3 sm:flex-row">
               <button
                 className="rounded-xl border border-slate-700 bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-300 transition-all hover:bg-slate-700"
@@ -932,6 +1121,35 @@ export const IniciativasMejorasView: React.FC<IIniciativasMejorasViewProps> = ({
                 ))}
               </ul>
             </section>
+
+            {(adjuntoUrl || adjuntoPreview) && (
+              <section className="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Icon iconName="Attach" className="text-xs text-cyan-400" />
+                  <span>Adjunto de Respaldo</span>
+                </h3>
+                {adjuntoPreview && (adjuntoNombre?.match(/\.(png|jpe?g|webp|gif)$/i) || adjuntoPreview.startsWith('data:image/')) && (
+                  <div className="mb-2 overflow-hidden rounded-lg border border-slate-800 bg-slate-900 max-h-48 p-1 flex justify-center">
+                    <img src={adjuntoPreview} alt={adjuntoNombre || 'Evidencia'} className="object-contain max-h-44 rounded" />
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-slate-200 font-medium">{adjuntoNombre || 'Archivo adjunto'}</span>
+                  {adjuntoTamano ? <span className="text-[11px] text-slate-500">{formatFileSize(adjuntoTamano)}</span> : null}
+                </div>
+                {adjuntoUrl && (adjuntoUrl.startsWith('http') || adjuntoUrl.startsWith('blob:') || adjuntoUrl.startsWith('data:')) && (
+                  <a
+                    href={adjuntoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+                  >
+                    <span>Abrir / Descargar</span>
+                    <Icon iconName="OpenInNewWindow" className="text-[10px]" />
+                  </a>
+                )}
+              </section>
+            )}
 
             <div className="border-t border-slate-800 pt-4 text-xs text-slate-500">
               Propietario: <span className="text-slate-300">{currentUserName}</span>

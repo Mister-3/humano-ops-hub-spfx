@@ -244,6 +244,36 @@ export const AprobacionMejorasQueue: React.FC<IAprobacionMejorasQueueProps> = ({
                 </p>
               </div>
 
+              {/* Archivo Adjunto de Respaldo */}
+              {item.adjunto_url && (
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon iconName="Attach" className="text-cyan-400 text-sm flex-shrink-0" />
+                    <div className="min-w-0">
+                      <span className="block font-semibold text-slate-200 truncate">
+                        {item.adjunto_nombre || 'Evidencia de respaldo adjunta'}
+                      </span>
+                      {item.adjunto_tamano ? (
+                        <span className="block text-[11px] text-slate-400">
+                          {item.adjunto_tamano < 1024 * 1024
+                            ? `${(item.adjunto_tamano / 1024).toFixed(1)} KB`
+                            : `${(item.adjunto_tamano / (1024 * 1024)).toFixed(1)} MB`}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <a
+                    href={item.adjunto_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-cyan-700/50 bg-cyan-500/10 px-3 py-1.5 font-medium text-cyan-300 hover:bg-cyan-500/20 transition-colors flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    <span>Ver / Descargar</span>
+                    <Icon iconName="OpenInNewWindow" className="text-[10px]" />
+                  </a>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-2">
                 <button
