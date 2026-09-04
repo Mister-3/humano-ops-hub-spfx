@@ -412,7 +412,17 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   const escalatedGroups = datosFiltradosPorPestaña.filter((group) => group.escalado);
   const reconciliations = datosFiltradosPorPestaña.filter((group) => group.reconciliationRequired);
   const dataErrors = datosFiltradosPorPestaña.filter((group) => group.hasDataError);
-  const rawExcluded = activeRows.filter((row) => row.sla.severity === 'gris');
+  const officeAutomaticCount = datosFiltradosPorPestaña.filter(
+    (group) => normalizeEndToEndText(group.canal) === 'oficina virtual' &&
+      normalizeEndToEndText(group.modalidad) === 'automatica' &&
+      !group.completed
+  ).length;
+  const rawExcluded = activeRows.filter((row) => {
+    if (row.sla.severity !== 'gris') return false;
+    if (activeTab === 'general') return true;
+    if (activeTab === 'emisiones') return row.flow === 'emision';
+    return row.flow !== 'emision';
+  });
 
   return (
     <section className={styles.root} aria-label="Análisis End-to-End y custodia de radicaciones">
@@ -547,12 +557,12 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
 
           <section className={styles.kpiGrid}>
             {[
-              ['Radicaciones gestionables', operationalGroups.length, () => setFilters({ ...EMPTY_END_TO_END_FILTERS })],
-              ['Páginas pendientes', operationalGroups.filter((group) => !group.completed).reduce((sum, group) => sum + group.pages, 0), () => setFilters({ ...EMPTY_END_TO_END_FILTERS })],
-              ['SLA vencidas', operationalGroups.filter((group) => group.severity === 'rojo').length, () => selectDecisionFilter({ severity: 'rojo' })],
-              ['Críticas', operationalGroups.filter(isCriticalEndToEndGroup).length, () => selectDecisionFilter({ severity: 'critica' })],
+              ['Radicaciones gestionables', datosFiltradosPorPestaña.length, () => setFilters({ ...EMPTY_END_TO_END_FILTERS })],
+              ['Páginas pendientes', datosFiltradosPorPestaña.filter((group) => !group.completed).reduce((sum, group) => sum + group.pages, 0), () => setFilters({ ...EMPTY_END_TO_END_FILTERS })],
+              ['SLA vencidas', datosFiltradosPorPestaña.filter((group) => group.severity === 'rojo').length, () => selectDecisionFilter({ severity: 'rojo' })],
+              ['Críticas', datosFiltradosPorPestaña.filter(isCriticalEndToEndGroup).length, () => selectDecisionFilter({ severity: 'critica' })],
               ['Escaladas', escalatedGroups.length, () => selectDecisionFilter({ escalated: 'true' })],
-              ['Reincidentes hoy', operationalGroups.filter((group) => group.reincidenteHoy).length, () => selectDecisionFilter({ recurrent: 'true' })],
+              ['Reincidentes hoy', datosFiltradosPorPestaña.filter((group) => group.reincidenteHoy).length, () => selectDecisionFilter({ recurrent: 'true' })],
               ['Errores / advertencias', dataErrors.length + (parsedReport?.summary.issues.length || 0), () => selectDecisionFilter({ dataError: 'true' })],
               ['Volumen bruto excluido', rawExcluded.length, () => setMessage(`${rawExcluded.length} filas permanecen informadas fuera de gestión SLA.`)]
             ].map(([label, value, action]) => <button type="button" key={String(label)} className={styles.kpiCard} onClick={action as () => void}><span>{label}</span><strong className="tabular-nums font-mono">{value as number}</strong></button>)}
@@ -577,7 +587,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
             <button type="button" onClick={() => selectDecisionFilter({ escalated: 'true' })}><span>Escaladas</span><strong className="tabular-nums font-mono">{escalatedGroups.length}</strong><small>Notificar supervisores y encargados</small></button>
             <button type="button" onClick={() => selectDecisionFilter({ priority: 'reconciliation' })}><span>Conciliaciones</span><strong className="tabular-nums font-mono">{reconciliations.length}</strong><small>Fechas finales vs. estado operativo</small></button>
             <button type="button" onClick={() => selectDecisionFilter({ dataError: 'true' })}><span>Calidad de datos</span><strong className="tabular-nums font-mono">{dataErrors.length}</strong><small>Requiere corrección en la fuente</small></button>
-            {activeTab === 'movimientos' && <button type="button" onClick={() => selectDecisionFilter({ priority: 'officeAutomatic' }, 'movimientos')}><span>Oficina Virtual automática</span><strong className="tabular-nums font-mono">{operationalGroups.filter((group) => normalizeEndToEndText(group.canal) === 'oficina virtual' && normalizeEndToEndText(group.modalidad) === 'automatica' && !group.completed).length}</strong><small>Cola prioritaria mientras esté incompleta</small></button>}
+            <button type="button" onClick={() => selectDecisionFilter({ priority: 'officeAutomatic' })}><span>Oficina Virtual automática</span><strong className="tabular-nums font-mono">{officeAutomaticCount}</strong><small>Cola prioritaria mientras esté incompleta</small></button>
           </section>
 
           <div className={styles.tabs} role="tablist" aria-label="Flujos End-to-End">

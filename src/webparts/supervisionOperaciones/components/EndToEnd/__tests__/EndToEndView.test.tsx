@@ -284,4 +284,74 @@ describe('EndToEndView - Pestaña Vista General y Segmentación Reactiva', () =>
     distroCard = getChartCard('Escaladas · Estado Distro');
     expect(distroCard.textContent).toContain('1Revisadas');
   });
+
+  it('sincroniza reactivamente las 8 tarjetas KPI superiores y los indicadores de decisiones con la pestaña activa', async () => {
+    const { container } = await renderAndWait();
+
+    const getKpiValue = (label: string): string => {
+      const buttons = Array.from(container.querySelectorAll('button'));
+      const btn = buttons.find((b) => b.querySelector('span')?.textContent === label);
+      expect(btn).toBeDefined();
+      return btn?.querySelector('strong')?.textContent || '';
+    };
+
+    const tabs = container.querySelectorAll('[role="tab"]');
+    const generalTab = tabs[0] as HTMLButtonElement;
+    const emisionesTab = tabs[1] as HTMLButtonElement;
+    const movimientosTab = tabs[2] as HTMLButtonElement;
+
+    // 1. En Vista General (ambas radicaciones: 10 + 20 = 30 páginas, 1 escalada en RAD-MOV-200)
+    expect(getKpiValue('Radicaciones gestionables')).toBe('2');
+    expect(getKpiValue('Páginas pendientes')).toBe('30');
+    expect(getKpiValue('SLA vencidas')).toBe('0');
+    expect(getKpiValue('Críticas')).toBe('0');
+    expect(getKpiValue('Escaladas')).toBe('1');
+    expect(getKpiValue('Reincidentes hoy')).toBe('0');
+    expect(getKpiValue('Errores / advertencias')).toBe('0');
+    expect(getKpiValue('Volumen bruto excluido')).toBe('0');
+
+    // Indicadores inferiores en Vista General
+    expect(getKpiValue('Próximas a vencer')).toBe('2');
+    expect(getKpiValue('Conciliaciones')).toBe('0');
+    expect(getKpiValue('Calidad de datos')).toBe('0');
+    expect(getKpiValue('Oficina Virtual automática')).toBe('1');
+
+    // 2. Cambiar a pestaña "Emisiones" (RAD-EMI-100: 10 páginas, SLA amarillo)
+    act(() => {
+      emisionesTab.click();
+    });
+
+    expect(getKpiValue('Radicaciones gestionables')).toBe('1');
+    expect(getKpiValue('Páginas pendientes')).toBe('10');
+    expect(getKpiValue('SLA vencidas')).toBe('0');
+    expect(getKpiValue('Críticas')).toBe('0');
+    expect(getKpiValue('Escaladas')).toBe('0');
+    expect(getKpiValue('Próximas a vencer')).toBe('1');
+    expect(getKpiValue('Oficina Virtual automática')).toBe('0');
+
+    // 3. Cambiar a pestaña "Movimientos y Cancelaciones" (RAD-MOV-200: 20 páginas, escalada)
+    act(() => {
+      movimientosTab.click();
+    });
+
+    expect(getKpiValue('Radicaciones gestionables')).toBe('1');
+    expect(getKpiValue('Páginas pendientes')).toBe('20');
+    expect(getKpiValue('SLA vencidas')).toBe('0');
+    expect(getKpiValue('Críticas')).toBe('0');
+    expect(getKpiValue('Escaladas')).toBe('1');
+    expect(getKpiValue('Próximas a vencer')).toBe('1');
+    expect(getKpiValue('Oficina Virtual automática')).toBe('1');
+
+    // 4. Regresar a "Vista General" restaurando totales consolidados
+    act(() => {
+      generalTab.click();
+    });
+
+    expect(getKpiValue('Radicaciones gestionables')).toBe('2');
+    expect(getKpiValue('Páginas pendientes')).toBe('30');
+    expect(getKpiValue('SLA vencidas')).toBe('0');
+    expect(getKpiValue('Escaladas')).toBe('1');
+    expect(getKpiValue('Próximas a vencer')).toBe('2');
+    expect(getKpiValue('Oficina Virtual automática')).toBe('1');
+  });
 });
