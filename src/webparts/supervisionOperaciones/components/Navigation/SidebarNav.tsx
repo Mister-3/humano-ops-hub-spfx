@@ -202,7 +202,7 @@ export const SidebarNav: React.FC<ISidebarNavProps> = ({
       </nav>
 
       <div className={styles.sidebarFooter} aria-hidden="true">
-        <span className={styles.versionMark}>MANAGER HUB · V2.5.2</span>
+        <span className={styles.versionMark}>MANAGER HUB · V2.5.3</span>
       </div>
     </aside>
   );

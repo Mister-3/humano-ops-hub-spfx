@@ -1,6 +1,6 @@
 # Project Context and Technical Architecture: Manager Hub
 
-Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Manager Hub (v2.5.2)**.
+Este documento constituye la fuente oficial y exhaustiva de arquitectura técnica, mapa de módulos, catálogo de primitivas de diseño, especificación de base de datos y estrategias de resiliencia del portal de operaciones **Manager Hub (v2.5.3)**.
 
 ---
 
@@ -16,6 +16,7 @@ Este documento constituye la fuente oficial y exhaustiva de arquitectura técnic
 - Gestión ágil de iniciativas y mejoras continuas estructuradas en Historias de Usuario (*Como / Quiero / Para*) con Live Preview y exportación multiformato para Azure DevOps / Jira.
 - Módulo operativo End-to-End con aislamiento de snapshots por analista, conciliación de SLA, selector de densidad y resolución de conflictos.
 - Suite global de aceleradores: Command Palette (`Cmd+K`), Sistema de Toasts flotantes y selector de densidad de datos.
+- Enrutamiento sincronizado basado en hash (`#/<modulo>`) con persistencia total en recargas (F5), deep linking y sincronización con el historial del navegador.
 - Administración y gobierno de identidades mediante una matriz RBAC nativa de 5 roles base y soporte para roles personalizados.
 
 ### 1.2 Stack Tecnológico

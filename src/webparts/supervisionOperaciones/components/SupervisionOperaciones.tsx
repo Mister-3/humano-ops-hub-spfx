@@ -32,7 +32,8 @@ import UserAdminPanel from './Admin/UserAdminPanel';
 import AusenciasForm from './Ausencias/AusenciasForm';
 import PlanificacionSemanal from './Ausencias/PlanificacionSemanal';
 import { HumanoOpsLogo } from './Brand/HumanoOpsLogo';
-import { CommandPalette, ToastProvider } from './Common';
+import { CommandPalette, ToastProvider, useToast } from './Common';
+import { getViewFromHash, updateHashForView } from '../utils/routeUtils';
 import { Search } from 'lucide-react';
 import Dashboard from './Dashboard/Dashboard';
 import { ErrorBoundary } from './ErrorBoundary/ErrorBoundary';
@@ -161,10 +162,11 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
     hasPermission,
     loading: isRBACLoading
   } = useRBAC();
+  const { showToast } = useToast();
   const [usuario, setUsuario] = React.useState<IUsuario | null>(currentUser);
   const [isLoading] = React.useState<boolean>(false);
   const [errorMessage] = React.useState<string | null>(null);
-  const [activeModule, setActiveModule] = React.useState<AppModuleKey>('dashboard');
+  const [activeModule, setActiveModule] = React.useState<AppModuleKey>(() => getViewFromHash());
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState<boolean>(false);
   const [visibleAgents, setVisibleAgents] = React.useState<IDirectReport[]>([]);
 
@@ -209,11 +211,52 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
     defaultSidebarItems.filter((item) => canAccessModule(item.key)), [canAccessModule]);
 
   React.useEffect(() => {
-    if (!isRBACLoading && usuario && !canAccessModule(activeModule)) {
-      const firstAllowedModule = navigationItems[0]?.key;
-      if (firstAllowedModule) setActiveModule(firstAllowedModule);
+    if (!isRBACLoading && usuario) {
+      if (!canAccessModule(activeModule)) {
+        showToast({
+          title: 'Acceso no autorizado',
+          message: 'No posees permisos para acceder al módulo solicitado. Redirigiendo a Dashboard.',
+          variant: 'warning'
+        });
+        const fallback = canAccessModule('dashboard')
+          ? 'dashboard'
+          : (navigationItems[0]?.key || 'dashboard');
+        setActiveModule(fallback);
+        updateHashForView(fallback);
+      } else {
+        updateHashForView(activeModule);
+      }
     }
-  }, [activeModule, canAccessModule, isRBACLoading, navigationItems, usuario]);
+  }, [activeModule, canAccessModule, isRBACLoading, navigationItems, showToast, usuario]);
+
+  React.useEffect(() => {
+    const handleHashChange = (): void => {
+      const targetView = getViewFromHash();
+      if (targetView === activeModule) {
+        return;
+      }
+
+      if (!isRBACLoading && usuario && !canAccessModule(targetView)) {
+        showToast({
+          title: 'Acceso no autorizado',
+          message: 'No posees permisos para acceder al módulo solicitado. Redirigiendo a Dashboard.',
+          variant: 'warning'
+        });
+        const fallback = canAccessModule('dashboard')
+          ? 'dashboard'
+          : (navigationItems[0]?.key || 'dashboard');
+        updateHashForView(fallback);
+        setActiveModule(fallback);
+        return;
+      }
+
+      shouldFocusModuleHeadingRef.current = true;
+      setActiveModule(targetView);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeModule, canAccessModule, isRBACLoading, navigationItems, showToast, usuario]);
 
   React.useEffect(() => {
     if (!usuario) {
@@ -324,13 +367,24 @@ const SupervisionOperacionesContent: React.FC<ISupervisionOperacionesProps> = ({
   }, [activeModule]);
 
   const handleModuleChange = (moduleKey: AppModuleKey): void => {
+    if (!canAccessModule(moduleKey)) {
+      showToast({
+        title: 'Acceso no autorizado',
+        message: 'No posees permisos para acceder a este módulo.',
+        variant: 'warning'
+      });
+      return;
+    }
+
     if (moduleKey === activeModule) {
       moduleHeadingRef.current?.focus();
+      updateHashForView(moduleKey);
       return;
     }
 
     shouldFocusModuleHeadingRef.current = true;
     setActiveModule(moduleKey);
+    updateHashForView(moduleKey);
   };
 
   const renderActiveModule = (currentUser: IUsuario): React.ReactElement => {

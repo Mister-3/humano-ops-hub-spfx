@@ -43,7 +43,7 @@ export interface IRelease {
 export const APP_INFO: IAppInfo = {
   name: 'Manager Hub',
   tagline: 'Plataforma Corporativa de Gestión Operativa, Rendimiento y Cultura',
-  version: 'v2.5.2',
+  version: 'v2.5.3',
   environment: 'Producción / Cloud & Local-First',
   architecture: 'React 17 + TypeScript + Tailwind CSS Dark Modern + Supabase PostgreSQL (RLS & RPCs) + IndexedDB v3',
   supportContact: 'soporte.operaciones@humano.com.do',
@@ -195,9 +195,34 @@ export const MODULES_INFO: IModuleInfo[] = [
 
 export const RELEASES_DATA: IRelease[] = [
   {
+    version: 'v2.5.3',
+    date: '4 de Septiembre, 2026',
+    isCurrent: true,
+    codename: 'Deep Linking & URL Routing',
+    summary: 'Enrutamiento sincronizado con la URL basado en hash (#/<modulo>), soporte completo para recargas (F5), deep linking con parámetros de desarrollo y navegación nativa con historial del navegador.',
+    changes: [
+      {
+        type: 'feature',
+        description: 'Enrutamiento basado en hash (#/<modulo>) para cada una de las 11 vistas operativas sin causar errores 404 ni requerir reescrituras de servidor.'
+      },
+      {
+        type: 'feature',
+        description: 'Persistencia resiliente ante F5 y soporte nativo para flechas Atrás/Adelante del navegador mediante listeners reactivos de hashchange.'
+      },
+      {
+        type: 'feature',
+        description: 'Compatibilidad plena con query parameters de desarrollo y auditoría (ej: ?mockRole=admin#/ayuda) sin colisiones de estado.'
+      },
+      {
+        type: 'feature',
+        description: 'Protección y gobierno RBAC en URLs: redirección automática a Dashboard y notificación toast de advertencia ante accesos no autorizados por URL.'
+      }
+    ]
+  },
+  {
     version: 'v2.5.2',
     date: '22 de Agosto, 2026',
-    isCurrent: true,
+    isCurrent: false,
     codename: 'Kudos Limits & Recognition Matrix',
     summary: 'Incorporación del control dinámico de límite mensual de reconocimientos por atributo en Administración, validación reactiva en tiempo real en el formulario de Kudos y modal interactivo de la Matriz de Criterios y Conductas.',
     changes: [

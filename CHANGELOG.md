@@ -3,6 +3,20 @@
 Todos los cambios notables en **Manager Hub** se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.3] - 2026-09-04
+
+### Resumen de la Versión
+Lanzamiento enfocado en **Persistencia de Navegación, Deep Linking & Hash Routing**, garantizando la conservación de la vista activa tras recargas (F5), enlaces directos compartibles e integración nativa con el historial del navegador.
+
+### Hitos Principales de la Versión:
+- **Enrutamiento Sincronizado por Hash (`routeUtils.ts`)**: Mapeo bidireccional entre las 11 vistas operativas de la plataforma y slugs canónicos de URL (`#/<modulo>`), sin colisiones con query parameters (`?mockRole=admin#/ayuda`).
+- **Persistencia Resiliente ante Recargas (F5)**: Inicialización reactiva de la vista activa a partir del hash de la URL al montar la aplicación en `SupervisionOperaciones.tsx`.
+- **Navegación Nativa del Navegador**: Listener global del evento `hashchange` para sincronizar el estado ante clics en los botones Atrás / Adelante del historial.
+- **Protección RBAC en Rutas Directas**: Verificación estricta de permisos ante ingresos manuales por hash, con redirección automática a Dashboard y notificación toast de advertencia.
+- **Suite de Pruebas Automatizadas**: 14 pruebas unitarias en `routeUtils.test.tsx` validando análisis de hash, limpieza de parámetros y tolerancia a fallos.
+
+---
+
 ## [v2.5.2] - 2026-08-22
 
 ### Resumen de la Versión

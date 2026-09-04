@@ -25,3 +25,16 @@ export type {
   ProductivityMetricKey,
   ProductivityProcess
 } from './productivityCalculator';
+export {
+  DEFAULT_VIEW,
+  MODULE_TO_SLUG,
+  SLUG_TO_MODULE,
+  getHashForView,
+  getSlugFromView,
+  getViewFromHash,
+  getViewFromSlug,
+  parseHash,
+  updateHashForView,
+  type ViewKey
+} from './routeUtils';
+

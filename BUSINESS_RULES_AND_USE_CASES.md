@@ -1,6 +1,6 @@
 # Business Rules and Functional Specification: Manager Hub (Cerebro Maestro)
 
-Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Manager Hub (v2.5.2)**.
+Este documento constituye la especificación funcional completa, exhaustiva y fuente única de verdad sobre las reglas de negocio, flujos operativos, políticas de dominio y catálogo de roles/permisos implementados en la plataforma **Manager Hub (v2.5.3)**.
 
 ---
 
@@ -359,4 +359,33 @@ graph TD
   * **Advertencia (`warning`)**: Borde y barra ámbar (`#fbbf24`), ícono de precaución.
   * **Información (`info`)**: Borde y barra cian (`#22d3ee`), ícono de información.
 - **Descarte**: Desaparición automática tras 4 segundos con animación de salida suave o cierre inmediato al pulsar el botón `X`.
+
+---
+
+## 12. Enrutamiento Sincronizado por Hash (Hash-Based URL Routing) & Deep Linking (v2.5.3)
+
+### 12.1 Arquitectura de Enrutamiento Hash (`#/<modulo>`)
+- **Objetivo**: Garantizar enlaces únicos, legibles y compartibles para cada uno de los módulos de la plataforma, asegurando 100% de persistencia en recargas del navegador (`F5`), historial nativo Atrás / Adelante y compatibilidad absoluta en entornos de despliegue estático o SPA (Vite, Vercel, SharePoint) sin riesgo de errores HTTP 404 ni requerir reglas complejas de reescritura en servidor.
+- **Catálogo de Slugs de Navegación**:
+  * `dashboard` <-> `#/dashboard`
+  * `endToEnd` <-> `#/end-to-end` (alias: `#/endtoend`)
+  * `faltas` <-> `#/faltas` (alias: `#/registro-operativo`, `#/ausencias`)
+  * `kudos` <-> `#/kudos` (alias: `#/reconocimientos`)
+  * `productividad` <-> `#/productividad`
+  * `Ocupacion` <-> `#/ocupacion`
+  * `mejoras` / `iniciativas` <-> `#/iniciativas` (alias: `#/mejoras`, `#/oportunidades`, `#/solicitudes-mejora`)
+  * `Evaluacion` <-> `#/evaluacion`
+  * `admin` <-> `#/admin` (alias: `#/configuracion`)
+  * `userAdmin` <-> `#/user-admin` (alias: `#/useradmin`, `#/usuarios`)
+  * `ayuda` <-> `#/ayuda`
+
+### 12.2 Convivencia con Parámetros de Consulta (Query Params)
+- La lectura y actualización del hash (`routeUtils.ts`) opera aislando exclusivamente el fragmento `#`, permitiendo la coexistencia limpia y sin colisiones con query parameters corporativos o de desarrollo (por ejemplo: `?mockRole=admin#/ayuda` o `?debug=true#/iniciativas`).
+
+### 12.3 Gobierno y Protección RBAC en Navegación Directa por URL
+- **Regla de Redirección Preventiva**: Si un usuario autenticado intenta acceder directamente por URL hash a un módulo para el cual su rol no posee permiso activo (por ejemplo, un `Agente` accediendo a `#/admin` o `#/user-admin`):
+  1. El sistema intercepta reactivamente la navegación en `SupervisionOperaciones.tsx`.
+  2. Redirige automáticamente el estado y la URL a la vista predeterminada autorizada (`#/dashboard`).
+  3. Emite una notificación flotante de advertencia (`showToast`) informando: *"No posees permisos para acceder al módulo solicitado. Redirigiendo a Dashboard."*
+
 
