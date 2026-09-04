@@ -38,6 +38,8 @@ import { DataDensityToggle, EmptyState, useDataDensity } from '../Common';
 import CopyColumnsPortal from './CopyColumnsPortal';
 import styles from './EndToEndView.module.scss';
 
+export type EndToEndTab = 'general' | 'emisiones' | 'movimientos';
+
 interface IEndToEndViewProps {
   currentUserEmail: string;
   currentUserName: string;
@@ -89,7 +91,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   const [csvGeneration, setCsvGeneration] = React.useState('');
   const [csvConfirmed, setCsvConfirmed] = React.useState(false);
   const [exclusions, setExclusions] = React.useState<Map<number, string>>(new Map());
-  const [activeTab, setActiveTab] = React.useState<'emisiones' | 'movimientos'>('emisiones');
+  const [activeTab, setActiveTab] = React.useState<EndToEndTab>('general');
   const [filters, setFilters] = React.useState<IEndToEndFilters>({ ...EMPTY_END_TO_END_FILTERS });
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -146,7 +148,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
     setMessage('');
     setError('');
     setWorkspaceError('');
-    setActiveTab('emisiones');
+    setActiveTab('general');
     setCalendarOpen(false);
     loadWorkspace().catch(() => undefined);
     return () => {
@@ -180,9 +182,12 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
   ), [activeRows, reported, workspace]);
 
   const operationalGroups = React.useMemo(() => allGroups.filter(isOperationalGroup), [allGroups]);
-  const tabGroups = React.useMemo(() => operationalGroups.filter((group) =>
-    activeTab === 'emisiones' ? group.flow === 'emision' : group.flow !== 'emision'
-  ), [activeTab, operationalGroups]);
+  const datosFiltradosPorPestaña = React.useMemo(() => {
+    if (activeTab === 'general') return operationalGroups;
+    if (activeTab === 'emisiones') return operationalGroups.filter((group) => group.flow === 'emision');
+    return operationalGroups.filter((group) => group.flow !== 'emision');
+  }, [activeTab, operationalGroups]);
+  const tabGroups = datosFiltradosPorPestaña;
   const filteredGroups = React.useMemo(() => {
     return applyEndToEndFilters(tabGroups, filters);
   }, [filters, tabGroups]);
@@ -274,6 +279,7 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           : 'Se registró un conflicto de versión para resolución.');
       setParsedReport(undefined);
       setSelectedFile(undefined);
+      setActiveTab('general');
       await loadWorkspace();
     } catch (saveError: unknown) {
       setError(saveError instanceof Error ? saveError.message : 'No se pudo activar la fotografía.');
@@ -383,29 +389,29 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
     .map((severity) => ({
       severity,
       count: severity === 'naranja'
-        ? operationalGroups.filter(isCriticalEndToEndGroup).length
-        : operationalGroups.filter((group) => group.severity === severity).length
+        ? datosFiltradosPorPestaña.filter(isCriticalEndToEndGroup).length
+        : datosFiltradosPorPestaña.filter((group) => group.severity === severity).length
     }));
   const maximumDistribution = Math.max(1, ...distribution.map((item) => item.count));
-  const stageLoads = Array.from(new Set(operationalGroups.map((group) => group.stage))).map((stage) => ({
+  const stageLoads = Array.from(new Set(datosFiltradosPorPestaña.map((group) => group.stage))).map((stage) => ({
     stage,
-    value: operationalGroups.filter((group) => group.stage === stage).reduce(
+    value: datosFiltradosPorPestaña.filter((group) => group.stage === stage).reduce(
       (sum, group) => sum + (loadUnit === 'paginas' ? group.pages : 1), 0
     )
   }));
   const maxStageLoad = Math.max(1, ...stageLoads.map((item) => item.value));
-  const channelLoads = uniqueValues(operationalGroups, (group) => group.canal).map((channel) => ({
+  const channelLoads = uniqueValues(datosFiltradosPorPestaña, (group) => group.canal).map((channel) => ({
     channel,
-    pages: operationalGroups.filter((group) => group.canal === channel && !group.completed)
+    pages: datosFiltradosPorPestaña.filter((group) => group.canal === channel && !group.completed)
       .reduce((sum, group) => sum + group.pages, 0)
   })).sort((left, right) => right.pages - left.pages).slice(0, 8);
   const maxChannelPages = Math.max(1, ...channelLoads.map((item) => item.pages));
-  const soonToExpire = operationalGroups
+  const soonToExpire = datosFiltradosPorPestaña
     .filter((group) => !group.completed && (group.remainingMinutes ?? -1) >= 0)
     .sort((a, b) => (a.remainingMinutes || 0) - (b.remainingMinutes || 0)).slice(0, 10);
-  const escalatedGroups = operationalGroups.filter((group) => group.escalado);
-  const reconciliations = operationalGroups.filter((group) => group.reconciliationRequired);
-  const dataErrors = operationalGroups.filter((group) => group.hasDataError);
+  const escalatedGroups = datosFiltradosPorPestaña.filter((group) => group.escalado);
+  const reconciliations = datosFiltradosPorPestaña.filter((group) => group.reconciliationRequired);
+  const dataErrors = datosFiltradosPorPestaña.filter((group) => group.hasDataError);
   const rawExcluded = activeRows.filter((row) => row.sla.severity === 'gris');
 
   return (
@@ -575,15 +581,42 @@ const EndToEndView: React.FC<IEndToEndViewProps> = ({
           </section>
 
           <div className={styles.tabs} role="tablist" aria-label="Flujos End-to-End">
-            <button type="button" role="tab" aria-selected={activeTab === 'emisiones'} className={activeTab === 'emisiones' ? styles.activeTab : ''} onClick={() => { setActiveTab('emisiones'); setFilters({ ...EMPTY_END_TO_END_FILTERS }); setSelected(new Set()); }}>Emisiones</button>
-            <button type="button" role="tab" aria-selected={activeTab === 'movimientos'} className={activeTab === 'movimientos' ? styles.activeTab : ''} onClick={() => { setActiveTab('movimientos'); setFilters({ ...EMPTY_END_TO_END_FILTERS }); setSelected(new Set()); }}>Movimientos y Cancelaciones</button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'general'}
+              className={activeTab === 'general' ? styles.activeTab : ''}
+              onClick={() => { setActiveTab('general'); setFilters({ ...EMPTY_END_TO_END_FILTERS }); setSelected(new Set()); }}
+            >
+              Vista General
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'emisiones'}
+              className={activeTab === 'emisiones' ? styles.activeTab : ''}
+              onClick={() => { setActiveTab('emisiones'); setFilters({ ...EMPTY_END_TO_END_FILTERS }); setSelected(new Set()); }}
+            >
+              Emisiones
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'movimientos'}
+              className={activeTab === 'movimientos' ? styles.activeTab : ''}
+              onClick={() => { setActiveTab('movimientos'); setFilters({ ...EMPTY_END_TO_END_FILTERS }); setSelected(new Set()); }}
+            >
+              Movimientos y Cancelaciones
+            </button>
           </div>
 
           <section className={styles.flowIndicators}>
             {activeTab === 'emisiones' ? (
               <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Escaladas revisadas', tabGroups.filter((group) => group.escalado && normalizeEndToEndText(group.estadoDistro).includes('revisado') && !normalizeEndToEndText(group.estadoDistro).includes('no revisado')).length], ['Escaladas no revisadas', tabGroups.filter((group) => group.escalado && (normalizeEndToEndText(group.estadoDistro).includes('no revisado') || normalizeEndToEndText(group.estadoDistro) === 'n a')).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong className="tabular-nums font-mono">{value}</strong></div>)}</>
-            ) : (
+            ) : activeTab === 'movimientos' ? (
               <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Cancelaciones sin escaneo', tabGroups.filter((group) => group.flow === 'cancelacion' && group.stage === 'Pendiente de escaneo').length], ['Escaladas', tabGroups.filter((group) => group.escalado).length], ['Oficina Virtual automática', tabGroups.filter((group) => normalizeEndToEndText(group.canal) === 'oficina virtual' && normalizeEndToEndText(group.modalidad) === 'automatica' && !group.completed).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong className="tabular-nums font-mono">{value}</strong></div>)}</>
+            ) : (
+              <>{[['Radicaciones', tabGroups.length], ['Páginas', tabGroups.reduce((sum, group) => sum + group.pages, 0)], ['Pend. escaneo', tabGroups.filter((group) => group.stage === 'Pendiente de escaneo').length], ['Pend. digitación', tabGroups.filter((group) => group.stage === 'Pendiente de digitación/aprobación').length], ['Pend. sincronización', tabGroups.filter((group) => group.stage === 'Pendiente de sincronización').length], ['Escaladas', tabGroups.filter((group) => group.escalado).length], ['Completadas', tabGroups.filter((group) => group.completed).length]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong className="tabular-nums font-mono">{value}</strong></div>)}</>
             )}
           </section>
 

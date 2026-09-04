@@ -523,7 +523,7 @@
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   padding: 5px;
   background: rgba(2, 6, 23, 0.78);
   border: 1px solid #1e293b;
